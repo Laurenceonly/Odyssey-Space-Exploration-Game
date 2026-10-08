@@ -12,6 +12,9 @@ button:focus-visible{outline:2px solid #e5e5e5;outline-offset:4px}
 .intro-overlay{position:absolute;inset:0;z-index:30;display:flex;align-items:center;padding:8vw;background:linear-gradient(90deg,rgba(2,2,2,.94) 0%,rgba(3,3,3,.72) 29%,rgba(2,2,2,.1) 72%,transparent 100%);transition:opacity .8s ease-out}
 .intro-overlay.leaving{opacity:0;pointer-events:none}
 .intro-overlay[hidden]{display:none}
+.scene-curtain{position:absolute;inset:0;z-index:50;background:#000;opacity:0;pointer-events:none;transition:opacity .25s cubic-bezier(.23,1,.32,1)}
+.scene-curtain.covered{opacity:1;pointer-events:auto}
+@media(prefers-reduced-motion:reduce){.scene-curtain{transition-duration:.08s}}
 .intro-copy{position:relative;max-width:750px;color:#f7f7f7}
 .intro-copy h1{margin:0 0 28px;font:600 clamp(64px,8vw,112px)/1 'Oxanium',sans-serif;letter-spacing:.045em;text-transform:uppercase;text-shadow:0 12px 36px rgba(0,0,0,.8)}
 .intro-quote{max-width:475px;margin:0 0 38px;padding:0;border:0}
@@ -23,6 +26,7 @@ button:focus-visible{outline:2px solid #e5e5e5;outline-offset:4px}
 @media(hover:hover) and (pointer:fine){.intro-play:hover{background:#ffffff;transform:translateY(-2px)}}
 #app>.topbar,#app>.panel,#app>.crosshair,#app>.object-label,#app>.telemetry,#app>.flight-hud,#app>.bottom-bar{transition:opacity .65s ease-out}
 #app.intro-mode>.topbar,#app.intro-mode>.panel,#app.intro-mode>.crosshair,#app.intro-mode>.object-label,#app.intro-mode>.telemetry,#app.intro-mode>.flight-hud,#app.intro-mode>.bottom-bar{opacity:0;visibility:hidden;pointer-events:none}
+#app.launching>.topbar,#app.launching>.panel,#app.launching>.crosshair,#app.launching>.object-label,#app.launching>.telemetry,#app.launching>.flight-hud,#app.launching>.bottom-bar{opacity:0;visibility:hidden;pointer-events:none}
 @media(max-width:700px){.intro-overlay{padding:26px;background:linear-gradient(90deg,rgba(2,2,2,.91),rgba(3,3,3,.32) 85%)}.intro-copy h1{font-size:clamp(48px,10vw,72px);letter-spacing:.015em}.intro-quote{max-width:300px;margin-bottom:30px}.intro-quote p{font-size:14px}.intro-quote cite{font-size:10px}}
 @media(max-height:570px){.intro-copy h1{font-size:clamp(45px,7vw,78px)}.intro-quote{margin-bottom:24px}.intro-quote p{font-size:14px}}
 .topbar{position:absolute;z-index:8;top:0;left:0;right:0;height:82px;display:flex;align-items:center;justify-content:space-between;padding:0 36px;border-bottom:1px solid rgba(218,218,218,.12);background:linear-gradient(180deg,rgba(8,8,8,.72),rgba(8,8,8,.12))}
@@ -83,6 +87,7 @@ button:focus-visible{outline:2px solid #e5e5e5;outline-offset:4px}
 .panel-toggle:hover{background:#2f2f2f;border-color:#dedede}
 .destinations-toggle{left:14px;margin:0}
 #app.intro-mode>.panel-toggle{opacity:0;visibility:hidden;pointer-events:none}
+#app.launching>.panel-toggle{opacity:0;visibility:hidden;pointer-events:none}
 .panel-close{position:absolute;z-index:2;top:13px;right:14px;width:28px;height:28px;padding:0;border:0;background:transparent;color:#bbb;font:400 22px/1 'Oxanium',sans-serif}
 .panel-close:hover{color:#fff;background:rgba(255,255,255,.08)}
 .info-topline{padding-right:49px}
@@ -108,6 +113,7 @@ button:focus-visible,.intro-play:focus-visible{outline-color:#ffffff}
 .settings-exit{display:block;width:100%;margin-top:12px;padding:11px;border:1px solid #777;background:transparent;color:#eee;font:600 11px 'Oxanium',sans-serif;letter-spacing:.08em}
 .settings-exit:hover{border-color:#fff;background:#292929}
 .exit-card{width:min(100%,420px)}
+.exit-card:focus{outline:none}
 .exit-actions{display:flex;gap:10px;margin-top:28px}
 .exit-actions button{flex:1 1 0;width:auto;height:42px;margin:0;font:600 11px 'Oxanium',sans-serif}
 .exit-card .exit-actions .travel-button{margin-top:0}

@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import { createShipAudio } from './audio.js';
 import { discovery } from './discovery.js';
 import { planetPhotos } from './planet-photos.js';
-import './style.css';
 
 const canvas = document.querySelector('#universe');
 const speedCanvas = document.querySelector('#speedFx');
@@ -30,8 +29,11 @@ let boostAmount = 0;
 let cameraMode = 'chase';
 let previewTarget = null;
 let cameraTransition = null;
+let launchTransition = null;
 let introActive = true;
 let introDive = false;
+let introHideTimer = null;
+let returningToIntro = false;
 const introOrbitAngle = Math.atan2(18,10);
 const introOrbitRadius = Math.hypot(10,18);
 const direction = new THREE.Vector3();
@@ -43,6 +45,7 @@ const raycaster = new THREE.Raycaster();
 const reticlePosition = new THREE.Vector2();
 const keys = new Set();
 const bodies = [];
+const asteroidObstacles = [];
 const clickableMeshes = [];
 const planetSurfaces = new Map();
 let selectedId = 'earth';
@@ -56,7 +59,6 @@ let autopilotMessage = 'Manual flight';
 let autopilotWaypoint = null;
 let lastHudUpdate = 0;
 let lastFlightSave = 0;
-let arrivalZoneId = 'earth';
 let shipName = 'Odyssey';
 let pilotName = 'Explorer';
 let exitFromSettings = false;
@@ -398,6 +400,43 @@ function createStars() {
   scene.add(new THREE.Points(geometry,material));
 }
 
+function createAsteroidBelt() {
+  const variants=3;
+  const countPerVariant=100;
+  const dummy=new THREE.Object3D();
+  const palette=[new THREE.Color(0x8b8176),new THREE.Color(0x6f7675),new THREE.Color(0xa0927e)];
+  for(let variant=0;variant<variants;variant++) {
+    const geometry=new THREE.DodecahedronGeometry(1,0);
+    const positions=geometry.getAttribute('position');
+    for(let vertex=0;vertex<positions.count;vertex++) {
+      const x=positions.getX(vertex),y=positions.getY(vertex),z=positions.getZ(vertex);
+      const roughness=.78+hash(Math.round(x*100),Math.round(y*100+z*100),variant+41)*.38;
+      positions.setXYZ(vertex,x*roughness,y*roughness,z*roughness);
+    }
+    geometry.computeVertexNormals();
+    const material=new THREE.MeshStandardMaterial({color:0xffffff,roughness:1,metalness:0,flatShading:true});
+    const mesh=new THREE.InstancedMesh(geometry,material,countPerVariant);
+    mesh.frustumCulled=false;
+    for(let i=0;i<countPerVariant;i++) {
+      const index=variant*countPerVariant+i;
+      const angle=hash(index,51)*Math.PI*2;
+      const radius=(94+hash(index,52)*10)*worldScale;
+      const altitude=(hash(index,53)-.5)*17;
+      const size=index%9===0?2.1+hash(index,54)*1.7:.35+hash(index,54)*1.1;
+      dummy.position.set(Math.cos(angle)*radius,altitude,Math.sin(angle)*radius);
+      dummy.rotation.set(hash(index,55)*Math.PI,hash(index,56)*Math.PI*2,hash(index,57)*Math.PI);
+      dummy.scale.set(size*(.75+hash(index,58)*.55),size*(.65+hash(index,59)*.6),size*(.72+hash(index,60)*.5));
+      dummy.updateMatrix();
+      mesh.setMatrixAt(i,dummy.matrix);
+      mesh.setColorAt(i,palette[(index+variant)%palette.length]);
+      if(index%9===0)asteroidObstacles.push({position:dummy.position.clone(),radius:Math.max(dummy.scale.x,dummy.scale.y,dummy.scale.z)*1.16+1.5});
+    }
+    mesh.instanceMatrix.needsUpdate=true;
+    mesh.instanceColor.needsUpdate=true;
+    scene.add(mesh);
+  }
+}
+
 function createSolarSystem() {
   createStars();
   scene.add(new THREE.AmbientLight(0xb5d0e8, .42));
@@ -413,11 +452,12 @@ function createSolarSystem() {
   const asteroidPositions=[];
   for(let i=0;i<650;i++) {
     const angle=hash(i,5)*Math.PI*2;
-    const radius=(98+hash(i,6)*14)*worldScale;
+    const radius=(94+hash(i,6)*10)*worldScale;
     asteroidPositions.push(Math.cos(angle)*radius,(hash(i,7)-.5)*3,Math.sin(angle)*radius);
   }
   const asteroidGeo=new THREE.BufferGeometry();asteroidGeo.setAttribute('position',new THREE.Float32BufferAttribute(asteroidPositions,3));
   scene.add(new THREE.Points(asteroidGeo,new THREE.PointsMaterial({color:0x8b958f,size:.4,transparent:true,opacity:.6})));
+  createAsteroidBelt();
   planets.forEach((planet)=>{
     makeOrbit(planet.orbit*worldScale);
     const group=new THREE.Group();
@@ -478,36 +518,100 @@ function setupStart() {
   camera.updateProjectionMatrix();
 }
 
-function updateIntroFlight() {
-  const elapsed=clock.elapsedTime;
+function introShot(elapsed) {
   const earth=bodies.find(body=>body.data.id==='earth').group.position;
   const angle=introOrbitAngle+elapsed*.055;
-  shipMesh.position.set(earth.x+Math.cos(angle)*introOrbitRadius,earth.y+4+Math.sin(elapsed*.35)*.35,earth.z+Math.sin(angle)*introOrbitRadius);
-  shipMesh.rotation.set(Math.sin(elapsed*.32)*.025,Math.PI-angle,Math.sin(elapsed*.48)*.04,'YXZ');
+  const shipPosition=new THREE.Vector3(earth.x+Math.cos(angle)*introOrbitRadius,earth.y+4+Math.sin(elapsed*.35)*.35,earth.z+Math.sin(angle)*introOrbitRadius);
+  const shipQuaternion=new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.sin(elapsed*.32)*.025,Math.PI-angle,Math.sin(elapsed*.48)*.04,'YXZ'));
+  const cameraPosition=earth.clone().add(new THREE.Vector3(22+Math.sin(elapsed*.14)*1.5,13+Math.sin(elapsed*.2)*.6,38+Math.cos(elapsed*.14)*1.5));
+  const cameraTarget=earth.clone().lerp(shipPosition,.64);
+  return {shipPosition,shipQuaternion,cameraPosition,cameraTarget};
+}
+
+function updateIntroFlight() {
+  const shot=introShot(clock.elapsedTime);
+  shipMesh.position.copy(shot.shipPosition);
+  shipMesh.quaternion.copy(shot.shipQuaternion);
   shipMesh.visible=true;
-  camera.position.copy(earth).add(new THREE.Vector3(22+Math.sin(elapsed*.14)*1.5,13+Math.sin(elapsed*.2)*.6,38+Math.cos(elapsed*.14)*1.5));
-  camera.lookAt(temp.copy(earth).lerp(shipMesh.position,.64));
+  camera.position.copy(shot.cameraPosition);
+  camera.lookAt(shot.cameraTarget);
 }
 
 function startGame() {
   if(!introActive)return;
   const overlay=document.querySelector('#introOverlay');
   shipPosition.copy(shipMesh.position);
-  lookAtPoint(bodies.find(body=>body.data.id==='earth').group.position);
-  pitch=0;
+  yaw=targetYaw=shipMesh.rotation.y;
+  pitch=shipMesh.rotation.x;
   targetPitch=0;
-  bank=0;
-  beginCameraTransition(2.8);
-  introDive=true;
+  bank=shipMesh.rotation.z;
+  introDive=!reducedMotion.matches;
+  if(introDive){
+    launchTransition={
+      startOffset:camera.position.clone().sub(shipPosition),
+      startFocus:introShot(clock.elapsedTime).cameraTarget,
+      startFov:camera.fov,
+      elapsed:0,
+      duration:1.9,
+    };
+  }
   introActive=false;
   try{sessionStorage.setItem('odyssey-flight-active','yes');}catch{}
   saveFlightState();
   keys.clear();
   shipAudio.start();
   document.querySelector('#app').classList.remove('intro-mode');
+  document.querySelector('#app').classList.toggle('launching',introDive);
   overlay.classList.add('leaving');
-  updateCamera(0,true);
-  window.setTimeout(()=>{overlay.hidden=true;canvas.focus({preventScroll:true});},reducedMotion.matches?0:850);
+  updateCamera(0,reducedMotion.matches);
+  introHideTimer=window.setTimeout(()=>{overlay.hidden=true;canvas.focus({preventScroll:true});introHideTimer=null;},reducedMotion.matches?0:850);
+}
+
+function returnToIntro() {
+  if(returningToIntro)return;
+  returningToIntro=true;
+  keys.clear();
+  const curtain=document.querySelector('#sceneCurtain');
+  curtain.classList.add('covered');
+  window.setTimeout(()=>{
+    try{sessionStorage.removeItem('odyssey-flight-active');sessionStorage.removeItem('odyssey-flight-state');}catch{}
+    if(introHideTimer!==null){window.clearTimeout(introHideTimer);introHideTimer=null;}
+    document.querySelector('#exitOverlay').hidden=true;
+    document.querySelector('#settingsOverlay').hidden=true;
+    document.querySelector('#helpOverlay').hidden=true;
+    document.querySelector('#previewBanner').hidden=true;
+    const app=document.querySelector('#app');
+    app.classList.remove('destination-preview','autopilot-active','launching');
+    app.classList.add('intro-mode','camera-chase');
+    const overlay=document.querySelector('#introOverlay');
+    overlay.classList.remove('leaving');
+    overlay.hidden=false;
+    introActive=true;
+    introDive=false;
+    cameraTransition=null;
+    launchTransition=null;
+    previewTarget=null;
+    autopilotTarget=null;
+    autopilotWaypoint=null;
+    autopilotMessage='Manual flight';
+    velocity.set(0,0,0);
+    boostAmount=0;
+    bank=0;
+    cameraMode='chase';
+    document.querySelectorAll('[data-camera]').forEach(button=>button.setAttribute('aria-pressed',button.dataset.camera==='chase'?'true':'false'));
+    setDiscoveryOpen(false);
+    setGuideHidden(true);
+    selectPlanet('earth');
+    updateAutopilotUI();
+    camera.fov=52;
+    camera.updateProjectionMatrix();
+    updateIntroFlight();
+    exitFromSettings=false;
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      curtain.classList.remove('covered');
+      returningToIntro=false;
+    }));
+  },reducedMotion.matches?80:250);
 }
 
 function saveFlightState() {
@@ -544,7 +648,6 @@ function restoreFlightState() {
         updateAutopilotUI();
       }
     }
-    arrivalZoneId=bodies.find(body=>shipPosition.distanceTo(body.group.position)-body.data.radius<=12)?.data.id??null;
     if(state.discoveryOpen)setDiscoveryOpen(true);
     if(state.guideOpen)showGuide();
   } catch {}
@@ -630,11 +733,37 @@ function applyCameraTransition(dt) {
   const destinationQuaternion=camera.quaternion.clone();
   camera.position.lerpVectors(cameraTransition.position,destinationPosition,eased);
   camera.quaternion.slerpQuaternions(cameraTransition.quaternion,destinationQuaternion,eased);
-  if(t===1){cameraTransition=null;introDive=false;}
+  if(t===1){cameraTransition=null;introDive=false;document.querySelector('#app').classList.remove('launching');}
 }
 
 function updateCamera(dt,instant=false) {
   if(introActive){updateIntroFlight();return;}
+  if(launchTransition){
+    const transition=launchTransition;
+    transition.elapsed=Math.min(transition.duration,transition.elapsed+dt);
+    const t=transition.elapsed/transition.duration;
+    const eased=t*t*(3-2*t);
+    const endDirection=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw));
+    const endPosition=shipPosition.clone().addScaledVector(endDirection,-8.5);
+    endPosition.y+=3.2;
+    const startDirection=transition.startOffset.clone().normalize();
+    const finalOffset=endPosition.clone().sub(shipPosition);
+    const arc=new THREE.Quaternion().setFromUnitVectors(startDirection,finalOffset.clone().normalize());
+    const turn=new THREE.Quaternion().identity().slerp(arc,eased);
+    const distance=THREE.MathUtils.lerp(transition.startOffset.length(),finalOffset.length(),eased);
+    camera.position.copy(shipPosition).add(startDirection.applyQuaternion(turn).multiplyScalar(distance));
+    const endFocus=shipPosition.clone().addScaledVector(endDirection,3);
+    camera.lookAt(transition.startFocus.clone().lerp(endFocus,eased));
+    camera.fov=THREE.MathUtils.lerp(transition.startFov,64,eased);
+    camera.updateProjectionMatrix();
+    shipMesh.visible=true;
+    if(t===1){
+      launchTransition=null;
+      introDive=false;
+      document.querySelector('#app').classList.remove('launching');
+    }
+    return;
+  }
   const targetFov=previewTarget?53:cameraMode==='first-person'?72+(reducedMotion.matches?0:boostAmount*3):64+(reducedMotion.matches?0:boostAmount*4);
   const nextFov=instant?targetFov:THREE.MathUtils.damp(camera.fov,targetFov,5,dt);
   if(Math.abs(camera.fov-nextFov)>.005){camera.fov=nextFov;camera.updateProjectionMatrix();}
@@ -759,7 +888,7 @@ function buildPlanetList() {
   });
 }
 
-function setDiscoveryOpen(open,arrived=false) {
+function setDiscoveryOpen(open) {
   const planet=destinations.find(item=>item.id===selectedId);
   const facts=discovery[planet.id];
   const panel=document.querySelector('#fieldGuide');
@@ -770,7 +899,7 @@ function setDiscoveryOpen(open,arrived=false) {
   toggle.setAttribute('aria-expanded',open?'true':'false');
   toggle.textContent=open?'Hide extra facts':'Explore more facts';
   if(!open)return;
-  document.querySelector('#discoveryKicker').textContent=arrived?'ARRIVAL LOG':'FIELD NOTES';
+  document.querySelector('#discoveryKicker').textContent='FIELD NOTES';
   document.querySelector('#discoveryHeading').textContent=`${planet.name} up close`;
   document.querySelector('#discoveryLead').textContent=facts.lead;
   const stats=document.querySelector('#discoveryStats');
@@ -797,13 +926,6 @@ function setDiscoveryOpen(open,arrived=false) {
       panel.scrollTo({top,behavior:reducedMotion.matches?'auto':'smooth'});
     }
   });
-}
-
-function openDiscovery(id,inspect=false) {
-  arrivalZoneId=id;
-  selectPlanet(id,inspect);
-  showGuide();
-  setDiscoveryOpen(true,true);
 }
 
 function selectPlanet(id,preview=false) {
@@ -979,10 +1101,7 @@ function setupControls() {
   document.querySelector('#settingsOverlay').addEventListener('click',event=>{if(event.target.id==='settingsOverlay')closeSettings();});
   document.querySelector('#settingsExitButton').addEventListener('click',openExit);
   document.querySelector('#cancelExit').addEventListener('click',closeExit);
-  document.querySelector('#confirmExit').addEventListener('click',()=>{
-    try{sessionStorage.removeItem('odyssey-flight-active');sessionStorage.removeItem('odyssey-flight-state');}catch{}
-    window.location.reload();
-  });
+  document.querySelector('#confirmExit').addEventListener('click',returnToIntro);
   document.querySelector('#exitOverlay').addEventListener('click',event=>{if(event.target.id==='exitOverlay')closeExit();});
   document.querySelector('#settingsForm').addEventListener('submit',event=>{
     event.preventDefault();
@@ -995,13 +1114,13 @@ function setupControls() {
 }
 
 function openExit() {
-  if(introActive)return;
+  if(introActive||returningToIntro)return;
   exitFromSettings=!document.querySelector('#settingsOverlay').hidden;
   closeHelp(false);
   closeSettings(false);
   keys.clear();
   document.querySelector('#exitOverlay').hidden=false;
-  document.querySelector('#cancelExit').focus();
+  document.querySelector('.exit-card').focus({preventScroll:true});
 }
 
 function closeExit() {
@@ -1060,9 +1179,7 @@ function autopilotGuidance() {
   const surfaceDistance=shipPosition.distanceTo(target)-body.data.radius;
   if(surfaceDistance<=10.5) {
     velocity.set(0,0,0);
-    lookAtPoint(target);
     stopAutopilot(`Arrived near ${body.data.name}`);
-    openDiscovery(body.data.id,true);
     return null;
   }
   if(autopilotWaypoint&&shipPosition.distanceTo(autopilotWaypoint)<4)autopilotWaypoint=null;
@@ -1070,16 +1187,21 @@ function autopilotGuidance() {
     const route=target.clone().sub(shipPosition);
     const routeLength=route.length();
     const forward=route.clone().normalize();
-    for(const obstacle of [{position:new THREE.Vector3(),radius:sunRadius+2},...bodies.filter(other=>other!==body).map(other=>({position:other.group.position,radius:other.data.radius+1.4}))]) {
+    let blocking=null;
+    let nearestAlong=Infinity;
+    for(const obstacle of [{position:new THREE.Vector3(),radius:sunRadius+2},...bodies.filter(other=>other!==body).map(other=>({position:other.group.position,radius:other.data.radius+1.4})),...asteroidObstacles]) {
       const along=obstacle.position.clone().sub(shipPosition).dot(forward);
-      if(along<0||along>routeLength)continue;
+      if(along<0||along>routeLength||along>=nearestAlong)continue;
       const closest=shipPosition.clone().addScaledVector(forward,along);
       if(closest.distanceTo(obstacle.position)>obstacle.radius+6)continue;
+      blocking=obstacle;
+      nearestAlong=along;
+    }
+    if(blocking){
       const lateral=new THREE.Vector3(-forward.z,0,forward.x).normalize();
-      if(lateral.dot(shipPosition.clone().sub(obstacle.position))<0)lateral.negate();
-      autopilotWaypoint=obstacle.position.clone().addScaledVector(lateral,obstacle.radius+11).addScaledVector(forward,-obstacle.radius-5);
+      if(lateral.dot(shipPosition.clone().sub(blocking.position))<0)lateral.negate();
+      autopilotWaypoint=blocking.position.clone().addScaledVector(lateral,blocking.radius+11).addScaledVector(forward,-blocking.radius-5);
       autopilotWaypoint.y=Math.max(shipPosition.y,7);
-      break;
     }
   }
   const aim=autopilotWaypoint||target;
@@ -1088,11 +1210,13 @@ function autopilotGuidance() {
   targetYaw=yaw+Math.atan2(Math.sin(desiredYaw-yaw),Math.cos(desiredYaw-yaw));
   targetPitch=THREE.MathUtils.clamp(Math.asin(THREE.MathUtils.clamp(toward.y,-1,1)),-Math.PI/3,Math.PI/3);
   const remaining=autopilotWaypoint?shipPosition.distanceTo(autopilotWaypoint):surfaceDistance-10;
-  const speed=THREE.MathUtils.clamp(remaining*1.2,0,18);
+  const speed=THREE.MathUtils.clamp(remaining*.65,0,48);
   return {toward,speed};
 }
 
 function moveShip(dt) {
+  if(returningToIntro){velocity.set(0,0,0);boostAmount=0;return;}
+  if(introDive){velocity.set(0,0,0);boostAmount=0;return;}
   if(introActive){velocity.set(0,0,0);boostAmount=0;return;}
   if(!document.querySelector('#helpOverlay').hidden || !document.querySelector('#settingsOverlay').hidden || !document.querySelector('#exitOverlay').hidden){velocity.multiplyScalar(Math.exp(-6*dt));bank*=Math.exp(-7*dt);boostAmount=THREE.MathUtils.damp(boostAmount,0,5,dt);return;}
   const guidance=autopilotTarget?autopilotGuidance():null;
@@ -1119,7 +1243,8 @@ function moveShip(dt) {
   if(autopilotTarget&&guidance) {
     const alignment=direction.dot(guidance.toward);
     desiredVelocity.copy(direction).multiplyScalar(guidance.speed*THREE.MathUtils.clamp((alignment-.4)/.6,0,1));
-    boostAmount=THREE.MathUtils.damp(boostAmount,guidance.speed>12?.25:0,2,dt);
+    const boostTarget=THREE.MathUtils.clamp((desiredVelocity.length()-10)/38,0,1);
+    boostAmount=THREE.MathUtils.damp(boostAmount,boostTarget,3.2,dt);
   } else {
     if(keys.has('KeyW'))desiredVelocity.add(direction);
     if(keys.has('KeyS'))desiredVelocity.sub(direction);
@@ -1130,7 +1255,7 @@ function moveShip(dt) {
   }
   velocity.lerp(desiredVelocity,1-Math.exp(-4.6*dt));
   const next=shipPosition.clone().addScaledVector(velocity,dt);
-  const obstacles=[{position:new THREE.Vector3(),radius:sunRadius+2},...bodies.map(b=>({position:b.group.position,radius:b.data.radius+1.4}))];
+  const obstacles=[{position:new THREE.Vector3(),radius:sunRadius+2},...bodies.map(b=>({position:b.group.position,radius:b.data.radius+1.4})),...asteroidObstacles];
   const hit=obstacles.some(o=>next.distanceToSquared(o.position)<o.radius*o.radius);
   if(hit){velocity.set(0,0,0);if(autopilotTarget)stopAutopilot('Course blocked. Manual control restored.');}
   else shipPosition.copy(next);
@@ -1158,10 +1283,6 @@ function updateHud(elapsed) {
     const distance=Math.max(0,shipPosition.distanceTo(body.group.position)-body.data.radius);
     return distance<best.distance?{body,distance}:best;
   },{body:null,distance:Infinity});
-  if(!introActive&&!autopilotTarget){
-    if(nearest.distance<=12&&nearest.body.data.id!==arrivalZoneId)openDiscovery(nearest.body.data.id);
-    else if(nearest.distance>18)arrivalZoneId=null;
-  }
   document.querySelector('#speedReadout').textContent=Math.round(velocity.length()).toString();
   document.querySelector('#nearestReadout').textContent=nearest.body.data.name;
   document.querySelector('#distanceReadout').textContent=`${Math.round(nearest.distance)} units away`;
@@ -1222,8 +1343,13 @@ function animate() {
   updateHud(elapsed);
   if(!introActive&&elapsed-lastFlightSave>.5){saveFlightState();lastFlightSave=elapsed;}
   renderer.render(scene,camera);
+  if(!firstFrameRendered){
+    firstFrameRendered=true;
+    requestAnimationFrame(()=>document.querySelector('#sceneCurtain').classList.remove('covered'));
+  }
 }
 
+let firstFrameRendered=false;
 createSolarSystem();
 createShip();
 setupStart();
