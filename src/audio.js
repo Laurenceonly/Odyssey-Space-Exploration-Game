@@ -31,10 +31,18 @@ export function createShipAudio() {
   let context;
   let master;
   let engineGain;
+  let engineFilter;
   let engineLow;
   let engineHigh;
   let airGain;
   let airFilter;
+  let boostGain;
+  let boostTone;
+  let boostNoiseGain;
+  let boostNoiseFilter;
+  let impactNoise;
+  let lastAsteroidImpactAt=-Infinity;
+  let lastSignalAt=-Infinity;
   let musicBus;
   let scoreBus;
   let continuousLow;
@@ -181,7 +189,7 @@ export function createShipAudio() {
     if(!context) {
       try{context=new AudioContextClass();}catch{return false;}
       master=context.createGain();master.gain.value=0;master.connect(context.destination);
-      const engineFilter=context.createBiquadFilter();
+      engineFilter=context.createBiquadFilter();
       engineFilter.type='lowpass';engineFilter.frequency.value=360;
       engineGain=context.createGain();engineGain.gain.value=.018;
       engineFilter.connect(engineGain);engineGain.connect(master);
@@ -195,10 +203,21 @@ export function createShipAudio() {
       const noiseBuffer=context.createBuffer(1,context.sampleRate*2,context.sampleRate);
       const samples=noiseBuffer.getChannelData(0);
       for(let i=0;i<samples.length;i++)samples[i]=Math.random()*2-1;
+      impactNoise=noiseBuffer;
       const air=context.createBufferSource();air.buffer=noiseBuffer;air.loop=true;
       airFilter=context.createBiquadFilter();airFilter.type='bandpass';airFilter.frequency.value=600;airFilter.Q.value=.7;
       airGain=context.createGain();airGain.gain.value=0;
       air.connect(airFilter);airFilter.connect(airGain);airGain.connect(master);air.start();
+
+      // A separate, low filtered thrust layer gives boost weight without sharp clicks.
+      boostGain=context.createGain();boostGain.gain.value=0;
+      const boostFilter=context.createBiquadFilter();boostFilter.type='lowpass';boostFilter.frequency.value=210;
+      boostTone=context.createOscillator();boostTone.type='sawtooth';boostTone.frequency.value=63;
+      boostTone.connect(boostFilter);boostFilter.connect(boostGain);boostGain.connect(master);boostTone.start();
+      const boostAir=context.createBufferSource();boostAir.buffer=noiseBuffer;boostAir.loop=true;
+      boostNoiseFilter=context.createBiquadFilter();boostNoiseFilter.type='lowpass';boostNoiseFilter.frequency.value=270;
+      boostNoiseGain=context.createGain();boostNoiseGain.gain.value=0;
+      boostAir.connect(boostNoiseFilter);boostNoiseFilter.connect(boostNoiseGain);boostNoiseGain.connect(master);boostAir.start();
 
       const ambience=context.createOscillator();ambience.type='sine';ambience.frequency.value=58;
       const ambienceGain=context.createGain();ambienceGain.gain.value=.003;
@@ -258,17 +277,45 @@ export function createShipAudio() {
     return musicSelection;
   }
 
-  function update(speed,boost,preview=false) {
+  function update(speed,boost,preview=false,thrust=false) {
     if(!context||!enabled)return;
     const now=context.currentTime;
     const power=Math.min(speed/43,1);
-    engineLow.frequency.setTargetAtTime(48+power*39+boost*13,now,.09);
-    engineHigh.frequency.setTargetAtTime(96+power*93+boost*36,now,.09);
-    engineGain.gain.setTargetAtTime(.018+power*.065+boost*.04,now,.08);
-    airFilter.frequency.setTargetAtTime(560+power*860+boost*520,now,.1);
-    airGain.gain.setTargetAtTime(power*.007+boost*.012,now,.08);
+    const drive=preview?0:thrust?1:.24;
+    engineLow.frequency.setTargetAtTime(48+power*32+boost*18,now,.14);
+    engineHigh.frequency.setTargetAtTime(96+power*76+boost*50,now,.14);
+    engineGain.gain.setTargetAtTime(.01+drive*(.022+power*.052)+boost*.018,now,.18);
+    airFilter.frequency.setTargetAtTime(390+power*720+boost*340,now,.2);
+    airGain.gain.setTargetAtTime(drive*power*.006+boost*.006,now,.2);
+    boostTone.frequency.setTargetAtTime(57+power*12+boost*24,now,.2);
+    boostGain.gain.setTargetAtTime(preview?0:boost*.027,now,.22);
+    boostNoiseFilter.frequency.setTargetAtTime(230+boost*240,now,.2);
+    boostNoiseGain.gain.setTargetAtTime(preview?0:boost*.038,now,.24);
     musicBus.gain.setTargetAtTime((.55+(preview?.05:0)-boost*.25)*musicVolume,now,.35);
     master.gain.setTargetAtTime(.75,now,.08);
+  }
+
+  function signalPulse(strength,direction) {
+    if(!context||!enabled||strength<=0)return;
+    const now=context.currentTime;
+    if(now-lastSignalAt<Math.max(3.2,8-strength*4.5))return;
+    lastSignalAt=now;
+    const pan=context.createStereoPanner?.();
+    if(pan){pan.pan.value=Math.max(-.75,Math.min(.75,direction));pan.connect(master);}
+    const destination=pan||master;
+    [0,.19].forEach((delay,index)=>{
+      const at=now+delay;
+      const tone=context.createOscillator();tone.type='sine';
+      tone.frequency.setValueAtTime(index?540:420,at);
+      tone.frequency.exponentialRampToValueAtTime(index?590:460,at+.14);
+      const level=context.createGain();
+      level.gain.setValueAtTime(.0001,at);
+      level.gain.exponentialRampToValueAtTime((index?.012:.018)*(.45+strength*.55),at+.025);
+      level.gain.exponentialRampToValueAtTime(.0001,at+.27);
+      tone.connect(level);level.connect(destination);
+      tone.start(at);tone.stop(at+.28);
+      tone.onended=()=>{tone.disconnect();level.disconnect();if(index&&pan)pan.disconnect();};
+    });
   }
 
   function cue(kind) {
@@ -290,5 +337,61 @@ export function createShipAudio() {
     });
   }
 
-  return {start,setEnabled,setMusicVolume,getMusicVolume:()=>Math.round(musicVolume*100),setMusicSelection,getMusicSelection:()=>musicSelection,getActiveTrackName:()=>musicTracks.find(track=>track.id===activeTrackId)?.name.split(' · ')[0]||'Odyssey',update,cue,isEnabled:()=>enabled,isSupported:()=>Boolean(AudioContextClass)};
+  function playImpactNoise(at,duration,filterType,frequency,peak,attack=.004) {
+    const noise=context.createBufferSource();
+    noise.buffer=impactNoise;
+    const filter=context.createBiquadFilter();
+    filter.type=filterType;
+    filter.frequency.value=frequency;
+    if(filterType==='bandpass')filter.Q.value=.6;
+    const level=context.createGain();
+    level.gain.setValueAtTime(.0001,at);
+    level.gain.exponentialRampToValueAtTime(peak,at+attack);
+    level.gain.exponentialRampToValueAtTime(.0001,at+duration);
+    noise.connect(filter);filter.connect(level);level.connect(master);
+    noise.start(at,Math.random()*1.4);noise.stop(at+duration+.01);
+    noise.onended=()=>{noise.disconnect();filter.disconnect();level.disconnect();};
+  }
+
+  function asteroidImpact(broken,speed,size=1) {
+    if(!context||!enabled)return;
+    const now=context.currentTime;
+    if(now-lastAsteroidImpactAt<(broken?.32:.2))return;
+    lastAsteroidImpactAt=now;
+    const force=Math.min(1,Math.max(broken?.3:.18,speed/32));
+    if(broken){
+      const mass=Math.min(1,Math.max(.35,size/2.5));
+      playImpactNoise(now,.095,'bandpass',1050+force*250,.13*force,.006);
+      playImpactNoise(now+.006,.31,'bandpass',460+mass*160,.2*force*mass,.018);
+      playImpactNoise(now+.03,.39,'lowpass',250+mass*90,.14*force*mass,.025);
+      const hull=context.createOscillator();
+      hull.type='sine';
+      hull.frequency.setValueAtTime(86,now);
+      hull.frequency.exponentialRampToValueAtTime(54,now+.36);
+      const hullLevel=context.createGain();
+      hullLevel.gain.setValueAtTime(.0001,now);
+      hullLevel.gain.exponentialRampToValueAtTime(.065*force*mass,now+.024);
+      hullLevel.gain.exponentialRampToValueAtTime(.0001,now+.37);
+      hull.connect(hullLevel);hullLevel.connect(master);
+      hull.start(now);hull.stop(now+.38);
+      hull.onended=()=>{hull.disconnect();hullLevel.disconnect();};
+      return;
+    }
+    const duration=.43;
+    playImpactNoise(now,duration,'lowpass',580,.17*force);
+
+    const thump=context.createOscillator();
+    thump.type='sine';
+    thump.frequency.setValueAtTime(115,now);
+    thump.frequency.exponentialRampToValueAtTime(42,now+duration);
+    const thumpLevel=context.createGain();
+    thumpLevel.gain.setValueAtTime(.0001,now);
+    thumpLevel.gain.exponentialRampToValueAtTime(.13*force,now+.012);
+    thumpLevel.gain.exponentialRampToValueAtTime(.0001,now+duration);
+    thump.connect(thumpLevel);thumpLevel.connect(master);
+    thump.start(now);thump.stop(now+duration+.01);
+    thump.onended=()=>{thump.disconnect();thumpLevel.disconnect();};
+  }
+
+  return {start,setEnabled,setMusicVolume,getMusicVolume:()=>Math.round(musicVolume*100),setMusicSelection,getMusicSelection:()=>musicSelection,getActiveTrackName:()=>musicTracks.find(track=>track.id===activeTrackId)?.name.split(' · ')[0]||'Odyssey',update,signalPulse,cue,asteroidImpact,isEnabled:()=>enabled,isSupported:()=>Boolean(AudioContextClass)};
 }

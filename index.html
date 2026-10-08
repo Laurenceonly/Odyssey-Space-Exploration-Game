@@ -20,7 +20,7 @@
           <h1 id="introTitle">Odyssey</h1>
           <blockquote class="intro-quote"><p>“That’s one small step for a man, one giant leap for mankind.”</p><cite>Neil Armstrong · Apollo 11</cite></blockquote>
           <div class="intro-modes" role="group" aria-label="Flight mode">
-            <button class="intro-mode-option" data-mode="discovery" type="button" aria-pressed="true"><strong>Discovery</strong><span>Scan worlds to unlock them</span></button>
+            <button class="intro-mode-option" data-mode="discovery" type="button" aria-pressed="true"><strong>Discovery</strong><span>Scan worlds and a passing comet</span></button>
             <button class="intro-mode-option" data-mode="exploration" type="button" aria-pressed="false"><strong>Exploration</strong><span>Travel and learn freely</span></button>
           </div>
           <button id="playButton" class="intro-play" type="button" hidden>Play <span class="play-glyph" aria-hidden="true"></span></button>
@@ -48,19 +48,24 @@
       </header>
 
       <aside class="destination-panel panel" aria-label="Destinations">
-        <div class="panel-kicker">DESTINATIONS <span id="discoveryCount">0 / 10 SCANNED</span></div>
+        <div class="panel-kicker">DESTINATIONS <span id="discoveryCount">0 / 11 SCANNED</span></div>
         <button id="destinationsClose" class="panel-close" type="button" aria-label="Close destinations">×</button>
         <nav id="planetList" class="planet-list" aria-label="Planets"></nav>
+        <button id="logPanelButton" class="log-panel-button" type="button">Captain's log</button>
+        <button id="voyagePanelButton" class="log-panel-button voyage-panel-button" type="button">Voyages</button>
       </aside>
       <button id="destinationsToggle" class="panel-toggle destinations-toggle" type="button" aria-controls="planetList" aria-expanded="false" aria-label="Show destinations" hidden>Destinations</button>
+      <button id="logButton" class="panel-toggle log-toggle" type="button">Captain's log</button>
+      <button id="voyageButton" class="panel-toggle voyage-toggle" type="button">Voyages</button>
 
       <div id="crosshair" class="crosshair" aria-hidden="true"><span></span><span></span><i></i></div>
       <div id="objectLabel" class="object-label" aria-live="polite"></div>
+      <div id="signalReadout" class="signal-readout" role="status" aria-live="off" hidden><span class="signal-mark" aria-hidden="true"></span><span id="signalText"></span></div>
       <div id="scanFeedback" class="scan-feedback" hidden><strong id="scanTitle"></strong><p id="scanFact" role="status" hidden></p><span id="scanMeter" class="scan-meter" role="progressbar" aria-label="Scan progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="scanFill"></span></span></div>
       <div id="unlockCinematic" class="unlock-cinematic" role="status" aria-live="polite" hidden>
         <div class="unlock-bar unlock-bar-top" aria-hidden="true"></div>
         <div class="unlock-focus" aria-hidden="true"></div>
-        <div class="unlock-copy"><span class="unlock-kicker">WORLD DISCOVERED <span id="unlockCount"></span></span><strong id="unlockName"></strong><p id="unlockFact"></p></div>
+        <div class="unlock-copy"><span class="unlock-kicker"><span id="unlockKickerText">WORLD DISCOVERED</span> <span id="unlockCount"></span></span><strong id="unlockName"></strong><p id="unlockFact"></p></div>
         <div class="unlock-bar unlock-bar-bottom" aria-hidden="true"></div>
       </div>
       <div id="previewBanner" class="preview-banner" hidden>
@@ -101,7 +106,9 @@
 
       <footer class="bottom-bar"><div class="control-hint"><span class="key-group"><kbd>W</kbd><kbd>S</kbd></span> FLY <span class="hint-separator"></span> <span class="key-group"><kbd>A</kbd><kbd>D</kbd></span> TURN <span class="hint-separator"></span> <span class="key-group"><kbd>Q</kbd><kbd>E</kbd></span> PITCH <span class="hint-separator"></span> <kbd>SHIFT</kbd><kbd>W</kbd> BOOST <span class="hint-separator"></span> <kbd>F</kbd> PLANET INFO <span class="hint-separator"></span> <kbd>R</kbd> SCAN <span class="hint-separator"></span> <kbd>P</kbd> AUTOPILOT</div><div class="camera-switch" role="group" aria-label="Camera view"><button type="button" data-camera="first-person" aria-pressed="false">First person</button><button type="button" data-camera="chase" aria-pressed="true">Third person</button></div></footer>
 
-      <div id="helpOverlay" class="help-overlay" hidden><div class="help-card" role="dialog" aria-modal="true" aria-labelledby="helpTitle"><button id="closeHelp" class="help-close" type="button" aria-label="Close controls">×</button><div class="help-kicker">FLIGHT MANUAL / 01</div><h2 id="helpTitle">Your ship is ready.</h2><p>Turn and pitch the ship while stationary, then fly in the direction its nose points.</p><div class="help-grid"><div><kbd>W</kbd><kbd>S</kbd><span>Fly forward and back</span></div><div><kbd>A</kbd><kbd>D</kbd><span>Steer; reversed while backing up</span></div><div><kbd>Q</kbd><kbd>E</kbd><span>Pitch nose up and down</span></div><div><kbd>SHIFT</kbd><kbd>W</kbd><span>Boost forward</span></div><div><kbd>←</kbd><kbd>→</kbd><span>Alternate turn keys</span></div><div><kbd>C</kbd><span>Switch camera view</span></div><div><kbd>F</kbd><span>Aim the + at a planet to show or close info</span></div><div><kbd>R</kbd><span>Hold while aiming nearby to scan a world</span></div><div><kbd>P</kbd><span>Autopilot to selected destination</span></div><div><kbd>ESC</kbd><span>Close this guide</span></div></div><button id="startExploring" class="travel-button" type="button">Start exploring <span class="button-arrow">↗</span></button><p class="scale-note">Planet sizes and distances are compressed for exploration.</p></div></div>
+      <div id="helpOverlay" class="help-overlay" hidden><div class="help-card" role="dialog" aria-modal="true" aria-labelledby="helpTitle"><button id="closeHelp" class="help-close" type="button" aria-label="Close controls">×</button><div class="help-kicker">FLIGHT MANUAL / 01</div><h2 id="helpTitle">Your ship is ready.</h2><p>Turn and pitch the ship while stationary, then fly in the direction its nose points.</p><div class="help-grid"><div><kbd>W</kbd><kbd>S</kbd><span>Fly forward and back</span></div><div><kbd>A</kbd><kbd>D</kbd><span>Steer; reversed while backing up</span></div><div><kbd>Q</kbd><kbd>E</kbd><span>Pitch nose up and down</span></div><div><kbd>SHIFT</kbd><kbd>W</kbd><span>Boost forward</span></div><div><kbd>←</kbd><kbd>→</kbd><span>Alternate turn keys</span></div><div><kbd>C</kbd><span>Switch camera view</span></div><div><kbd>F</kbd><span>Aim the + at an object to show or close info</span></div><div><kbd>R</kbd><span>Hold while aiming nearby to scan an object</span></div><div><kbd>P</kbd><span>Autopilot to selected destination</span></div><div><kbd>L</kbd><span>Open captain's log</span></div><div><kbd>ESC</kbd><span>Close this guide</span></div></div><button id="startExploring" class="travel-button" type="button">Start exploring <span class="button-arrow">↗</span></button><p class="scale-note">In Discovery, follow the unidentified signal's bearing and pulse to find an object to scan. In Exploration, try a Voyage from the Destinations panel. Planet sizes and distances are compressed for navigation.</p></div></div>
+      <div id="logOverlay" class="help-overlay" hidden><section class="log-card" role="dialog" aria-modal="true" aria-labelledby="logTitle"><button id="closeLog" class="help-close" type="button" aria-label="Close captain's log">×</button><div class="log-heading"><div><span class="log-kicker">FLIGHT RECORD</span><h2 id="logTitle">Captain Explorer's Log</h2><p id="logSummary"></p></div><span id="logCount" class="log-count"></span></div><div id="logEntries" class="log-entries"></div></section></div>
+      <div id="voyageOverlay" class="help-overlay" hidden><section class="voyage-card" role="dialog" aria-modal="true" aria-labelledby="voyageTitle"><button id="closeVoyages" class="help-close" type="button" aria-label="Close voyages">×</button><span class="log-kicker">FREE EXPLORATION</span><h2 id="voyageTitle">Voyages</h2><p class="voyage-intro">Choose a route through the system. Fly each leg yourself or use autopilot; you can leave the route at any time.</p><div id="voyageRoutes" class="voyage-routes"></div><div id="voyageProgress" class="voyage-progress" hidden><p id="voyageStatus"></p><div id="voyageStops" class="voyage-stops"></div><div class="voyage-actions"><button id="voyageNext" type="button">Fly to next stop</button><button id="voyageEnd" type="button">End voyage</button></div></div></section></div>
       <div id="settingsOverlay" class="help-overlay" hidden>
         <form id="settingsForm" class="help-card settings-card" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
           <button id="closeSettings" class="help-close" type="button" aria-label="Close ship settings">×</button>

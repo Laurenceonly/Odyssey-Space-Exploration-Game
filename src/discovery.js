@@ -1,5 +1,14 @@
 // Short field notes based on NASA Science's planet and Moon fact pages.
 export const discovery = {
+  comet: {
+    rotation:'Irregular spin',orbit:'Long elliptical path',atmosphere:'Temporary coma near the Sun',
+    lead:'This simulated icy visitor grows a diffuse coma and tail as it nears the Sun.',
+    notes:[
+      ['A dark nucleus','Comets contain frozen gases, rock, and dust left from the early solar system.'],
+      ['A sunward change','Sunlight warms the nucleus; released dust and gas can form a tail pointing away from the Sun.'],
+    ],
+    source:'https://science.nasa.gov/solar-system/comets/facts/',
+  },
   sun: {
     rotation:'25 days at equator', orbit:'230 million years around Milky Way', atmosphere:'Hot plasma and corona',
     lead:'Our Sun is a star. Its gravity holds the solar system together, and its light powers life on Earth.',

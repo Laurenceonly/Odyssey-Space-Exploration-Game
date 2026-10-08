@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { createShipAudio } from './audio.js';
 import { discovery } from './discovery.js';
 import { planetPhotos } from './planet-photos.js';
+import { createFlybyTracker } from './flyby-tracker.js';
+import { cometPosition } from './space-events.js';
 
 const canvas = document.querySelector('#universe');
 const speedCanvas = document.querySelector('#speedFx');
@@ -24,6 +26,10 @@ const shipRotation = new THREE.Euler(0, 0, 0, 'YXZ');
 const worldUp = new THREE.Vector3(0,1,0);
 let shipMesh;
 let sunMesh;
+let cometBody;
+let cometTail;
+let cometTailPositions;
+let cometComa;
 const engineGlows = [];
 const boostPlumes = [];
 const attitudeJets = [];
@@ -62,6 +68,11 @@ const keys = new Set();
 const bodies = [];
 const asteroidObstacles = [];
 const scannedBodies = new Set();
+let captainLog = [];
+let pendingLogSnapshots = [];
+const flybyTracker = createFlybyTracker();
+const suppressedFlybyWorlds = new Set();
+const maxCaptainLogEntries = 250;
 const clickableMeshes = [];
 const planetSurfaces = new Map();
 let selectedId = 'earth';
@@ -105,7 +116,14 @@ const planets = [
 ];
 const moonData = {id:'moon',name:'Moon',index:'03A',seed:9,symbol:'☾',type:'EARTH SATELLITE',distance:'1.00 AU',diameter:'3,474 km',description:'Earth’s cratered companion, with ancient highlands and quiet maria.',radius:5,color:'#aeb9c0',base:[151,157,159],style:'rock',gradient:'radial-gradient(circle at 28% 24%,#d3d5d0,#8a9499 58%,#343b42 96%)'};
 const sunData={id:'sun',name:'Sun',index:'00',symbol:'☼',type:'YELLOW DWARF STAR',distance:'0 AU',diameter:'1.4 million km',description:'The star at the center of our solar system, powered by nuclear fusion.',radius:sunRadius,color:'#ffae45',base:[255,171,72],style:'sun'};
-const destinations=[sunData,...planets.slice(0,3),moonData,...planets.slice(3)];
+const cometData={id:'comet',name:'Comet',index:'C1',seed:41,symbol:'☄',type:'ICY VISITOR',distance:'Changing',diameter:'Simulated nucleus',description:'A dark icy nucleus follows a long orbit. Its dust and gas brighten near the Sun.',radius:3.8,color:'#b7c4c4',base:[83,91,92],style:'rock',gradient:'radial-gradient(circle at 27% 24%,#aeb9b9,#626d70 60%,#252c30 95%)'};
+const destinations=[sunData,...planets.slice(0,3),moonData,...planets.slice(3),cometData];
+const voyages=[
+  {id:'inner',name:'Inner Worlds',stops:['mercury','venus','earth','moon','mars']},
+  {id:'giants',name:'Giant Planets',stops:['jupiter','saturn','uranus','neptune']},
+  {id:'outer',name:'Outer Dark',stops:['saturn','uranus','neptune']},
+];
+let voyageState=null;
 let moonBody;
 
 function hash(x, y, seed = 0) {
@@ -553,15 +571,25 @@ function hitAsteroid(rock,next) {
   if(impactSpeed<.2)return false;
   if(rock.size<1.6 || (rock.size<3 && impactSpeed>28)){
     breakAsteroid(rock,impactSpeed);
+    shipAudio.asteroidImpact(true,impactSpeed,rock.size);
+    logAsteroidEncounter(rock,true,impactSpeed);
     velocity.multiplyScalar(.8);
     return false;
   }
+  shipAudio.asteroidImpact(false,impactSpeed);
+  logAsteroidEncounter(rock,false,impactSpeed);
   rock.velocity.addScaledVector(normal,-Math.min(impactSpeed*.24,10));
   rock.spin.add(new THREE.Vector3(normal.z,-normal.x,normal.y).multiplyScalar(Math.min(impactSpeed*.018,.55)));
   rock.position.addScaledVector(normal,-Math.max(.2,rock.radius-shipPosition.distanceTo(rock.position)+.2));
   velocity.addScaledVector(normal,-1.35*velocity.dot(normal)).multiplyScalar(.45);
   if(autopilotTarget)stopAutopilot('Asteroid impact. Manual control restored.');
   return true;
+}
+
+function logAsteroidEncounter(rock,broken,speed) {
+  if(introActive||speed<2||clock.elapsedTime-(rock.lastLoggedImpactAt??-Infinity)<1.2)return;
+  rock.lastLoggedImpactAt=clock.elapsedTime;
+  recordLog('impact',null,{broken,speed:Math.round(speed)});
 }
 
 function updateIdleShip(elapsed,dt) {
@@ -649,6 +677,57 @@ function createSolarSystem() {
       clickableMeshes.push(moonMesh);
     }
   });
+  const cometGroup=new THREE.Group();
+  const cometSurface=surfaceTexture(cometData);
+  planetSurfaces.set('comet',cometSurface.image);
+  const nucleusGeometry=new THREE.IcosahedronGeometry(cometData.radius,2);
+  const vertices=nucleusGeometry.getAttribute('position');
+  for(let i=0;i<vertices.count;i++){
+    const x=vertices.getX(i),y=vertices.getY(i),z=vertices.getZ(i);
+    const relief=1+.14*Math.sin(x*2.7+y*1.9+z*.8)*Math.cos(z*2.2-x*1.3);
+    vertices.setXYZ(i,x*relief,y*relief,z*relief);
+  }
+  nucleusGeometry.computeVertexNormals();
+  const nucleus=new THREE.Mesh(nucleusGeometry,new THREE.MeshStandardMaterial({map:cometSurface,bumpMap:cometSurface,bumpScale:.13,roughness:1}));
+  cometGroup.add(nucleus);
+  cometComa=makeGlow('205,224,229',21,.38);
+  cometGroup.add(cometComa);
+  const hit=new THREE.Mesh(new THREE.SphereGeometry(10,16,12),new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}));
+  hit.userData={id:'comet',name:'Comet',radius:cometData.radius};
+  cometGroup.add(hit);clickableMeshes.push(hit);
+  const tailGeometry=new THREE.BufferGeometry();
+  cometTailPositions=new Float32Array(210*3);
+  tailGeometry.setAttribute('position',new THREE.BufferAttribute(cometTailPositions,3));
+  cometTail=new THREE.Points(tailGeometry,new THREE.PointsMaterial({color:0xd7e3e5,size:2.1,sizeAttenuation:false,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending}));
+  cometGroup.add(cometTail);
+  scene.add(cometGroup);
+  cometBody={data:cometData,group:cometGroup,mesh:nucleus};
+  bodies.push(cometBody);
+  updateComet(0);
+}
+
+function updateComet(dt) {
+  if(!cometBody)return;
+  const orbit=cometPosition(Date.now()/1000);
+  cometBody.group.position.set(orbit.x,orbit.y,orbit.z);
+  cometBody.mesh.rotation.y+=dt*.16;
+  cometComa.material.opacity=.12+orbit.activity*.72;
+  cometComa.scale.setScalar(11+orbit.activity*25);
+  cometTail.material.opacity=orbit.activity*.68;
+  const outward=cometBody.group.position.clone().normalize();
+  const across=new THREE.Vector3().crossVectors(outward,worldUp).normalize();
+  const above=new THREE.Vector3().crossVectors(outward,across).normalize();
+  for(let i=0;i<210;i++){
+    const phase=hash(i,57),distance=(5+phase*135)*orbit.activity;
+    const spread=(.3+phase*8)*Math.sqrt(orbit.activity);
+    const angle=hash(i,58)*Math.PI*2;
+    const offset=i*3;
+    cometTailPositions[offset]=outward.x*distance+across.x*Math.cos(angle)*spread+above.x*Math.sin(angle)*spread;
+    cometTailPositions[offset+1]=outward.y*distance+across.y*Math.cos(angle)*spread+above.y*Math.sin(angle)*spread;
+    cometTailPositions[offset+2]=outward.z*distance+across.z*Math.cos(angle)*spread+above.z*Math.sin(angle)*spread;
+  }
+  cometTail.geometry.attributes.position.needsUpdate=true;
+  cometTail.geometry.computeBoundingSphere();
 }
 
 function lookAtPoint(point) {
@@ -752,6 +831,8 @@ function startGame(discoveryStart=false) {
 
 function returnToIntro() {
   if(returningToIntro)return;
+  flybyTracker.clear();
+  suppressedFlybyWorlds.clear();
   endUnlockCinematic(true);
   saveFlightState();
   returningToIntro=true;
@@ -764,6 +845,8 @@ function returnToIntro() {
     document.querySelector('#exitOverlay').hidden=true;
     document.querySelector('#settingsOverlay').hidden=true;
     document.querySelector('#helpOverlay').hidden=true;
+    document.querySelector('#logOverlay').hidden=true;
+    document.querySelector('#voyageOverlay').hidden=true;
     document.querySelector('#previewBanner').hidden=true;
     const app=document.querySelector('#app');
     app.classList.remove('destination-preview','autopilot-active','launching');
@@ -853,6 +936,7 @@ function restoreFlightState(savedState=null) {
       if(body&&!isWorldLocked(body.data.id)){
         arrivalPreview=true;
         parkedTarget=body;
+        suppressedFlybyWorlds.add(body.data.id);
         parkedOffset.fromArray(state.parkedOffset);
         shipPosition.copy(body.group.position).add(parkedOffset);
         previewTarget=body;
@@ -882,17 +966,24 @@ function updateDiscoveryChoice() {
   const hasSave=Boolean(savedDiscoveryFlight())||scannedBodies.size>0;
   document.querySelector('#resumeGameButton').disabled=!hasSave;
   document.querySelector('#discoverySaveStatus').textContent=hasSave
-    ?`${scannedBodies.size} of ${destinations.length} worlds discovered. Resume your voyage or start again.`
+    ?`${scannedBodies.size} of ${destinations.length} discoveries recorded. Resume your voyage or start again.`
     :'No saved voyage yet. Start a new game to begin scanning.';
 }
 
 function startNewDiscoveryGame() {
   scannedBodies.clear();
+  captainLog=[];
+  pendingLogSnapshots=[];
+  flybyTracker.clear();
+  suppressedFlybyWorlds.clear();
+  asteroidRocks.forEach(rock=>{delete rock.lastLoggedImpactAt;});
+  renderCaptainLog();
   scanSeconds=0;scanTargetId=null;scanResultUntil=0;
   document.querySelector('#scanFeedback').hidden=true;
   try {
     localStorage.removeItem('odyssey-scanned-worlds');
     localStorage.removeItem('odyssey-discovery-flight');
+    localStorage.removeItem('odyssey-discovery-log');
     sessionStorage.removeItem('odyssey-flight-state');
   } catch {}
   setDiscoveryOpen(false);
@@ -953,6 +1044,9 @@ function isWorldLocked(id) {
 
 function setGameMode(mode,save=true) {
   gameMode=mode==='exploration'?'exploration':'discovery';
+  document.querySelector('#app').classList.toggle('exploration-mode',gameMode==='exploration');
+  loadCaptainLog();
+  renderVoyages();
   document.querySelectorAll('[data-mode]').forEach(button=>button.setAttribute('aria-pressed',button.dataset.mode===gameMode?'true':'false'));
   refreshDiscoveryUI();
   if(isWorldLocked(selectedId)){
@@ -1216,9 +1310,9 @@ function refreshDiscoveryUI() {
     row.classList.toggle('locked',locked);
     row.classList.toggle('active',!locked&&row.dataset.id===selectedId);
     row.setAttribute('aria-current',!locked&&row.dataset.id===selectedId?'true':'false');
-    row.querySelector('.planet-row-name').textContent=locked?'Unknown world':planet.name;
+    row.querySelector('.planet-row-name').textContent=locked?(planet.id==='comet'?'Unknown object':'Unknown world'):planet.name;
     row.querySelector('.planet-row-index').textContent=locked?'LOCKED':scanned?'✓':planet.index;
-    row.setAttribute('aria-label',locked?'Unknown destination. Scan it to unlock.':`Select ${planet.name}${scanned?', scanned':''}`);
+    row.setAttribute('aria-label',locked?`${planet.id==='comet'?'Unknown object':'Unknown destination'}. Scan it to unlock.`:`Select ${planet.name}${scanned?', scanned':''}`);
   });
   document.querySelector('#discoveryToggle').hidden=isWorldLocked(selectedId);
 }
@@ -1227,7 +1321,7 @@ function scanRangeFor(id) {
   const planet=destinations.find(item=>item.id===id);
   const center=id==='sun'?sunMesh.position:bodies.find(body=>body.data.id===id)?.group.position;
   if(!planet||!center)return false;
-  return shipPosition.distanceTo(center)-planet.radius<=Math.max(24,planet.radius*.7);
+  return shipPosition.distanceTo(center)-planet.radius<=(id==='comet'?90:Math.max(24,planet.radius*.7));
 }
 
 function endUnlockCinematic(immediate=false) {
@@ -1244,6 +1338,7 @@ function endUnlockCinematic(immediate=false) {
 function showUnlockCinematic(planet,fact) {
   endUnlockCinematic(true);
   const overlay=document.querySelector('#unlockCinematic');
+  document.querySelector('#unlockKickerText').textContent=planet.id==='comet'?'OBJECT DISCOVERED':'WORLD DISCOVERED';
   document.querySelector('#unlockName').textContent=planet.name;
   document.querySelector('#unlockCount').textContent=`${scannedBodies.size} / ${destinations.length}`;
   document.querySelector('#unlockFact').textContent=fact;
@@ -1261,17 +1356,20 @@ function updateScanner(dt,elapsed) {
   const feedback=document.querySelector('#scanFeedback');
   const blocked=gameMode!=='discovery'||introActive||introDive||returningToIntro||previewTarget||unlockCinematicActive||
     !document.querySelector('#helpOverlay').hidden||
+    !document.querySelector('#logOverlay').hidden||
+    !document.querySelector('#voyageOverlay').hidden||
     !document.querySelector('#settingsOverlay').hidden||
     !document.querySelector('#exitOverlay').hidden;
   if(blocked){feedback.hidden=true;scanSeconds=0;scanTargetId=null;return;}
   const id=pointedPlanet()?.object.userData.id;
   if(keys.has('KeyR')&&id&&!scannedBodies.has(id)){
     const planet=destinations.find(item=>item.id===id);
+    const targetKind=id==='comet'?'object':'world';
     feedback.hidden=false;
     feedback.classList.remove('complete');
     document.querySelector('#scanFact').hidden=true;
     if(!scanRangeFor(id)){
-      document.querySelector('#scanTitle').textContent='Move closer to scan unknown world';
+      document.querySelector('#scanTitle').textContent=`Move closer to scan unknown ${targetKind}`;
       document.querySelector('#scanFill').style.width='0%';
       document.querySelector('#scanMeter').setAttribute('aria-valuenow','0');
       scanSeconds=0;scanTargetId=null;
@@ -1279,11 +1377,12 @@ function updateScanner(dt,elapsed) {
     }
     if(scanTargetId!==id){scanTargetId=id;scanSeconds=0;}
     scanSeconds=Math.min(2.4,scanSeconds+dt);
-    document.querySelector('#scanTitle').textContent=`Scanning unknown world · ${Math.round(scanSeconds/2.4*100)}%`;
+    document.querySelector('#scanTitle').textContent=`Scanning unknown ${targetKind} · ${Math.round(scanSeconds/2.4*100)}%`;
     document.querySelector('#scanFill').style.width=`${scanSeconds/2.4*100}%`;
     document.querySelector('#scanMeter').setAttribute('aria-valuenow',String(Math.round(scanSeconds/2.4*100)));
     if(scanSeconds>=2.4){
       scannedBodies.add(id);
+      recordLog('scan',id,{});
       try{localStorage.setItem('odyssey-scanned-worlds',JSON.stringify([...scannedBodies]));}catch{}
       refreshDiscoveryUI();
       updateAutopilotUI();
@@ -1364,15 +1463,18 @@ function selectPlanet(id,preview=false) {
   document.querySelector('#planetDistance').textContent=planet.distance;
   document.querySelector('#planetDiameter').textContent=planet.diameter;
   const art=document.querySelector('#planetArt');
+  art.hidden=id==='comet';
   art.classList.toggle('saturn-art',id==='saturn');
   art.classList.toggle('moon-art',id==='moon');
-  const photo=planetPhotos[id];
-  const image=document.querySelector('#planetPhoto');
-  image.src=`/planet-photos/${photo.file}`;
-  image.alt=`NASA image of ${planet.name}`;
-  const credit=document.querySelector('#planetPhotoCredit');
-  credit.textContent=photo.credit;
-  credit.href=photo.source;
+  if(id!=='comet'){
+    const photo=planetPhotos[id];
+    const image=document.querySelector('#planetPhoto');
+    image.src=`/planet-photos/${photo.file}`;
+    image.alt=`NASA image of ${planet.name}`;
+    const credit=document.querySelector('#planetPhotoCredit');
+    credit.textContent=photo.credit;
+    credit.href=photo.source;
+  }
   updateAutopilotUI();
   if(preview) {
     discoveryDrift=false;
@@ -1391,6 +1493,11 @@ function selectPlanet(id,preview=false) {
 
 function showArrivalPreview(body) {
   endUnlockCinematic(true);
+  completeVoyageStop(body.data.id);
+  suppressedFlybyWorlds.add(body.data.id);
+  recordLog('station',body.data.id,{
+    distance:Math.max(0,Math.round(shipPosition.distanceTo(body.group.position)-body.data.radius)),
+  });
   setDiscoveryOpen(false);
   showGuide();
   arrivalPreview=true;
@@ -1496,6 +1603,255 @@ function setupAudioControls() {
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)shipAudio.start();});
 }
 
+function captainLogKey() {
+  return gameMode==='discovery'?'odyssey-discovery-log':'odyssey-exploration-log';
+}
+
+function loadCaptainLog() {
+  try {
+    const saved=JSON.parse(localStorage.getItem(captainLogKey())||'[]');
+    captainLog=Array.isArray(saved)?saved.filter(entry=>
+      entry&&['scan','flyby','station','impact'].includes(entry.type)&&Number.isFinite(entry.at)&&Math.abs(entry.at)<=8.64e15&&
+      (entry.worldId===null||destinations.some(world=>world.id===entry.worldId))&&
+      (entry.image===undefined||typeof entry.image==='string'&&/^data:image\/(jpeg|webp);base64,/.test(entry.image))
+    ).slice(0,maxCaptainLogEntries):[];
+  } catch {captainLog=[];}
+  pendingLogSnapshots=[];
+  flybyTracker.clear();
+  renderCaptainLog();
+}
+
+function saveCaptainLog() {
+  try{localStorage.setItem(captainLogKey(),JSON.stringify(captainLog));}
+  catch {
+    // Keep the written record when browser storage is tight; older photos go first.
+    for(let index=captainLog.length-1;index>=0;index--){
+      if(!captainLog[index].image)continue;
+      delete captainLog[index].image;
+      try{localStorage.setItem(captainLogKey(),JSON.stringify(captainLog));return;}catch{}
+    }
+  }
+}
+
+function recordLog(type,worldId,details) {
+  const entry={id:`${Date.now()}-${Math.random().toString(36).slice(2,7)}`,type,worldId,at:Date.now(),...details};
+  captainLog.unshift(entry);
+  captainLog.length=Math.min(captainLog.length,maxCaptainLogEntries);
+  if(!entry.image)pendingLogSnapshots.push(entry.id);
+  saveCaptainLog();
+  if(!document.querySelector('#logOverlay').hidden)renderCaptainLog();
+}
+
+function captureLogSnapshots() {
+  if(!pendingLogSnapshots.length)return;
+  const ids=new Set(pendingLogSnapshots);
+  pendingLogSnapshots=[];
+  try {
+    const thumbnail=document.createElement('canvas');
+    thumbnail.width=320;thumbnail.height=180;
+    thumbnail.getContext('2d').drawImage(canvas,0,0,thumbnail.width,thumbnail.height);
+    const image=thumbnail.toDataURL('image/jpeg',.62);
+    captainLog.forEach(entry=>{if(ids.has(entry.id))entry.image=image;});
+    let images=0;
+    for(const entry of captainLog)if(entry.image&&++images>32)delete entry.image;
+    saveCaptainLog();
+    if(!document.querySelector('#logOverlay').hidden)renderCaptainLog();
+  } catch {}
+}
+
+function updateFlybyLog() {
+  if(introActive||introDive||returningToIntro||previewTarget||autopilotTarget){flybyTracker.clear();return;}
+  if(!document.querySelector('#logOverlay').hidden||!document.querySelector('#voyageOverlay').hidden||!document.querySelector('#helpOverlay').hidden||
+    !document.querySelector('#settingsOverlay').hidden||!document.querySelector('#exitOverlay').hidden)return;
+  for(const body of [{data:sunData,group:sunMesh},...bodies]){
+    if(suppressedFlybyWorlds.has(body.data.id)){
+      const distance=shipPosition.distanceTo(body.group.position)-body.data.radius;
+      if(distance>Math.max(35,body.data.radius*1.3))suppressedFlybyWorlds.delete(body.data.id);
+      continue;
+    }
+    const encounter=flybyTracker.update(body.data.id,shipPosition,body.group.position,body.data.radius,velocity.length());
+    if(encounter)recordLog('flyby',encounter.worldId,{distance:encounter.distance,passKind:encounter.passKind});
+  }
+}
+
+function saveVoyage() {
+  try{
+    if(voyageState)localStorage.setItem('odyssey-exploration-voyage',JSON.stringify(voyageState));
+    else localStorage.removeItem('odyssey-exploration-voyage');
+  }catch{}
+}
+
+function renderVoyages() {
+  const list=document.querySelector('#voyageRoutes');
+  if(!list)return;
+  list.replaceChildren();
+  for(const route of voyages){
+    const button=document.createElement('button');button.type='button';button.className='voyage-route';
+    button.setAttribute('aria-pressed',String(voyageState?.id===route.id));
+    const title=document.createElement('strong');title.textContent=route.name;
+    const stops=document.createElement('span');stops.textContent=route.stops.map(id=>destinations.find(item=>item.id===id).name).join(' · ');
+    const action=document.createElement('small');action.textContent=voyageState?.id===route.id?'RESTART ROUTE':'CHOOSE ROUTE';
+    button.append(title,stops,action);
+    button.addEventListener('click',()=>{
+      voyageState={id:route.id,index:0};saveVoyage();renderVoyages();
+      document.querySelector('#voyageNext').focus({preventScroll:true});
+    });
+    list.append(button);
+  }
+  const progress=document.querySelector('#voyageProgress');
+  const current=voyages.find(route=>route.id===voyageState?.id);
+  progress.hidden=!current;
+  const label=current?`Voyages ${voyageState.index}/${current.stops.length}`:'Voyages';
+  document.querySelector('#voyageButton').textContent=label;
+  document.querySelector('#voyagePanelButton').textContent=label;
+  if(!current)return;
+  const done=voyageState.index>=current.stops.length;
+  const next=done?null:destinations.find(item=>item.id===current.stops[voyageState.index]);
+  document.querySelector('#voyageStatus').textContent=done
+    ?`${current.name} complete · ${current.stops.length} stops visited`
+    :`${current.name} · ${voyageState.index+1} of ${current.stops.length} · next: ${next.name}`;
+  const stopList=document.querySelector('#voyageStops');stopList.replaceChildren();
+  current.stops.forEach((id,index)=>{
+    const item=document.createElement('span');item.textContent=destinations.find(body=>body.id===id).name;
+    if(index<voyageState.index)item.className='done';
+    else if(index===voyageState.index)item.className='current';
+    stopList.append(item);
+  });
+  const nextButton=document.querySelector('#voyageNext');
+  nextButton.disabled=done;
+  nextButton.textContent=done?'Route complete':`Fly to ${next.name}`;
+}
+
+function completeVoyageStop(id) {
+  if(gameMode!=='exploration'||!voyageState)return;
+  const route=voyages.find(item=>item.id===voyageState.id);
+  if(!route||route.stops[voyageState.index]!==id)return;
+  voyageState.index++;
+  saveVoyage();renderVoyages();
+}
+
+function updateVoyageProgress() {
+  if(gameMode!=='exploration'||!voyageState||introActive||introDive||returningToIntro||previewTarget||autopilotTarget||!document.querySelector('#voyageOverlay').hidden)return;
+  const route=voyages.find(item=>item.id===voyageState.id);
+  const id=route?.stops[voyageState.index];
+  if(!id)return;
+  const body=bodies.find(item=>item.data.id===id);
+  if(body&&shipPosition.distanceTo(body.group.position)-body.data.radius<=Math.max(24,body.data.radius*.7))completeVoyageStop(id);
+}
+
+function openVoyages() {
+  if(introActive||returningToIntro||gameMode!=='exploration')return;
+  keys.clear();renderVoyages();
+  document.querySelector('#voyageOverlay').hidden=false;
+  document.querySelector('#closeVoyages').focus({preventScroll:true});
+}
+
+function closeVoyages() {
+  if(document.querySelector('#voyageOverlay').hidden)return;
+  document.querySelector('#voyageOverlay').hidden=true;
+  const trigger=document.querySelector('#app').classList.contains('destinations-hidden')
+    ?document.querySelector('#voyageButton'):document.querySelector('#voyagePanelButton');
+  trigger.focus({preventScroll:true});
+}
+
+function setupVoyages() {
+  try{
+    const saved=JSON.parse(localStorage.getItem('odyssey-exploration-voyage')||'null');
+    const route=voyages.find(item=>item.id===saved?.id);
+    if(route&&Number.isInteger(saved.index)&&saved.index>=0&&saved.index<=route.stops.length)voyageState={id:route.id,index:saved.index};
+  }catch{}
+  document.querySelector('#voyageButton').addEventListener('click',openVoyages);
+  document.querySelector('#voyagePanelButton').addEventListener('click',openVoyages);
+  document.querySelector('#closeVoyages').addEventListener('click',closeVoyages);
+  document.querySelector('#voyageOverlay').addEventListener('click',event=>{if(event.target.id==='voyageOverlay')closeVoyages();});
+  document.querySelector('#voyageEnd').addEventListener('click',()=>{voyageState=null;saveVoyage();renderVoyages();});
+  document.querySelector('#voyageNext').addEventListener('click',()=>{
+    const route=voyages.find(item=>item.id===voyageState?.id);
+    const id=route?.stops[voyageState.index];
+    if(!id)return;
+    closeVoyages();
+    exitPreview();
+    if(autopilotTarget)stopAutopilot('Route changed');
+    selectPlanet(id);
+    toggleAutopilot();
+  });
+  renderVoyages();
+}
+
+function renderCaptainLog() {
+  const list=document.querySelector('#logEntries');
+  if(!list)return;
+  list.replaceChildren();
+  document.querySelector('#logTitle').textContent=`Captain ${pilotName}'s Log`;
+  document.querySelector('#logCount').textContent=`${captainLog.length} ${captainLog.length===1?'ENTRY':'ENTRIES'}`;
+  document.querySelector('#logSummary').textContent=gameMode==='discovery'
+    ?`${scannedBodies.size} of ${destinations.length} discoveries scanned · Discovery voyage`
+    :'Free exploration voyage';
+  if(!captainLog.length){
+    const empty=document.createElement('p');empty.className='log-empty';
+    empty.textContent='Your flight story begins with a scan, a close approach, or an encounter.';
+    list.append(empty);return;
+  }
+  for(const entry of captainLog){
+    const article=document.createElement('article');article.className='log-entry';
+    if(entry.image){
+      const imageButton=document.createElement('button');imageButton.type='button';imageButton.className='log-entry-image-button';
+      imageButton.setAttribute('aria-label','Expand flight snapshot');imageButton.setAttribute('aria-expanded','false');
+      const image=document.createElement('img');image.className='log-entry-image';image.src=entry.image;image.alt='View captured during this flight event';
+      imageButton.append(image);
+      imageButton.addEventListener('click',()=>{
+        const expanded=article.classList.toggle('expanded');
+        imageButton.setAttribute('aria-expanded',String(expanded));
+        imageButton.setAttribute('aria-label',expanded?'Shrink flight snapshot':'Expand flight snapshot');
+      });
+      article.append(imageButton);
+    }else{
+      const fallback=document.createElement('div');fallback.className='log-entry-image log-entry-image-fallback';fallback.textContent='NO IMAGE';article.append(fallback);
+    }
+    const content=document.createElement('div');
+    const meta=document.createElement('div');meta.className='log-entry-meta';
+    const kind=document.createElement('span');kind.textContent=entry.type==='scan'?'DISCOVERY':entry.type==='flyby'?(entry.passKind==='approach'?'CLOSE APPROACH':'FLYBY'):entry.type==='station'?'STATION KEEPING':'ENCOUNTER';
+    const date=document.createElement('time');date.dateTime=new Date(entry.at).toISOString();date.textContent=new Date(entry.at).toLocaleString();
+    meta.append(kind,date);
+    const heading=document.createElement('h3');
+    const detail=document.createElement('p');
+    const world=destinations.find(item=>item.id===entry.worldId);
+    const name=world&&(gameMode!=='discovery'||scannedBodies.has(world.id)||entry.type==='scan')?world.name:entry.worldId==='comet'?'Unknown object':'Unknown world';
+    if(entry.type==='scan'){
+      heading.textContent=`${name} discovered`;
+      detail.textContent=`Scan complete. This ${entry.worldId==='comet'?'object':'world'} is now available in Destinations and the Field Guide.`;
+    }else if(entry.type==='flyby'){
+      heading.textContent=`${name} · ${entry.passKind==='approach'?'close approach':'flyby'}`;
+      detail.textContent=`Closest approach: ${Math.max(0,Math.round(entry.distance||0))} units above the surface.`;
+    }else if(entry.type==='station'){
+      heading.textContent=`Holding position near ${name}`;
+      detail.textContent=`Autopilot arrival · ${Math.max(0,Math.round(entry.distance||0))} units above the surface.`;
+    }else{
+      heading.textContent=entry.broken?'Asteroid fractured':'Asteroid impact';
+      detail.textContent=entry.broken
+        ?`The rock broke into drifting fragments at ${Math.max(0,Math.round(entry.speed||0))} units/s.`
+        :`The ship deflected a larger rock at ${Math.max(0,Math.round(entry.speed||0))} units/s.`;
+    }
+    content.append(meta,heading,detail);article.append(content);list.append(article);
+  }
+}
+
+function openLog() {
+  if(introActive||returningToIntro)return;
+  keys.clear();
+  renderCaptainLog();
+  document.querySelector('#logOverlay').hidden=false;
+  document.querySelector('#closeLog').focus({preventScroll:true});
+}
+
+function closeLog() {
+  if(document.querySelector('#logOverlay').hidden)return;
+  document.querySelector('#logOverlay').hidden=true;
+  const trigger=document.querySelector('#app').classList.contains('destinations-hidden')
+    ?document.querySelector('#logButton'):document.querySelector('#logPanelButton');
+  trigger.focus({preventScroll:true});
+}
+
 function setupControls() {
   const prevent=new Set(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space']);
   const manualCodes=new Set(['KeyW','KeyS','KeyA','KeyD','KeyQ','KeyE','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','ShiftLeft','ShiftRight']);
@@ -1503,6 +1859,8 @@ function setupControls() {
     if(event.code==='Escape') {
       if(unlockCinematicActive){endUnlockCinematic(true);return;}
       if(!document.querySelector('#exitOverlay').hidden)closeExit();
+      else if(!document.querySelector('#logOverlay').hidden)closeLog();
+      else if(!document.querySelector('#voyageOverlay').hidden)closeVoyages();
       else if(!document.querySelector('#helpOverlay').hidden)closeHelp();
       else if(!document.querySelector('#settingsOverlay').hidden)closeSettings();
       else if(previewTarget)exitPreview();
@@ -1510,7 +1868,8 @@ function setupControls() {
       return;
     }
     if(introActive)return;
-    if(event.target instanceof HTMLInputElement || !document.querySelector('#helpOverlay').hidden || !document.querySelector('#settingsOverlay').hidden || !document.querySelector('#exitOverlay').hidden)return;
+    if(event.target instanceof HTMLInputElement || !document.querySelector('#helpOverlay').hidden || !document.querySelector('#logOverlay').hidden || !document.querySelector('#voyageOverlay').hidden || !document.querySelector('#settingsOverlay').hidden || !document.querySelector('#exitOverlay').hidden)return;
+    if(event.code==='KeyL'&&!event.repeat&&!event.ctrlKey&&!event.metaKey&&!event.altKey){openLog();return;}
     if(unlockCinematicActive&&event.code!=='KeyR')endUnlockCinematic(true);
     if(previewTarget&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&(event.code==='Comma'||event.code==='Period')){
       event.preventDefault();
@@ -1554,6 +1913,10 @@ function setupControls() {
   document.querySelector('#previewOrbitLeft').addEventListener('click',()=>rotatePreview(-1));
   document.querySelector('#previewOrbitRight').addEventListener('click',()=>rotatePreview(1));
   document.querySelector('#helpButton').addEventListener('click',openHelp);
+  document.querySelector('#logButton').addEventListener('click',openLog);
+  document.querySelector('#logPanelButton').addEventListener('click',openLog);
+  document.querySelector('#closeLog').addEventListener('click',closeLog);
+  document.querySelector('#logOverlay').addEventListener('click',event=>{if(event.target.id==='logOverlay')closeLog();});
   document.querySelector('#closeHelp').addEventListener('click',closeHelp);
   document.querySelector('#startExploring').addEventListener('click',closeHelp);
   document.querySelector('#helpOverlay').addEventListener('click',event=>{if(event.target.id==='helpOverlay')closeHelp();});
@@ -1607,6 +1970,7 @@ function closeHelp(restoreFocus=true) {
 function updateNameReadout() {
   document.querySelector('#shipNameReadout').textContent=shipName;
   document.querySelector('#pilotNameReadout').textContent=pilotName;
+  document.querySelector('#logTitle').textContent=`Captain ${pilotName}'s Log`;
   document.querySelector('#shipNameInput').value=shipName;
   document.querySelector('#pilotNameInput').value=pilotName;
 }
@@ -1697,7 +2061,7 @@ function moveShip(dt) {
     bank=THREE.MathUtils.damp(bank,0,5,dt);
     return;
   }
-  if(!document.querySelector('#helpOverlay').hidden || !document.querySelector('#settingsOverlay').hidden || !document.querySelector('#exitOverlay').hidden){velocity.multiplyScalar(Math.exp(-6*dt));bank*=Math.exp(-7*dt);boostAmount=THREE.MathUtils.damp(boostAmount,0,5,dt);return;}
+  if(!document.querySelector('#helpOverlay').hidden || !document.querySelector('#logOverlay').hidden || !document.querySelector('#voyageOverlay').hidden || !document.querySelector('#settingsOverlay').hidden || !document.querySelector('#exitOverlay').hidden){velocity.multiplyScalar(Math.exp(-6*dt));bank*=Math.exp(-7*dt);boostAmount=THREE.MathUtils.damp(boostAmount,0,5,dt);return;}
   const guidance=autopilotTarget?autopilotGuidance():null;
   if(!autopilotTarget) {
     const reverseSteering=keys.has('KeyS')&&!keys.has('KeyW')?-1:1;
@@ -1764,6 +2128,7 @@ function updateBodies(elapsed,dt) {
   sunMesh.rotation.y+=dt*.025;
   bodies.forEach(({data,group,mesh,clouds})=>{
     if(data.id==='moon')return;
+    if(data.id==='comet'){updateComet(dt);return;}
     data.angle+=dt*data.speed;
     group.position.set(Math.cos(data.angle)*data.orbit*worldScale,0,Math.sin(data.angle)*data.orbit*worldScale);
     mesh.rotation.y+=dt*.08;
@@ -1794,18 +2159,47 @@ function updateHud(elapsed) {
   if(discoveryDrift)document.querySelector('#bankReadout').textContent='COASTING';
   if(boostAmount>.45)document.querySelector('#bankReadout').textContent='BOOST ENGAGED';
   if(autopilotTarget)document.querySelector('#bankReadout').textContent='AUTOPILOT';
+  updateSignal();
   document.querySelector('.hud-arc').style.transform=`rotate(${THREE.MathUtils.radToDeg(bank)*.7}deg)`;
   const hit=pointedPlanet();
   const label=document.querySelector('#objectLabel');
   if(hit){
     const id=hit.object.userData.id;
     if(isWorldLocked(id)){
-      label.textContent=`Unknown world · ${scanRangeFor(id)?'Hold R to scan':'move closer to scan'}`;
+      label.textContent=`Unknown ${id==='comet'?'object':'world'} · ${scanRangeFor(id)?'Hold R to scan':'move closer to scan'}`;
     }else{
       const scanHint=gameMode==='discovery'?' · Scanned':'';
       label.textContent=`${hit.object.userData.name} · F ${!guideHidden&&selectedId===id?'close':'info'}${scanHint}`;
     }
   }else label.textContent='';
+}
+
+function updateSignal() {
+  const readout=document.querySelector('#signalReadout');
+  if(gameMode!=='discovery'||introActive||introDive||returningToIntro||previewTarget||unlockCinematicActive||
+    !document.querySelector('#helpOverlay').hidden||!document.querySelector('#logOverlay').hidden||!document.querySelector('#voyageOverlay').hidden||!document.querySelector('#settingsOverlay').hidden||!document.querySelector('#exitOverlay').hidden){
+    readout.hidden=true;
+    return;
+  }
+  const unknown=[{data:sunData,position:sunMesh.position},...bodies.map(body=>({data:body.data,position:body.group.position}))]
+    .filter(body=>!scannedBodies.has(body.data.id));
+  const target=unknown.reduce((best,body)=>{
+    const distance=shipPosition.distanceTo(body.position)-body.data.radius;
+    return distance<best.distance?{body,distance}:best;
+  },{body:null,distance:Infinity});
+  if(!target.body||target.distance>1500){readout.hidden=true;return;}
+  const offset=temp.copy(target.body.position).sub(shipPosition);
+  const targetYaw=Math.atan2(-offset.x,-offset.z);
+  const angle=Math.atan2(Math.sin(targetYaw-yaw),Math.cos(targetYaw-yaw));
+  const degrees=Math.round(Math.abs(THREE.MathUtils.radToDeg(angle)));
+  const bearing=degrees>155?'BEHIND':degrees<8?'AHEAD':`${degrees}° ${angle>0?'LEFT':'RIGHT'}`;
+  const elevation=Math.atan2(offset.y,Math.hypot(offset.x,offset.z))-pitch;
+  const vertical=Math.abs(elevation)>.3?` · ${elevation>0?'ABOVE':'BELOW'}`:'';
+  const strength=THREE.MathUtils.clamp(1-target.distance/1500,0,1);
+  const quality=strength>.68?'STRONG':strength>.3?'DETECTED':'FAINT';
+  document.querySelector('#signalText').textContent=`UNIDENTIFIED SIGNAL · ${bearing}${vertical} · ${quality}`;
+  readout.hidden=false;
+  shipAudio.signalPulse(strength,Math.sin(angle));
 }
 
 function resize() {
@@ -1846,7 +2240,10 @@ function animate() {
   updateBodies(elapsed,dt);
   updateAsteroids(dt);
   moveShip(dt);
-  shipAudio.update(velocity.length(),boostAmount,Boolean(previewTarget));
+  updateVoyageProgress();
+  updateFlybyLog();
+  const thrust=!introActive&&!introDive&&!returningToIntro&&(Boolean(autopilotTarget)||keys.has('KeyW')||keys.has('KeyS'));
+  shipAudio.update(velocity.length(),boostAmount,Boolean(previewTarget),thrust);
   updateCamera(dt);
   updateIdleShip(elapsed,dt);
   updateScanner(dt,elapsed);
@@ -1854,6 +2251,7 @@ function animate() {
   updateHud(elapsed);
   if(!introActive&&elapsed-lastFlightSave>.5){saveFlightState();lastFlightSave=elapsed;}
   renderer.render(scene,camera);
+  captureLogSnapshots();
   if(!firstFrameRendered){
     firstFrameRendered=true;
     requestAnimationFrame(()=>document.querySelector('#sceneCurtain').classList.remove('covered'));
@@ -1873,6 +2271,7 @@ setupAudioControls();
 setupDestinationToggle();
 setupGuideToggle();
 setupGameModes();
+setupVoyages();
 // Apply the saved mode after the discovery gate is active. This populates the
 // guide in free exploration while keeping unscanned worlds masked in Discovery.
 selectPlanet(selectedId);
