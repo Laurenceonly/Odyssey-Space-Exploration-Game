@@ -118,3 +118,46 @@ button:focus-visible,.intro-play:focus-visible{outline-color:#ffffff}
 .exit-actions #cancelExit{border:1px solid #888;background:transparent;color:#fff}
 .exit-actions #cancelExit:hover{background:#292929}
 .exit-actions #confirmExit{border:1px solid #fff;background:#fff;color:#000}
+.discovery-toggle{width:100%;margin-top:16px;padding:11px 12px;border:1px solid rgba(220,220,220,.35);background:rgba(255,255,255,.05);color:#f3f3f3;text-align:left;font:600 11px 'Oxanium',sans-serif}
+.discovery-toggle:hover{background:rgba(255,255,255,.12);border-color:#eee}
+.discovery-panel[hidden]{display:none}
+.discovery-panel{padding-top:22px}
+.discovery-kicker{color:#aaa;font:700 9px 'Oxanium',sans-serif;letter-spacing:.2em}
+.discovery-panel h3{margin:9px 0 8px;font:500 25px/1.1 'Oxanium',sans-serif;letter-spacing:-.04em}
+.discovery-panel>p{margin:0;color:#c5c5c5;font-size:11px;line-height:1.6}
+.discovery-stats{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:18px 0}
+.discovery-stats>div{min-height:56px;padding:10px;background:rgba(255,255,255,.06)}
+.discovery-stats span{display:block;margin-bottom:6px;color:#999;font-size:8px;font-weight:700;letter-spacing:.14em}
+.discovery-stats strong{color:#f2f2f2;font:500 11px 'Oxanium',sans-serif}
+.discovery-notes>div{padding:11px 0;border-top:1px solid rgba(210,210,210,.16)}
+.discovery-notes h4{margin:0 0 5px;font:600 12px 'Oxanium',sans-serif}
+.discovery-notes p{margin:0;color:#b9b9b9;font-size:10px;line-height:1.5}
+.discovery-panel>a{display:inline-block;margin:13px 0 2px;color:#f0f0f0;font:600 10px 'Oxanium',sans-serif;text-underline-offset:3px}
+.discovery-inspect{display:block;width:100%;margin-top:15px;padding:10px;border:1px solid #ddd;background:#ddd;color:#111;font:600 11px 'Oxanium',sans-serif}
+.discovery-inspect:hover{background:#fff}
+.destination-preview .discovery-inspect{display:none}
+.info-panel.discovery-open{width:370px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:#666 transparent}
+.info-panel.discovery-open .planet-art{height:125px;min-height:125px;flex:none}
+.info-panel.discovery-open .planet-art-disc{width:90px;height:90px}
+.info-panel.discovery-open .info-main{margin-top:0}
+.info-panel.discovery-open .fact-grid{margin-bottom:12px}
+@media(max-width:800px){.info-panel.discovery-open{width:min(370px,calc(100vw - 30px))}}
+@media(max-width:540px){.info-panel.discovery-open{left:10px;right:10px;bottom:59px;width:calc(100% - 20px);height:min(68vh,500px)}.info-panel.discovery-open .planet-art{height:78px;min-height:78px}.info-panel.discovery-open .planet-art-disc{width:65px;height:65px}.info-panel.discovery-open .info-topline{display:flex}.info-panel.discovery-open #planetDescription{display:block}.info-panel.discovery-open .fact-grid{display:grid}}
+
+.planet-art{display:flex;align-items:center;justify-content:center;background:#0b0b0b}
+.info-panel .planet-art{height:min(30%,220px);min-height:130px;flex:none}
+.info-panel .info-main{margin-top:0;padding-top:8px}
+.planet-art-photo{display:block;width:min(88%,210px);height:calc(100% - 28px);object-fit:contain;object-position:center;filter:drop-shadow(0 0 14px rgba(255,255,255,.07))}
+.planet-art.saturn-art .planet-art-photo{width:min(96%,260px)}
+.planet-art.moon-art .planet-art-photo{transform:scale(1.3)}
+.planet-photo-credit{position:absolute;bottom:7px;left:8px;right:8px;text-align:center;color:#a7a7a7;font-size:9px;line-height:1.2;text-decoration:none}
+.planet-photo-credit:hover{color:#fff;text-decoration:underline}
+.planet-photo-credit:focus-visible{outline:1px solid #fff;outline-offset:3px}
+#autopilotButton[hidden]{display:none}
+@media(max-height:750px){.info-panel .planet-art{height:130px;min-height:100px}}
+@media(max-width:800px){.info-panel .planet-art{height:120px;min-height:120px}}
+@media(max-width:540px){.info-panel .planet-art{height:64px;min-height:64px}.info-panel .info-main{padding-top:5px}.planet-art-photo{height:calc(100% - 21px)}.planet-photo-credit{bottom:3px;font-size:7px}}
+
+.settings-card select{width:100%;height:44px;padding:0 12px;border:1px solid #606060;background:#101010;color:#f1f1f1;font:500 13px 'Oxanium',sans-serif;outline:0;cursor:pointer}
+.settings-card select:focus-visible{border-color:#fff;box-shadow:0 0 0 2px rgba(255,255,255,.2)}
+.music-now-playing{margin-top:8px;color:#a9a9a9;font:500 10px 'Oxanium',sans-serif}

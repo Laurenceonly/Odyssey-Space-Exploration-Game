@@ -1,3 +1,31 @@
+export const musicTracks = [
+  {id:'playlist',name:'Playlist · all tracks'},
+  {id:'odyssey',name:'Odyssey · original'},
+  {id:'horizon',name:'Event Horizon · cinematic'},
+  {id:'starlight',name:'Starlight Drift · ambient'},
+];
+
+const scores={
+  odyssey:{interval:8.5,duration:11.4,kind:'original',progression:[
+    {bass:73.42,pad:[146.83,174.61,220,329.63],melody:[659.25,587.33]},
+    {bass:58.27,pad:[116.54,174.61,220,293.66],melody:[587.33,523.25]},
+    {bass:87.31,pad:[130.81,174.61,196,329.63],melody:[698.46,659.25]},
+    {bass:65.41,pad:[130.81,196,261.63,293.66],melody:[587.33,783.99]},
+  ]},
+  horizon:{interval:10.5,duration:13.2,kind:'cinematic',progression:[
+    {bass:65.41,pad:[130.81,155.56,196,233.08],melody:[392,466.16,523.25]},
+    {bass:51.91,pad:[103.83,155.56,196,261.63],melody:[392,349.23,311.13]},
+    {bass:77.78,pad:[155.56,196,233.08,311.13],melody:[466.16,523.25,622.25]},
+    {bass:58.27,pad:[116.54,174.61,233.08,293.66],melody:[349.23,466.16,587.33]},
+  ]},
+  starlight:{interval:7.8,duration:10.1,kind:'ambient',progression:[
+    {bass:65.41,pad:[130.81,164.81,196,293.66],melody:[587.33,659.25,783.99]},
+    {bass:82.41,pad:[164.81,196,246.94,329.63],melody:[659.25,783.99,987.77]},
+    {bass:55,pad:[110,164.81,220,293.66],melody:[587.33,493.88,659.25]},
+    {bass:73.42,pad:[146.83,185,220,329.63],melody:[659.25,739.99,880]},
+  ]},
+};
+
 export function createShipAudio() {
   const AudioContextClass=window.AudioContext||window.webkitAudioContext;
   let context;
@@ -8,11 +36,14 @@ export function createShipAudio() {
   let airGain;
   let airFilter;
   let musicBus;
+  let scoreBus;
   let continuousLow;
   let continuousHigh;
   let musicTimer;
   let nextChordTime=0;
   let chordIndex=0;
+  let musicSelection='playlist';
+  let activeTrackId='odyssey';
   let enabled=true;
   let musicVolume=1;
   try{enabled=localStorage.getItem('odyssey-sound')!=='off';}catch{}
@@ -21,13 +52,11 @@ export function createShipAudio() {
     const saved=Number(stored);
     if(stored!==null&&Number.isFinite(saved)&&saved>=0&&saved<=150)musicVolume=saved/100;
   }catch{}
-
-  const progression=[
-    {bass:73.42,pad:[146.83,174.61,220,329.63],melody:[659.25,587.33]},
-    {bass:58.27,pad:[116.54,174.61,220,293.66],melody:[587.33,523.25]},
-    {bass:87.31,pad:[130.81,174.61,196,329.63],melody:[698.46,659.25]},
-    {bass:65.41,pad:[130.81,196,261.63,293.66],melody:[587.33,783.99]},
-  ];
+  try{
+    const stored=localStorage.getItem('odyssey-music-track');
+    if(musicTracks.some(track=>track.id===stored))musicSelection=stored;
+  }catch{}
+  if(musicSelection!=='playlist')activeTrackId=musicSelection;
 
   function playMusicNote(frequency,at,duration,peak,type='triangle',attack=1.7) {
     const voice=context.createOscillator();voice.type=type;
@@ -37,7 +66,7 @@ export function createShipAudio() {
     level.gain.exponentialRampToValueAtTime(peak,at+attack);
     level.gain.setValueAtTime(peak,at+duration-2.8);
     level.gain.exponentialRampToValueAtTime(.0001,at+duration);
-    voice.connect(level);level.connect(musicBus);
+    voice.connect(level);level.connect(scoreBus);
     voice.start(at);voice.stop(at+duration+.05);
     voice.onended=()=>{voice.disconnect();level.disconnect();};
   }
@@ -49,7 +78,7 @@ export function createShipAudio() {
     level.gain.setValueAtTime(.0001,at);
     level.gain.exponentialRampToValueAtTime(peak,at+.025);
     level.gain.exponentialRampToValueAtTime(.0001,at+2.7);
-    bell.connect(level);level.connect(musicBus);
+    bell.connect(level);level.connect(scoreBus);
     bell.start(at);bell.stop(at+2.75);
     bell.onended=()=>{bell.disconnect();level.disconnect();};
   }
@@ -62,25 +91,74 @@ export function createShipAudio() {
     level.gain.setValueAtTime(.0001,at);
     level.gain.exponentialRampToValueAtTime(.055,at+.04);
     level.gain.exponentialRampToValueAtTime(.0001,at+1.4);
-    pulse.connect(level);level.connect(musicBus);
+    pulse.connect(level);level.connect(scoreBus);
     pulse.start(at);pulse.stop(at+1.45);
     pulse.onended=()=>{pulse.disconnect();level.disconnect();};
   }
 
+  function activateTrack(id,at=context.currentTime+.05) {
+    const previousBus=scoreBus;
+    const previousDrones=[continuousLow,continuousHigh].filter(Boolean);
+    const switchTime=Math.max(at,context.currentTime+.02);
+    if(previousBus){
+      if(previousBus.gain.cancelAndHoldAtTime)previousBus.gain.cancelAndHoldAtTime(switchTime);
+      else {
+        previousBus.gain.cancelScheduledValues(switchTime);
+        previousBus.gain.setValueAtTime(previousBus.gain.value,switchTime);
+      }
+      previousBus.gain.linearRampToValueAtTime(.0001,switchTime+1.2);
+      previousDrones.forEach(drone=>drone.stop(switchTime+1.3));
+      setTimeout(()=>previousBus.disconnect(),16000);
+    }
+    activeTrackId=id;
+    chordIndex=0;
+    nextChordTime=switchTime;
+    const first=scores[id].progression[0];
+    scoreBus=context.createGain();
+    scoreBus.gain.setValueAtTime(.0001,switchTime);
+    scoreBus.gain.linearRampToValueAtTime(1,switchTime+1.2);
+    scoreBus.connect(musicBus);
+    continuousLow=context.createOscillator();continuousLow.type='sine';continuousLow.frequency.value=first.pad[0];
+    const lowBed=context.createGain();lowBed.gain.value=id==='horizon'?.028:.018;
+    continuousLow.connect(lowBed);lowBed.connect(scoreBus);continuousLow.start(switchTime);
+    continuousHigh=context.createOscillator();continuousHigh.type='triangle';continuousHigh.frequency.value=first.pad[2];
+    const highBed=context.createGain();highBed.gain.value=id==='starlight'?.012:.008;
+    continuousHigh.connect(highBed);highBed.connect(scoreBus);continuousHigh.start(switchTime);
+  }
+
   function scheduleChord(at) {
-    const chord=progression[chordIndex%progression.length];
+    const score=scores[activeTrackId];
+    const chord=score.progression[chordIndex%score.progression.length];
     continuousLow.frequency.setTargetAtTime(chord.pad[0],at,2.1);
     continuousHigh.frequency.setTargetAtTime(chord.pad[2],at,2.1);
-    chord.pad.forEach((frequency,index)=>{
-      playMusicNote(frequency,at+index*.08,11.4,.046,'triangle',1.7);
-      playMusicNote(frequency*2.003,at+index*.08,11.4,.014,'sine',2.2);
-    });
-    playMusicNote(chord.bass,at,11.4,.068,'sine',.85);
-    playBell(chord.melody[0],at+3.1);
-    playBell(chord.melody[1],at+6.5,.026);
-    playBell(chord.bass*4,at+1.2,.011);
-    playPulse(chord.bass,at+.4);
-    playPulse(chord.bass,at+4.65);
+    if(score.kind==='original'){
+      chord.pad.forEach((frequency,index)=>{
+        playMusicNote(frequency,at+index*.08,score.duration,.046,'triangle',1.7);
+        playMusicNote(frequency*2.003,at+index*.08,score.duration,.014,'sine',2.2);
+      });
+      playMusicNote(chord.bass,at,score.duration,.068,'sine',.85);
+      playBell(chord.melody[0],at+3.1);
+      playBell(chord.melody[1],at+6.5,.026);
+      playBell(chord.bass*4,at+1.2,.011);
+      playPulse(chord.bass,at+.4);
+      playPulse(chord.bass,at+4.65);
+    }else if(score.kind==='cinematic'){
+      chord.pad.forEach((frequency,index)=>{
+        playMusicNote(frequency,at+index*.16,score.duration,.053,'triangle',3.6);
+        playMusicNote(frequency*2,at+index*.16,score.duration,.011,'sine',4.2);
+      });
+      playMusicNote(chord.bass,at,score.duration,.095,'sine',2.3);
+      chord.melody.forEach((frequency,index)=>playBell(frequency,at+3.5+index*2.6,.027));
+      playPulse(chord.bass,at+.3);
+      playPulse(chord.bass,at+5.6);
+    }else{
+      chord.pad.forEach((frequency,index)=>{
+        playMusicNote(frequency,at+index*.35,score.duration,.029,'sine',2.4);
+        playMusicNote(frequency*2,at+index*.35,score.duration,.009,'triangle',3);
+      });
+      playMusicNote(chord.bass,at,score.duration,.045,'sine',1.8);
+      chord.melody.forEach((frequency,index)=>playBell(frequency,at+1.7+index*2.15,.018));
+    }
     chordIndex++;
   }
 
@@ -88,7 +166,14 @@ export function createShipAudio() {
     if(!context||!enabled)return;
     const now=context.currentTime;
     if(nextChordTime<now-1)nextChordTime=now+.08;
-    while(nextChordTime<now+32){scheduleChord(nextChordTime);nextChordTime+=8.5;}
+    while(nextChordTime<now+2){
+      if(musicSelection==='playlist'&&chordIndex>=8){
+        const ids=['odyssey','horizon','starlight'];
+        activateTrack(ids[(ids.indexOf(activeTrackId)+1)%ids.length],nextChordTime);
+      }
+      scheduleChord(nextChordTime);
+      nextChordTime+=scores[activeTrackId].interval;
+    }
   }
 
   function start() {
@@ -121,12 +206,6 @@ export function createShipAudio() {
 
       musicBus=context.createGain();musicBus.gain.value=.55*musicVolume;
       musicBus.connect(master);
-      continuousLow=context.createOscillator();continuousLow.type='sine';continuousLow.frequency.value=146.83;
-      const lowBed=context.createGain();lowBed.gain.value=.022;
-      continuousLow.connect(lowBed);lowBed.connect(musicBus);continuousLow.start();
-      continuousHigh=context.createOscillator();continuousHigh.type='triangle';continuousHigh.frequency.value=220;
-      const highBed=context.createGain();highBed.gain.value=.009;
-      continuousHigh.connect(highBed);highBed.connect(musicBus);continuousHigh.start();
       const reverb=context.createConvolver();
       const reverbLength=Math.floor(context.sampleRate*1.8);
       const impulse=context.createBuffer(2,reverbLength,context.sampleRate);
@@ -137,7 +216,7 @@ export function createShipAudio() {
       reverb.buffer=impulse;
       const reverbLevel=context.createGain();reverbLevel.gain.value=.14;
       musicBus.connect(reverb);reverb.connect(reverbLevel);reverbLevel.connect(master);
-      nextChordTime=context.currentTime+.08;
+      activateTrack(activeTrackId);
       scheduleMusic();
       musicTimer=setInterval(scheduleMusic,750);
     }
@@ -161,6 +240,22 @@ export function createShipAudio() {
     try{localStorage.setItem('odyssey-music-volume',String(Math.round(musicVolume*100)));}catch{}
     if(enabled&&!context)start();
     return Math.round(musicVolume*100);
+  }
+
+  function setMusicSelection(id) {
+    if(!musicTracks.some(track=>track.id===id))return musicSelection;
+    if(id===musicSelection)return musicSelection;
+    musicSelection=id;
+    try{localStorage.setItem('odyssey-music-track',id);}catch{}
+    const nextId=id==='playlist'?'odyssey':id;
+    if(context){
+      activateTrack(nextId);
+      scheduleMusic();
+    }else{
+      activeTrackId=nextId;
+      if(enabled)start();
+    }
+    return musicSelection;
   }
 
   function update(speed,boost,preview=false) {
@@ -195,5 +290,5 @@ export function createShipAudio() {
     });
   }
 
-  return {start,setEnabled,setMusicVolume,getMusicVolume:()=>Math.round(musicVolume*100),update,cue,isEnabled:()=>enabled,isSupported:()=>Boolean(AudioContextClass)};
+  return {start,setEnabled,setMusicVolume,getMusicVolume:()=>Math.round(musicVolume*100),setMusicSelection,getMusicSelection:()=>musicSelection,getActiveTrackName:()=>musicTracks.find(track=>track.id===activeTrackId)?.name.split(' · ')[0]||'Odyssey',update,cue,isEnabled:()=>enabled,isSupported:()=>Boolean(AudioContextClass)};
 }

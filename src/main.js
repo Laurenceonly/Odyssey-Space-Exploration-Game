@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { createShipAudio } from './audio.js';
+import { discovery } from './discovery.js';
+import { planetPhotos } from './planet-photos.js';
 import './style.css';
 
 const canvas = document.querySelector('#universe');
@@ -53,6 +55,8 @@ let autopilotTarget = null;
 let autopilotMessage = 'Manual flight';
 let autopilotWaypoint = null;
 let lastHudUpdate = 0;
+let lastFlightSave = 0;
+let arrivalZoneId = 'earth';
 let shipName = 'Odyssey';
 let pilotName = 'Explorer';
 let exitFromSettings = false;
@@ -73,7 +77,8 @@ const planets = [
   { id:'neptune', name:'Neptune', index:'08', symbol:'♆', type:'ICE GIANT', distance:'30.1 AU', diameter:'49,244 km', description:'Deep blue, windswept, and far beyond the familiar worlds.', orbit:243, radius:25.2, angle:2.95, speed:.000009, color:'#5279ce', base:[49,83,164], style:'ice', gradient:'radial-gradient(circle at 27% 22%,#789bdc,#3452a6 68%,#152454 96%)' },
 ];
 const moonData = {id:'moon',name:'Moon',index:'03A',seed:9,symbol:'☾',type:'EARTH SATELLITE',distance:'1.00 AU',diameter:'3,474 km',description:'Earth’s cratered companion, with ancient highlands and quiet maria.',radius:5,color:'#aeb9c0',base:[151,157,159],style:'rock',gradient:'radial-gradient(circle at 28% 24%,#d3d5d0,#8a9499 58%,#343b42 96%)'};
-const destinations=[...planets.slice(0,3),moonData,...planets.slice(3)];
+const sunData={id:'sun',name:'Sun',index:'00',symbol:'☼',type:'YELLOW DWARF STAR',distance:'0 AU',diameter:'1.4 million km',description:'The star at the center of our solar system, powered by nuclear fusion.',radius:sunRadius,color:'#ffae45',base:[255,171,72],style:'sun'};
+const destinations=[sunData,...planets.slice(0,3),moonData,...planets.slice(3)];
 let moonBody;
 
 function hash(x, y, seed = 0) {
@@ -398,8 +403,10 @@ function createSolarSystem() {
   scene.add(new THREE.AmbientLight(0xb5d0e8, .42));
   const sunlight=new THREE.PointLight(0xffe6bc,2300,0,1.05);
   sunlight.position.set(0,0,0);scene.add(sunlight);
-  sunMesh=new THREE.Mesh(new THREE.SphereGeometry(sunRadius,64,40),new THREE.MeshBasicMaterial({map:surfaceTexture({id:'sun',index:'00',style:'sun',base:[255,171,72]}),toneMapped:false}));
-  sunMesh.userData.name='Sun';sunMesh.userData.radius=sunRadius;
+  const sunSurface=surfaceTexture(sunData);
+  planetSurfaces.set('sun',sunSurface.image);
+  sunMesh=new THREE.Mesh(new THREE.SphereGeometry(sunRadius,64,40),new THREE.MeshBasicMaterial({map:sunSurface,toneMapped:false}));
+  sunMesh.userData.id='sun';sunMesh.userData.name='Sun';sunMesh.userData.radius=sunRadius;
   scene.add(sunMesh);clickableMeshes.push(sunMesh);
   scene.add(makeGlow('255,151,59',175,.4));
   scene.add(makeGlow('255,207,112',90,.48));
@@ -494,6 +501,7 @@ function startGame() {
   introDive=true;
   introActive=false;
   try{sessionStorage.setItem('odyssey-flight-active','yes');}catch{}
+  saveFlightState();
   keys.clear();
   shipAudio.start();
   document.querySelector('#app').classList.remove('intro-mode');
@@ -502,10 +510,51 @@ function startGame() {
   window.setTimeout(()=>{overlay.hidden=true;canvas.focus({preventScroll:true});},reducedMotion.matches?0:850);
 }
 
+function saveFlightState() {
+  if(introActive)return;
+  try {
+    if(sessionStorage.getItem('odyssey-flight-active')!=='yes')return;
+    sessionStorage.setItem('odyssey-flight-state',JSON.stringify({
+      position:shipPosition.toArray(),yaw,pitch,cameraMode,selectedId,
+      autopilotId:autopilotTarget?.data.id??null,
+      discoveryOpen:!document.querySelector('#discoveryPanel').hidden,
+      guideOpen:!guideHidden,
+    }));
+  } catch {}
+}
+
+function restoreFlightState() {
+  try {
+    const state=JSON.parse(sessionStorage.getItem('odyssey-flight-state')||'null');
+    if(!state||!Array.isArray(state.position)||state.position.length!==3||!state.position.every(Number.isFinite)||!Number.isFinite(state.yaw)||!Number.isFinite(state.pitch))return;
+    shipPosition.fromArray(state.position);
+    yaw=targetYaw=state.yaw;
+    pitch=targetPitch=THREE.MathUtils.clamp(state.pitch,-maxManualPitch,maxManualPitch);
+    bank=0;
+    velocity.set(0,0,0);
+    cameraMode=state.cameraMode==='first-person'?'first-person':'chase';
+    document.querySelector('#app').classList.toggle('camera-chase',cameraMode==='chase');
+    document.querySelectorAll('[data-camera]').forEach(button=>button.setAttribute('aria-pressed',button.dataset.camera===cameraMode?'true':'false'));
+    if(destinations.some(planet=>planet.id===state.selectedId))selectPlanet(state.selectedId);
+    if(state.autopilotId&&state.autopilotId!=='sun'&&destinations.some(planet=>planet.id===state.autopilotId)){
+      autopilotTarget=bodies.find(body=>body.data.id===state.autopilotId);
+      if(autopilotTarget){
+        autopilotWaypoint=null;
+        autopilotMessage=`Course set for ${autopilotTarget.data.name}`;
+        updateAutopilotUI();
+      }
+    }
+    arrivalZoneId=bodies.find(body=>shipPosition.distanceTo(body.group.position)-body.data.radius<=12)?.data.id??null;
+    if(state.discoveryOpen)setDiscoveryOpen(true);
+    if(state.guideOpen)showGuide();
+  } catch {}
+}
+
 function setupIntro() {
   document.querySelector('#playButton').addEventListener('click',startGame);
   try {
     if(sessionStorage.getItem('odyssey-flight-active')==='yes') {
+      restoreFlightState();
       introActive=false;
       document.querySelector('#introOverlay').hidden=true;
       document.querySelector('#app').classList.remove('intro-mode');
@@ -513,7 +562,6 @@ function setupIntro() {
       return;
     }
   } catch {}
-  document.querySelector('#playButton').focus({preventScroll:true});
 }
 
 function setupDestinationToggle() {
@@ -608,9 +656,11 @@ function updateCamera(dt,instant=false) {
   if(previewTarget) {
     const center=previewTarget.group.position;
     const radius=previewTarget.data.radius;
-    const sunward=previewTarget.data.id==='moon'
-      ?center.clone().sub(bodies.find(body=>body.data.id==='earth').group.position).normalize()
-      :center.clone().multiplyScalar(-1).normalize();
+    const sunward=previewTarget.data.id==='sun'
+      ?shipPosition.clone().normalize()
+      :previewTarget.data.id==='moon'
+        ?center.clone().sub(bodies.find(body=>body.data.id==='earth').group.position).normalize()
+        :center.clone().multiplyScalar(-1).normalize();
     const viewPosition=center.clone().addScaledVector(sunward,radius*2.8+6).add(new THREE.Vector3(0,radius*.55+2,0));
     camera.position.copy(viewPosition);
     camera.lookAt(center);
@@ -709,9 +759,57 @@ function buildPlanetList() {
   });
 }
 
+function setDiscoveryOpen(open,arrived=false) {
+  const planet=destinations.find(item=>item.id===selectedId);
+  const facts=discovery[planet.id];
+  const panel=document.querySelector('#fieldGuide');
+  const details=document.querySelector('#discoveryPanel');
+  const toggle=document.querySelector('#discoveryToggle');
+  panel.classList.toggle('discovery-open',open);
+  details.hidden=!open;
+  toggle.setAttribute('aria-expanded',open?'true':'false');
+  toggle.textContent=open?'Hide extra facts':'Explore more facts';
+  if(!open)return;
+  document.querySelector('#discoveryKicker').textContent=arrived?'ARRIVAL LOG':'FIELD NOTES';
+  document.querySelector('#discoveryHeading').textContent=`${planet.name} up close`;
+  document.querySelector('#discoveryLead').textContent=facts.lead;
+  const stats=document.querySelector('#discoveryStats');
+  stats.replaceChildren();
+  for(const [label,value] of [['ROTATION',facts.rotation],['ORBIT',facts.orbit],['ATMOSPHERE',facts.atmosphere]]){
+    const item=document.createElement('div');
+    const term=document.createElement('span');term.textContent=label;
+    const detail=document.createElement('strong');detail.textContent=value;
+    item.append(term,detail);stats.append(item);
+  }
+  const notes=document.querySelector('#discoveryNotes');
+  notes.replaceChildren();
+  for(const [title,description] of facts.notes){
+    const item=document.createElement('div');
+    const heading=document.createElement('h4');heading.textContent=title;
+    const copy=document.createElement('p');copy.textContent=description;
+    item.append(heading,copy);notes.append(item);
+  }
+  document.querySelector('#discoverySource').href=facts.source;
+  document.querySelector('#discoveryInspect').textContent=planet.id==='sun'?'View Sun from a distance':`View ${planet.name} up close`;
+  requestAnimationFrame(()=>{
+    if(!details.hidden){
+      const top=details.getBoundingClientRect().top-panel.getBoundingClientRect().top+panel.scrollTop-14;
+      panel.scrollTo({top,behavior:reducedMotion.matches?'auto':'smooth'});
+    }
+  });
+}
+
+function openDiscovery(id,inspect=false) {
+  arrivalZoneId=id;
+  selectPlanet(id,inspect);
+  showGuide();
+  setDiscoveryOpen(true,true);
+}
+
 function selectPlanet(id,preview=false) {
   const planet=destinations.find(p=>p.id===id);
   if(!planet)return;
+  if(selectedId!==id)setDiscoveryOpen(false);
   if(autopilotTarget&&autopilotTarget.data.id!==id)stopAutopilot('Course changed. Manual flight.');
   if(selectedId!==id&&!autopilotTarget)autopilotMessage='Manual flight';
   selectedId=id;
@@ -727,16 +825,19 @@ function selectPlanet(id,preview=false) {
   document.querySelector('#planetDiameter').textContent=planet.diameter;
   const art=document.querySelector('#planetArt');
   art.classList.toggle('saturn-art',id==='saturn');
-  art.style.setProperty('--art-gradient',planet.gradient);
-  art.style.setProperty('--art-glow',planet.color);
-  if(!autopilotTarget){
-    document.querySelector('#autopilotButton').textContent=`Fly to ${planet.name}`;
-    document.querySelector('#autopilotStatus').textContent=autopilotMessage;
-  }
+  art.classList.toggle('moon-art',id==='moon');
+  const photo=planetPhotos[id];
+  const image=document.querySelector('#planetPhoto');
+  image.src=`/planet-photos/${photo.file}`;
+  image.alt=`NASA image of ${planet.name}`;
+  const credit=document.querySelector('#planetPhotoCredit');
+  credit.textContent=photo.credit;
+  credit.href=photo.source;
+  updateAutopilotUI();
   if(preview) {
     showGuide();
     beginCameraTransition(1.35);
-    previewTarget=bodies.find(body=>body.data.id===id);
+    previewTarget=id==='sun'?{data:sunData,group:sunMesh}:bodies.find(body=>body.data.id===id);
     document.querySelector('#previewName').textContent=`${planet.name.toUpperCase()} / PREVIEW`;
     document.querySelector('#previewBanner').hidden=false;
     document.querySelector('#app').classList.add('destination-preview');
@@ -755,9 +856,10 @@ function exitPreview() {
 
 function updateAutopilotUI() {
   const button=document.querySelector('#autopilotButton');
+  button.hidden=selectedId==='sun'&&!autopilotTarget;
   button.setAttribute('aria-pressed',autopilotTarget?'true':'false');
   button.textContent=autopilotTarget?'Cancel flight':`Fly to ${destinations.find(p=>p.id===selectedId).name}`;
-  document.querySelector('#autopilotStatus').textContent=autopilotMessage;
+  document.querySelector('#autopilotStatus').textContent=selectedId==='sun'&&!autopilotTarget?'Observe from a safe distance.':autopilotMessage;
   document.querySelector('#app').classList.toggle('autopilot-active',Boolean(autopilotTarget));
 }
 
@@ -772,8 +874,10 @@ function stopAutopilot(message='Manual flight') {
 function toggleAutopilot() {
   shipAudio.start();
   if(autopilotTarget){stopAutopilot();return;}
+  if(selectedId==='sun')return;
   exitPreview();
   autopilotTarget=bodies.find(body=>body.data.id===selectedId);
+  if(!autopilotTarget)return;
   autopilotWaypoint=null;
   autopilotMessage=`Course set for ${autopilotTarget.data.name}`;
   keys.clear();
@@ -785,6 +889,8 @@ function setupAudioControls() {
   const button=document.querySelector('#soundButton');
   const volume=document.querySelector('#musicVolume');
   const volumeValue=document.querySelector('#musicVolumeValue');
+  const track=document.querySelector('#musicTrack');
+  const nowPlaying=document.querySelector('#musicNowPlaying');
   const showControls=document.querySelector('#showControlsInput');
   try{showControls.checked=localStorage.getItem('odyssey-show-controls')!=='no';}catch{}
   document.querySelector('#app').classList.toggle('hide-control-hints',!showControls.checked);
@@ -795,6 +901,10 @@ function setupAudioControls() {
   volume.value=String(shipAudio.getMusicVolume());
   volumeValue.value=`${shipAudio.getMusicVolume()}%`;
   volume.addEventListener('input',()=>{volumeValue.value=`${shipAudio.setMusicVolume(volume.value)}%`;});
+  track.value=shipAudio.getMusicSelection();
+  const refreshTrack=()=>{nowPlaying.textContent=`Now playing: ${shipAudio.getActiveTrackName()}`;};
+  track.addEventListener('change',()=>{shipAudio.setMusicSelection(track.value);refreshTrack();});
+  refreshTrack();
   function refresh() {
     const enabled=shipAudio.isEnabled()&&shipAudio.isSupported();
     button.setAttribute('aria-pressed',enabled?'true':'false');
@@ -855,6 +965,10 @@ function setupControls() {
   window.addEventListener('blur',()=>keys.clear());
   document.querySelectorAll('[data-camera]').forEach(button=>button.addEventListener('click',()=>setCameraMode(button.dataset.camera)));
   document.querySelector('#autopilotButton').addEventListener('click',toggleAutopilot);
+  document.querySelector('#discoveryToggle').addEventListener('click',()=>{
+    setDiscoveryOpen(document.querySelector('#discoveryPanel').hidden);
+  });
+  document.querySelector('#discoveryInspect').addEventListener('click',()=>selectPlanet(selectedId,true));
   document.querySelector('#returnToShip').addEventListener('click',exitPreview);
   document.querySelector('#helpButton').addEventListener('click',openHelp);
   document.querySelector('#closeHelp').addEventListener('click',closeHelp);
@@ -866,7 +980,7 @@ function setupControls() {
   document.querySelector('#settingsExitButton').addEventListener('click',openExit);
   document.querySelector('#cancelExit').addEventListener('click',closeExit);
   document.querySelector('#confirmExit').addEventListener('click',()=>{
-    try{sessionStorage.removeItem('odyssey-flight-active');}catch{}
+    try{sessionStorage.removeItem('odyssey-flight-active');sessionStorage.removeItem('odyssey-flight-state');}catch{}
     window.location.reload();
   });
   document.querySelector('#exitOverlay').addEventListener('click',event=>{if(event.target.id==='exitOverlay')closeExit();});
@@ -948,6 +1062,7 @@ function autopilotGuidance() {
     velocity.set(0,0,0);
     lookAtPoint(target);
     stopAutopilot(`Arrived near ${body.data.name}`);
+    openDiscovery(body.data.id,true);
     return null;
   }
   if(autopilotWaypoint&&shipPosition.distanceTo(autopilotWaypoint)<4)autopilotWaypoint=null;
@@ -982,8 +1097,9 @@ function moveShip(dt) {
   if(!document.querySelector('#helpOverlay').hidden || !document.querySelector('#settingsOverlay').hidden || !document.querySelector('#exitOverlay').hidden){velocity.multiplyScalar(Math.exp(-6*dt));bank*=Math.exp(-7*dt);boostAmount=THREE.MathUtils.damp(boostAmount,0,5,dt);return;}
   const guidance=autopilotTarget?autopilotGuidance():null;
   if(!autopilotTarget) {
-    if(keys.has('KeyA')||keys.has('ArrowLeft'))targetYaw+=dt*1.35;
-    if(keys.has('KeyD')||keys.has('ArrowRight'))targetYaw-=dt*1.35;
+    const reverseSteering=keys.has('KeyS')&&!keys.has('KeyW')?-1:1;
+    if(keys.has('KeyA')||keys.has('ArrowLeft'))targetYaw+=dt*1.35*reverseSteering;
+    if(keys.has('KeyD')||keys.has('ArrowRight'))targetYaw-=dt*1.35*reverseSteering;
     const pitchInput=Number(keys.has('KeyQ')||keys.has('ArrowUp'))-Number(keys.has('KeyE')||keys.has('ArrowDown'));
     if(pitchInput)targetPitch=THREE.MathUtils.clamp(targetPitch+pitchInput*dt*1.1,-maxManualPitch,maxManualPitch);
     else {
@@ -1037,10 +1153,15 @@ function updateBodies(elapsed,dt) {
 function updateHud(elapsed) {
   if(elapsed-lastHudUpdate<.08)return;
   lastHudUpdate=elapsed;
+  if(!document.querySelector('#settingsOverlay').hidden)document.querySelector('#musicNowPlaying').textContent=`Now playing: ${shipAudio.getActiveTrackName()}`;
   const nearest=bodies.reduce((best,body)=>{
     const distance=Math.max(0,shipPosition.distanceTo(body.group.position)-body.data.radius);
     return distance<best.distance?{body,distance}:best;
   },{body:null,distance:Infinity});
+  if(!introActive&&!autopilotTarget){
+    if(nearest.distance<=12&&nearest.body.data.id!==arrivalZoneId)openDiscovery(nearest.body.data.id);
+    else if(nearest.distance>18)arrivalZoneId=null;
+  }
   document.querySelector('#speedReadout').textContent=Math.round(velocity.length()).toString();
   document.querySelector('#nearestReadout').textContent=nearest.body.data.name;
   document.querySelector('#distanceReadout').textContent=`${Math.round(nearest.distance)} units away`;
@@ -1099,6 +1220,7 @@ function animate() {
   updateCamera(dt);
   drawBoostStreaks(elapsed);
   updateHud(elapsed);
+  if(!introActive&&elapsed-lastFlightSave>.5){saveFlightState();lastFlightSave=elapsed;}
   renderer.render(scene,camera);
 }
 
@@ -1115,4 +1237,5 @@ setupGuideToggle();
 setupIntro();
 resize();
 window.addEventListener('resize',resize);
+window.addEventListener('pagehide',saveFlightState);
 animate();
