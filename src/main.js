@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createShipAudio } from './audio.js';
 import './style.css';
 
 const canvas = document.querySelector('#universe');
@@ -11,11 +12,12 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.4;
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x030813);
-scene.fog = new THREE.FogExp2(0x030813, 0.00017);
+scene.background = new THREE.Color(0x000104);
+scene.fog = new THREE.FogExp2(0x000104, 0.0001);
 const camera = new THREE.PerspectiveCamera(67, 1, 0.1, 5000);
 camera.rotation.order = 'YXZ';
 const clock = new THREE.Clock();
+const shipAudio = createShipAudio();
 const shipPosition = new THREE.Vector3();
 const shipRotation = new THREE.Euler(0, 0, 0, 'YXZ');
 let shipMesh;
@@ -26,6 +28,10 @@ let boostAmount = 0;
 let cameraMode = 'cockpit';
 let previewTarget = null;
 let cameraTransition = null;
+let introActive = true;
+let introDive = false;
+const introOrbitAngle = Math.atan2(18,10);
+const introOrbitRadius = Math.hypot(10,18);
 const direction = new THREE.Vector3();
 const levelDirection = new THREE.Vector3();
 const desiredVelocity = new THREE.Vector3();
@@ -51,6 +57,7 @@ let shipName = 'Odyssey';
 let pilotName = 'Explorer';
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 const maxManualPitch = THREE.MathUtils.degToRad(28);
+const worldScale = 2.7;
 
 const planets = [
   { id:'mercury', name:'Mercury', index:'01', symbol:'☿', type:'ROCKY WORLD', distance:'0.39 AU', diameter:'4,879 km', description:'A cratered little world racing closest to the Sun.', orbit:34, radius:1.5, angle:1.45, speed:.00013, color:'#999b9a', base:[143,143,139], style:'rock', gradient:'radial-gradient(circle at 29% 24%,#c6c6bf,#727879 57%,#252c32 92%)' },
@@ -373,13 +380,13 @@ function createSolarSystem() {
   const asteroidPositions=[];
   for(let i=0;i<650;i++) {
     const angle=hash(i,5)*Math.PI*2;
-    const radius=98+hash(i,6)*14;
+    const radius=(98+hash(i,6)*14)*worldScale;
     asteroidPositions.push(Math.cos(angle)*radius,(hash(i,7)-.5)*3,Math.sin(angle)*radius);
   }
   const asteroidGeo=new THREE.BufferGeometry();asteroidGeo.setAttribute('position',new THREE.Float32BufferAttribute(asteroidPositions,3));
   scene.add(new THREE.Points(asteroidGeo,new THREE.PointsMaterial({color:0x8b958f,size:.4,transparent:true,opacity:.6})));
   planets.forEach((planet)=>{
-    makeOrbit(planet.orbit);
+    makeOrbit(planet.orbit*worldScale);
     const group=new THREE.Group();
     const mesh=new THREE.Mesh(new THREE.SphereGeometry(planet.radius,64,40),new THREE.MeshStandardMaterial({map:surfaceTexture(planet),roughness:1,metalness:0,emissive:new THREE.Color(planet.color),emissiveIntensity:.035}));
     mesh.rotation.z=planet.id==='uranus'?1.65:.1;
@@ -396,7 +403,7 @@ function createSolarSystem() {
     }
     if(planet.id==='saturn') makeRings(group,planet.radius*1.24,planet.radius*2.15);
     if(planet.id==='uranus') makeRings(group,planet.radius*1.35,planet.radius*1.75);
-    group.position.set(Math.cos(planet.angle)*planet.orbit,0,Math.sin(planet.angle)*planet.orbit);
+    group.position.set(Math.cos(planet.angle)*planet.orbit*worldScale,0,Math.sin(planet.angle)*planet.orbit*worldScale);
     scene.add(group);
     bodies.push({data:planet,group,mesh});
     clickableMeshes.push(mesh);
@@ -428,6 +435,101 @@ function setupStart() {
   shipPosition.copy(earth.group.position).add(new THREE.Vector3(10,4,18));
   lookAtPoint(earth.group.position);
   updateCamera(0,true);
+  camera.fov=52;
+  camera.updateProjectionMatrix();
+}
+
+function updateIntroFlight() {
+  const elapsed=clock.elapsedTime;
+  const earth=bodies.find(body=>body.data.id==='earth').group.position;
+  const angle=introOrbitAngle+elapsed*.055;
+  shipMesh.position.set(earth.x+Math.cos(angle)*introOrbitRadius,earth.y+4+Math.sin(elapsed*.35)*.35,earth.z+Math.sin(angle)*introOrbitRadius);
+  shipMesh.rotation.set(Math.sin(elapsed*.32)*.025,Math.PI-angle,Math.sin(elapsed*.48)*.04,'YXZ');
+  shipMesh.visible=true;
+  camera.position.copy(earth).add(new THREE.Vector3(22+Math.sin(elapsed*.14)*1.5,13+Math.sin(elapsed*.2)*.6,38+Math.cos(elapsed*.14)*1.5));
+  camera.lookAt(temp.copy(earth).lerp(shipMesh.position,.64));
+}
+
+function startGame() {
+  if(!introActive)return;
+  const overlay=document.querySelector('#introOverlay');
+  shipPosition.copy(shipMesh.position);
+  yaw=shipMesh.rotation.y;targetYaw=yaw;
+  pitch=shipMesh.rotation.x;targetPitch=pitch;
+  bank=shipMesh.rotation.z;
+  manualPitchActive=true;
+  beginCameraTransition(2.8);
+  introDive=true;
+  introActive=false;
+  keys.clear();
+  shipAudio.start();
+  document.querySelector('#app').classList.remove('intro-mode');
+  overlay.classList.add('leaving');
+  updateCamera(0,true);
+  window.setTimeout(()=>{overlay.hidden=true;canvas.focus({preventScroll:true});},reducedMotion.matches?0:850);
+}
+
+function setupIntro() {
+  document.querySelector('#playButton').addEventListener('click',startGame);
+  document.querySelector('#playButton').focus({preventScroll:true});
+}
+
+function setupDestinationToggle() {
+  const button=document.querySelector('#destinationsToggle');
+  const panel=document.querySelector('.destination-panel');
+  let hidden=false;
+  try{hidden=localStorage.getItem('odyssey-hide-destinations')==='yes';}catch{}
+  function applyHidden() {
+    document.querySelector('#app').classList.toggle('destinations-hidden',hidden);
+    panel.inert=hidden;
+    panel.setAttribute('aria-hidden',hidden?'true':'false');
+    button.setAttribute('aria-expanded',hidden?'false':'true');
+    button.setAttribute('aria-label',hidden?'Show destinations':'Hide destinations');
+    button.querySelector('span').textContent=hidden?'›':'‹';
+    try{localStorage.setItem('odyssey-hide-destinations',hidden?'yes':'no');}catch{}
+  }
+  button.addEventListener('click',()=>{hidden=!hidden;applyHidden();});
+  applyHidden();
+}
+
+let guideHidden=true;
+let guideIdleTimer;
+
+function setGuideHidden(hidden) {
+  guideHidden=hidden;
+  const panel=document.querySelector('#fieldGuide');
+  const button=document.querySelector('#guideToggle');
+  document.querySelector('#app').classList.toggle('guide-hidden',hidden);
+  panel.inert=hidden;
+  panel.setAttribute('aria-hidden',hidden?'true':'false');
+  button.setAttribute('aria-expanded',hidden?'false':'true');
+  button.setAttribute('aria-label',hidden?'Show field guide':'Hide field guide');
+  button.querySelector('span').textContent=hidden?'‹':'›';
+  if(hidden&&panel.contains(document.activeElement))button.focus({preventScroll:true});
+}
+
+function scheduleGuideHide() {
+  window.clearTimeout(guideIdleTimer);
+  if(guideHidden)return;
+  guideIdleTimer=window.setTimeout(()=>setGuideHidden(true),12000);
+}
+
+function showGuide() {
+  setGuideHidden(false);
+  scheduleGuideHide();
+}
+
+function setupGuideToggle() {
+  const panel=document.querySelector('#fieldGuide');
+  const button=document.querySelector('#guideToggle');
+  setGuideHidden(true);
+  button.addEventListener('click',()=>{
+    if(guideHidden)showGuide();
+    else {window.clearTimeout(guideIdleTimer);setGuideHidden(true);}
+  });
+  panel.addEventListener('pointermove',scheduleGuideHide);
+  panel.addEventListener('focusin',scheduleGuideHide);
+  panel.addEventListener('keydown',scheduleGuideHide);
 }
 
 function beginCameraTransition(duration=1.2) {
@@ -444,10 +546,11 @@ function applyCameraTransition(dt) {
   const destinationQuaternion=camera.quaternion.clone();
   camera.position.lerpVectors(cameraTransition.position,destinationPosition,eased);
   camera.quaternion.slerpQuaternions(cameraTransition.quaternion,destinationQuaternion,eased);
-  if(t===1)cameraTransition=null;
+  if(t===1){cameraTransition=null;introDive=false;}
 }
 
 function updateCamera(dt,instant=false) {
+  if(introActive){updateIntroFlight();return;}
   const targetFov=previewTarget?53:67+(reducedMotion.matches?0:boostAmount*5);
   const nextFov=instant?targetFov:THREE.MathUtils.damp(camera.fov,targetFov,5,dt);
   if(Math.abs(camera.fov-nextFov)>.005){camera.fov=nextFov;camera.updateProjectionMatrix();}
@@ -464,7 +567,7 @@ function updateCamera(dt,instant=false) {
   direction.set(0,0,-1).applyEuler(shipRotation);
   shipMesh.position.copy(shipPosition);
   shipMesh.rotation.copy(shipRotation);
-  shipMesh.visible=cameraMode!=='cockpit';
+  shipMesh.visible=cameraMode!=='cockpit'||(introDive&&Boolean(cameraTransition)&&camera.position.distanceTo(shipPosition)>5);
   if(previewTarget) {
     const center=previewTarget.group.position;
     const radius=previewTarget.data.radius;
@@ -525,6 +628,7 @@ function selectPlanet(id,preview=false) {
   const planet=destinations.find(p=>p.id===id);
   if(!planet)return;
   if(autopilotTarget&&autopilotTarget.data.id!==id)stopAutopilot('Course changed. Manual flight.');
+  if(selectedId!==id&&!autopilotTarget)autopilotMessage='Manual flight';
   selectedId=id;
   document.querySelectorAll('.planet-row').forEach(row=>{
     const active=row.dataset.id===id;row.classList.toggle('active',active);row.setAttribute('aria-current',active?'true':'false');
@@ -540,8 +644,12 @@ function selectPlanet(id,preview=false) {
   art.classList.toggle('saturn-art',id==='saturn');
   art.style.setProperty('--art-gradient',planet.gradient);
   art.style.setProperty('--art-glow',planet.color);
-  if(!autopilotTarget)document.querySelector('#autopilotButton').innerHTML=`Fly to ${planet.name} <span class="button-arrow">↗</span>`;
+  if(!autopilotTarget){
+    document.querySelector('#autopilotButton').innerHTML=`Fly to ${planet.name} <span class="button-arrow">↗</span>`;
+    document.querySelector('#autopilotStatus').textContent=autopilotMessage;
+  }
   if(preview) {
+    showGuide();
     beginCameraTransition(1.35);
     previewTarget=bodies.find(body=>body.data.id===id);
     document.querySelector('#previewName').textContent=`${planet.name.toUpperCase()} / PREVIEW`;
@@ -569,6 +677,7 @@ function updateAutopilotUI() {
 }
 
 function stopAutopilot(message='Manual flight') {
+  if(message.startsWith('Arrived'))shipAudio.cue('arrival');
   autopilotTarget=null;
   autopilotWaypoint=null;
   autopilotMessage=message;
@@ -576,6 +685,7 @@ function stopAutopilot(message='Manual flight') {
 }
 
 function toggleAutopilot() {
+  shipAudio.start();
   if(autopilotTarget){stopAutopilot();return;}
   exitPreview();
   autopilotTarget=bodies.find(body=>body.data.id===selectedId);
@@ -584,6 +694,35 @@ function toggleAutopilot() {
   keys.clear();
   manualPitchActive=false;
   updateAutopilotUI();
+  shipAudio.cue('engage');
+}
+
+function setupAudioControls() {
+  const button=document.querySelector('#soundButton');
+  const volume=document.querySelector('#musicVolume');
+  const volumeValue=document.querySelector('#musicVolumeValue');
+  volume.value=String(shipAudio.getMusicVolume());
+  volumeValue.value=`${shipAudio.getMusicVolume()}%`;
+  volume.addEventListener('input',()=>{volumeValue.value=`${shipAudio.setMusicVolume(volume.value)}%`;});
+  function refresh() {
+    const enabled=shipAudio.isEnabled()&&shipAudio.isSupported();
+    button.setAttribute('aria-pressed',enabled?'true':'false');
+    button.setAttribute('aria-label',enabled?'Mute sound':'Enable sound');
+    document.querySelector('#soundLabel').textContent=enabled?'Sound on':'Sound off';
+    button.querySelector('span').textContent=enabled?'♫':'♩';
+    button.disabled=!shipAudio.isSupported();
+  }
+  button.addEventListener('click',()=>{shipAudio.setEnabled(!shipAudio.isEnabled());refresh();});
+  function unlock() {
+    shipAudio.start();
+    document.removeEventListener('pointerdown',unlock);
+    document.removeEventListener('keydown',unlock);
+  }
+  document.addEventListener('pointerdown',unlock);
+  document.addEventListener('keydown',unlock);
+  refresh();
+  shipAudio.start();
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)shipAudio.start();});
 }
 
 function setupControls() {
@@ -591,6 +730,7 @@ function setupControls() {
   const manualCodes=new Set(['KeyW','KeyS','KeyA','KeyD','KeyQ','KeyE','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','ShiftLeft','ShiftRight']);
   document.addEventListener('keydown',event=>{
     if(event.code==='Escape') {closeHelp();closeSettings();exitPreview();return;}
+    if(introActive)return;
     if(event.target instanceof HTMLInputElement || !document.querySelector('#helpOverlay').hidden || !document.querySelector('#settingsOverlay').hidden)return;
     if(prevent.has(event.code))event.preventDefault();
     if(event.code==='KeyC' && !event.repeat) {
@@ -600,6 +740,7 @@ function setupControls() {
     if(event.code==='KeyP' && !event.repeat){toggleAutopilot();return;}
     if(previewTarget&&manualCodes.has(event.code))exitPreview();
     if(autopilotTarget&&manualCodes.has(event.code))stopAutopilot('Manual control restored');
+    else if(autopilotMessage.startsWith('Arrived')&&manualCodes.has(event.code)){autopilotMessage='Manual flight';updateAutopilotUI();}
     keys.add(event.code);
   });
   document.addEventListener('keyup',event=>keys.delete(event.code));
@@ -704,6 +845,7 @@ function autopilotGuidance() {
 }
 
 function moveShip(dt) {
+  if(introActive){velocity.set(0,0,0);boostAmount=0;return;}
   if(!document.querySelector('#helpOverlay').hidden || !document.querySelector('#settingsOverlay').hidden){velocity.multiplyScalar(Math.exp(-6*dt));bank*=Math.exp(-7*dt);boostAmount=THREE.MathUtils.damp(boostAmount,0,5,dt);return;}
   const guidance=autopilotTarget?autopilotGuidance():null;
   if(!autopilotTarget) {
@@ -732,9 +874,10 @@ function moveShip(dt) {
   } else {
     if(keys.has('KeyW'))desiredVelocity.add(direction);
     if(keys.has('KeyS'))desiredVelocity.sub(direction);
-    const boostPressed=(keys.has('ShiftLeft')||keys.has('ShiftRight'))&&desiredVelocity.lengthSq()>0;
-    boostAmount=THREE.MathUtils.damp(boostAmount,boostPressed?1:0,boostPressed?3.2:2.1,dt);
-    if(desiredVelocity.lengthSq()>0)desiredVelocity.normalize().multiplyScalar(14+boostAmount*29);
+    const forwardOnly=keys.has('KeyW')&&!keys.has('KeyS');
+    const boostPressed=forwardOnly&&(keys.has('ShiftLeft')||keys.has('ShiftRight'));
+    boostAmount=keys.has('KeyS')?0:THREE.MathUtils.damp(boostAmount,boostPressed?1:0,boostPressed?3.2:2.1,dt);
+    if(desiredVelocity.lengthSq()>0)desiredVelocity.normalize().multiplyScalar(forwardOnly?14+boostAmount*29:14);
   }
   velocity.lerp(desiredVelocity,1-Math.exp(-4.6*dt));
   const next=shipPosition.clone().addScaledVector(velocity,dt);
@@ -749,7 +892,7 @@ function updateBodies(elapsed,dt) {
   bodies.forEach(({data,group,mesh})=>{
     if(data.id==='moon')return;
     data.angle+=dt*data.speed;
-    group.position.set(Math.cos(data.angle)*data.orbit,0,Math.sin(data.angle)*data.orbit);
+    group.position.set(Math.cos(data.angle)*data.orbit*worldScale,0,Math.sin(data.angle)*data.orbit*worldScale);
     mesh.rotation.y+=dt*.08;
   });
   const earth=bodies.find(body=>body.data.id==='earth');
@@ -821,6 +964,7 @@ function animate() {
   const elapsed=clock.elapsedTime;
   updateBodies(elapsed,dt);
   moveShip(dt);
+  shipAudio.update(velocity.length(),boostAmount,Boolean(previewTarget));
   updateCamera(dt);
   drawBoostStreaks(elapsed);
   updateHud(elapsed);
@@ -834,6 +978,10 @@ buildPlanetList();
 selectPlanet('earth');
 loadNames();
 setupControls();
+setupAudioControls();
+setupDestinationToggle();
+setupGuideToggle();
+setupIntro();
 resize();
 window.addEventListener('resize',resize);
 animate();
