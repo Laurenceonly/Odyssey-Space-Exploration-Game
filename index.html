@@ -19,7 +19,19 @@
         <div class="intro-copy">
           <h1 id="introTitle">Odyssey</h1>
           <blockquote class="intro-quote"><p>“That’s one small step for a man, one giant leap for mankind.”</p><cite>Neil Armstrong · Apollo 11</cite></blockquote>
-          <button id="playButton" class="intro-play" type="button">Play <span class="play-glyph" aria-hidden="true"></span></button>
+          <div class="intro-modes" role="group" aria-label="Flight mode">
+            <button class="intro-mode-option" data-mode="discovery" type="button" aria-pressed="true"><strong>Discovery</strong><span>Scan worlds to unlock them</span></button>
+            <button class="intro-mode-option" data-mode="exploration" type="button" aria-pressed="false"><strong>Exploration</strong><span>Travel and learn freely</span></button>
+          </div>
+          <button id="playButton" class="intro-play" type="button" hidden>Play <span class="play-glyph" aria-hidden="true"></span></button>
+          <div id="discoveryChoice" class="discovery-choice" aria-labelledby="discoveryChoiceTitle">
+            <h2 id="discoveryChoiceTitle">Your discovery voyage</h2>
+            <p id="discoverySaveStatus">Checking saved voyage…</p>
+            <div class="discovery-choice-actions">
+              <button id="resumeGameButton" class="intro-play" type="button" disabled>Resume game <span class="play-glyph" aria-hidden="true"></span></button>
+              <button id="newGameButton" class="intro-new-game" type="button">New game</button>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -36,7 +48,7 @@
       </header>
 
       <aside class="destination-panel panel" aria-label="Destinations">
-        <div class="panel-kicker">DESTINATIONS</div>
+        <div class="panel-kicker">DESTINATIONS <span id="discoveryCount">0 / 10 SCANNED</span></div>
         <button id="destinationsClose" class="panel-close" type="button" aria-label="Close destinations">×</button>
         <nav id="planetList" class="planet-list" aria-label="Planets"></nav>
       </aside>
@@ -44,7 +56,18 @@
 
       <div id="crosshair" class="crosshair" aria-hidden="true"><span></span><span></span><i></i></div>
       <div id="objectLabel" class="object-label" aria-live="polite"></div>
-      <div id="previewBanner" class="preview-banner" hidden><span id="previewName">EARTH / PREVIEW</span><button id="returnToShip" type="button">Return to ship</button></div>
+      <div id="scanFeedback" class="scan-feedback" hidden><strong id="scanTitle"></strong><p id="scanFact" role="status" hidden></p><span id="scanMeter" class="scan-meter" role="progressbar" aria-label="Scan progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="scanFill"></span></span></div>
+      <div id="unlockCinematic" class="unlock-cinematic" role="status" aria-live="polite" hidden>
+        <div class="unlock-bar unlock-bar-top" aria-hidden="true"></div>
+        <div class="unlock-focus" aria-hidden="true"></div>
+        <div class="unlock-copy"><span class="unlock-kicker">WORLD DISCOVERED <span id="unlockCount"></span></span><strong id="unlockName"></strong><p id="unlockFact"></p></div>
+        <div class="unlock-bar unlock-bar-bottom" aria-hidden="true"></div>
+      </div>
+      <div id="previewBanner" class="preview-banner" hidden>
+        <span id="previewName">EARTH / PREVIEW</span>
+        <div class="preview-orbit-controls" role="group" aria-label="Rotate planet view"><button id="previewOrbitLeft" type="button" aria-label="Rotate view left">&lt;</button><span>360° VIEW</span><button id="previewOrbitRight" type="button" aria-label="Rotate view right">&gt;</button></div>
+        <button id="returnToShip" type="button">Return to ship</button>
+      </div>
 
       <aside id="fieldGuide" class="info-panel panel" aria-label="Selected destination">
         <button id="guideClose" class="panel-close" type="button" aria-label="Close planet info">×</button>
@@ -76,9 +99,9 @@
 
       <div class="flight-hud" aria-hidden="true"><div class="hud-arc"></div><div class="hud-ticks"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div><span class="hud-bearing" id="bearingReadout">N 000°</span><span class="hud-caption" id="bankReadout">FREE FLIGHT</span></div>
 
-      <footer class="bottom-bar"><div class="control-hint"><span class="key-group"><kbd>W</kbd><kbd>S</kbd></span> FLY <span class="hint-separator"></span> <span class="key-group"><kbd>A</kbd><kbd>D</kbd></span> TURN <span class="hint-separator"></span> <span class="key-group"><kbd>Q</kbd><kbd>E</kbd></span> PITCH <span class="hint-separator"></span> <kbd>SHIFT</kbd><kbd>W</kbd> BOOST <span class="hint-separator"></span> <kbd>F</kbd> PLANET INFO <span class="hint-separator"></span> <kbd>P</kbd> AUTOPILOT</div><div class="camera-switch" role="group" aria-label="Camera view"><button type="button" data-camera="first-person" aria-pressed="false">First person</button><button type="button" data-camera="chase" aria-pressed="true">Third person</button></div></footer>
+      <footer class="bottom-bar"><div class="control-hint"><span class="key-group"><kbd>W</kbd><kbd>S</kbd></span> FLY <span class="hint-separator"></span> <span class="key-group"><kbd>A</kbd><kbd>D</kbd></span> TURN <span class="hint-separator"></span> <span class="key-group"><kbd>Q</kbd><kbd>E</kbd></span> PITCH <span class="hint-separator"></span> <kbd>SHIFT</kbd><kbd>W</kbd> BOOST <span class="hint-separator"></span> <kbd>F</kbd> PLANET INFO <span class="hint-separator"></span> <kbd>R</kbd> SCAN <span class="hint-separator"></span> <kbd>P</kbd> AUTOPILOT</div><div class="camera-switch" role="group" aria-label="Camera view"><button type="button" data-camera="first-person" aria-pressed="false">First person</button><button type="button" data-camera="chase" aria-pressed="true">Third person</button></div></footer>
 
-      <div id="helpOverlay" class="help-overlay" hidden><div class="help-card" role="dialog" aria-modal="true" aria-labelledby="helpTitle"><button id="closeHelp" class="help-close" type="button" aria-label="Close controls">×</button><div class="help-kicker">FLIGHT MANUAL / 01</div><h2 id="helpTitle">Your ship is ready.</h2><p>Turn and pitch the ship while stationary, then fly in the direction its nose points.</p><div class="help-grid"><div><kbd>W</kbd><kbd>S</kbd><span>Fly forward and back</span></div><div><kbd>A</kbd><kbd>D</kbd><span>Steer; reversed while backing up</span></div><div><kbd>Q</kbd><kbd>E</kbd><span>Pitch nose up and down</span></div><div><kbd>SHIFT</kbd><kbd>W</kbd><span>Boost forward</span></div><div><kbd>←</kbd><kbd>→</kbd><span>Alternate turn keys</span></div><div><kbd>C</kbd><span>Switch camera view</span></div><div><kbd>F</kbd><span>Aim the + at a planet to show or close info</span></div><div><kbd>P</kbd><span>Autopilot to selected destination</span></div><div><kbd>ESC</kbd><span>Close this guide</span></div></div><button id="startExploring" class="travel-button" type="button">Start exploring <span class="button-arrow">↗</span></button><p class="scale-note">Planet sizes and distances are compressed for exploration.</p></div></div>
+      <div id="helpOverlay" class="help-overlay" hidden><div class="help-card" role="dialog" aria-modal="true" aria-labelledby="helpTitle"><button id="closeHelp" class="help-close" type="button" aria-label="Close controls">×</button><div class="help-kicker">FLIGHT MANUAL / 01</div><h2 id="helpTitle">Your ship is ready.</h2><p>Turn and pitch the ship while stationary, then fly in the direction its nose points.</p><div class="help-grid"><div><kbd>W</kbd><kbd>S</kbd><span>Fly forward and back</span></div><div><kbd>A</kbd><kbd>D</kbd><span>Steer; reversed while backing up</span></div><div><kbd>Q</kbd><kbd>E</kbd><span>Pitch nose up and down</span></div><div><kbd>SHIFT</kbd><kbd>W</kbd><span>Boost forward</span></div><div><kbd>←</kbd><kbd>→</kbd><span>Alternate turn keys</span></div><div><kbd>C</kbd><span>Switch camera view</span></div><div><kbd>F</kbd><span>Aim the + at a planet to show or close info</span></div><div><kbd>R</kbd><span>Hold while aiming nearby to scan a world</span></div><div><kbd>P</kbd><span>Autopilot to selected destination</span></div><div><kbd>ESC</kbd><span>Close this guide</span></div></div><button id="startExploring" class="travel-button" type="button">Start exploring <span class="button-arrow">↗</span></button><p class="scale-note">Planet sizes and distances are compressed for exploration.</p></div></div>
       <div id="settingsOverlay" class="help-overlay" hidden>
         <form id="settingsForm" class="help-card settings-card" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
           <button id="closeSettings" class="help-close" type="button" aria-label="Close ship settings">×</button>

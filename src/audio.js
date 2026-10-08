@@ -274,18 +274,18 @@ export function createShipAudio() {
   function cue(kind) {
     if(!context||!enabled)return;
     const now=context.currentTime;
-    const notes=kind==='arrival'?[523,784]:[392,587];
+    const notes=kind==='discovery'?[392,523,784,1046]:kind==='arrival'?[523,784]:[392,587];
     notes.forEach((frequency,index)=>{
       const tone=context.createOscillator();tone.type='sine';
       const level=context.createGain();
-      const at=now+index*.13;
+      const at=now+index*(kind==='discovery'?.17:.13);
       tone.frequency.setValueAtTime(frequency,at);
       tone.frequency.exponentialRampToValueAtTime(frequency*1.02,at+.2);
       level.gain.setValueAtTime(.0001,at);
-      level.gain.exponentialRampToValueAtTime(.035,at+.025);
-      level.gain.exponentialRampToValueAtTime(.0001,at+.38);
+      level.gain.exponentialRampToValueAtTime(kind==='discovery'?.028:.035,at+.025);
+      level.gain.exponentialRampToValueAtTime(.0001,at+(kind==='discovery'?.52:.38));
       tone.connect(level);level.connect(master);
-      tone.start(at);tone.stop(at+.4);
+      tone.start(at);tone.stop(at+(kind==='discovery'?.54:.4));
       tone.onended=()=>{tone.disconnect();level.disconnect();};
     });
   }

@@ -21,19 +21,34 @@ const clock = new THREE.Clock();
 const shipAudio = createShipAudio();
 const shipPosition = new THREE.Vector3();
 const shipRotation = new THREE.Euler(0, 0, 0, 'YXZ');
+const worldUp = new THREE.Vector3(0,1,0);
 let shipMesh;
 let sunMesh;
 const engineGlows = [];
 const boostPlumes = [];
+const attitudeJets = [];
+const asteroidFields = [];
+const asteroidRocks = [];
+const asteroidFragments = [];
+let asteroidFragmentMesh;
 let boostAmount = 0;
+let idleMotion = 0;
 let cameraMode = 'chase';
 let previewTarget = null;
+let previewOrbitAngle = 0;
+let previewOrbitTargetAngle = 0;
+let arrivalPreview = false;
+let parkedTarget = null;
+const parkedOffset = new THREE.Vector3();
 let cameraTransition = null;
 let launchTransition = null;
 let introActive = true;
 let introDive = false;
 let introHideTimer = null;
 let returningToIntro = false;
+let discoveryLaunchPending = false;
+let discoveryDrift = false;
+const discoveryStartPosition = new THREE.Vector3(0,90,1500);
 const introOrbitAngle = Math.atan2(18,10);
 const introOrbitRadius = Math.hypot(10,18);
 const direction = new THREE.Vector3();
@@ -46,9 +61,11 @@ const reticlePosition = new THREE.Vector2();
 const keys = new Set();
 const bodies = [];
 const asteroidObstacles = [];
+const scannedBodies = new Set();
 const clickableMeshes = [];
 const planetSurfaces = new Map();
 let selectedId = 'earth';
+let gameMode = 'discovery';
 let yaw = 0;
 let pitch = 0;
 let targetYaw = 0;
@@ -59,11 +76,19 @@ let autopilotMessage = 'Manual flight';
 let autopilotWaypoint = null;
 let lastHudUpdate = 0;
 let lastFlightSave = 0;
+let scanTargetId = null;
+let scanSeconds = 0;
+let scanResultUntil = 0;
+let unlockCinematicActive = false;
+let unlockCinematicTimer = null;
+let unlockHideTimer = null;
+let unlockLens = 0;
 let shipName = 'Odyssey';
 let pilotName = 'Explorer';
 let exitFromSettings = false;
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-const maxManualPitch = THREE.MathUtils.degToRad(28);
+const maxManualPitch = THREE.MathUtils.degToRad(75);
+const maxAutopilotPitch = THREE.MathUtils.degToRad(89);
 const worldScale = 3.2;
 const sunRadius = 40;
 const moonOrbitRadius = 25;
@@ -357,6 +382,11 @@ function createShip() {
     marker.position.set(side*2.34,.02,.92);shipMesh.add(marker);
     const markerGlow=makeGlow(side<0?'255,92,74':'93,245,190',.9,.65);
     markerGlow.position.copy(marker.position);shipMesh.add(markerGlow);
+    const attitudeJet=makeGlow('180,225,235',.48,.5);
+    attitudeJet.position.set(side*2.35,-.08,1.18);
+    attitudeJet.material.opacity=0;
+    shipMesh.add(attitudeJet);
+    attitudeJets.push({sprite:attitudeJet,side});
   }
   const stripe=new THREE.Mesh(new THREE.BoxGeometry(.075,.03,1.5),new THREE.MeshBasicMaterial({color:0x8cf9ef}));
   stripe.position.set(0,.38,.85);shipMesh.add(stripe);
@@ -417,6 +447,7 @@ function createAsteroidBelt() {
     const material=new THREE.MeshStandardMaterial({color:0xffffff,roughness:1,metalness:0,flatShading:true});
     const mesh=new THREE.InstancedMesh(geometry,material,countPerVariant);
     mesh.frustumCulled=false;
+    const rocks=[];
     for(let i=0;i<countPerVariant;i++) {
       const index=variant*countPerVariant+i;
       const angle=hash(index,51)*Math.PI*2;
@@ -429,12 +460,131 @@ function createAsteroidBelt() {
       dummy.updateMatrix();
       mesh.setMatrixAt(i,dummy.matrix);
       mesh.setColorAt(i,palette[(index+variant)%palette.length]);
-      if(index%9===0)asteroidObstacles.push({position:dummy.position.clone(),radius:Math.max(dummy.scale.x,dummy.scale.y,dummy.scale.z)*1.16+1.5});
+      const rock={
+        id:index,
+        position:dummy.position.clone(),
+        rotation:dummy.rotation.clone(),
+        scale:dummy.scale.clone(),
+        spin:new THREE.Vector3((hash(index,61)-.5)*.09,(hash(index,62)-.5)*.12,(hash(index,63)-.5)*.08),
+        velocity:new THREE.Vector3(),
+        radius:Math.max(dummy.scale.x,dummy.scale.y,dummy.scale.z)*1.16+1.5,
+        size,
+        alive:true,
+      };
+      rocks.push(rock);
+      asteroidRocks.push(rock);
+      if(index%9===0)asteroidObstacles.push(rock);
     }
     mesh.instanceMatrix.needsUpdate=true;
     mesh.instanceColor.needsUpdate=true;
     scene.add(mesh);
+    asteroidFields.push({mesh,rocks});
   }
+  asteroidFragmentMesh=new THREE.InstancedMesh(
+    new THREE.DodecahedronGeometry(1,0),
+    new THREE.MeshStandardMaterial({color:0x9a9083,roughness:1,flatShading:true}),
+    96,
+  );
+  asteroidFragmentMesh.count=0;
+  asteroidFragmentMesh.frustumCulled=false;
+  scene.add(asteroidFragmentMesh);
+}
+
+const asteroidDummy=new THREE.Object3D();
+function updateAsteroids(dt) {
+  for(const {mesh,rocks} of asteroidFields) {
+    rocks.forEach((rock,index)=>{
+      if(!rock.alive){asteroidDummy.scale.setScalar(0);asteroidDummy.updateMatrix();mesh.setMatrixAt(index,asteroidDummy.matrix);return;}
+      rock.position.addScaledVector(rock.velocity,dt);
+      if(!reducedMotion.matches){
+        rock.rotation.x+=rock.spin.x*dt;
+        rock.rotation.y+=rock.spin.y*dt;
+        rock.rotation.z+=rock.spin.z*dt;
+      }
+      asteroidDummy.position.copy(rock.position);
+      asteroidDummy.rotation.copy(rock.rotation);
+      asteroidDummy.scale.copy(rock.scale);
+      asteroidDummy.updateMatrix();
+      mesh.setMatrixAt(index,asteroidDummy.matrix);
+    });
+    mesh.instanceMatrix.needsUpdate=true;
+  }
+  for(let index=asteroidFragments.length-1;index>=0;index--){
+    const fragment=asteroidFragments[index];
+    fragment.life-=dt;
+    if(fragment.life<=0){asteroidFragments.splice(index,1);continue;}
+    fragment.position.addScaledVector(fragment.velocity,dt);
+    fragment.rotation.addScaledVector(fragment.spin,dt);
+  }
+  asteroidFragments.forEach((fragment,index)=>{
+    asteroidDummy.position.copy(fragment.position);
+    asteroidDummy.rotation.set(fragment.rotation.x,fragment.rotation.y,fragment.rotation.z);
+    asteroidDummy.scale.setScalar(fragment.size*Math.min(1,fragment.life/.5));
+    asteroidDummy.updateMatrix();
+    asteroidFragmentMesh.setMatrixAt(index,asteroidDummy.matrix);
+  });
+  asteroidFragmentMesh.count=asteroidFragments.length;
+  asteroidFragmentMesh.instanceMatrix.needsUpdate=true;
+}
+
+function breakAsteroid(rock,impactSpeed) {
+  rock.alive=false;
+  for(let piece=0;piece<7;piece++) {
+    const azimuth=hash(rock.id,piece+72)*Math.PI*2;
+    const rise=hash(rock.id,piece+84)*2-1;
+    const spread=Math.sqrt(1-rise*rise);
+    const outward=new THREE.Vector3(Math.cos(azimuth)*spread,rise,Math.sin(azimuth)*spread);
+    asteroidFragments.push({
+      position:rock.position.clone(),
+      velocity:outward.multiplyScalar(2+impactSpeed*.16).addScaledVector(velocity,.22),
+      rotation:new THREE.Vector3(),
+      spin:new THREE.Vector3((hash(rock.id,piece+96)-.5)*3,(hash(rock.id,piece+108)-.5)*3,(hash(rock.id,piece+120)-.5)*3),
+      size:rock.size*(.12+hash(rock.id,piece+132)*.15),
+      life:1.8+hash(rock.id,piece+144)*1.1,
+    });
+  }
+  if(asteroidFragments.length>96)asteroidFragments.splice(0,asteroidFragments.length-96);
+}
+
+function hitAsteroid(rock,next) {
+  const normal=next.clone().sub(rock.position).normalize();
+  if(normal.lengthSq()===0)normal.copy(velocity).negate().normalize();
+  const impactSpeed=Math.max(0,-velocity.clone().sub(rock.velocity).dot(normal));
+  if(impactSpeed<.2)return false;
+  if(rock.size<1.6 || (rock.size<3 && impactSpeed>28)){
+    breakAsteroid(rock,impactSpeed);
+    velocity.multiplyScalar(.8);
+    return false;
+  }
+  rock.velocity.addScaledVector(normal,-Math.min(impactSpeed*.24,10));
+  rock.spin.add(new THREE.Vector3(normal.z,-normal.x,normal.y).multiplyScalar(Math.min(impactSpeed*.018,.55)));
+  rock.position.addScaledVector(normal,-Math.max(.2,rock.radius-shipPosition.distanceTo(rock.position)+.2));
+  velocity.addScaledVector(normal,-1.35*velocity.dot(normal)).multiplyScalar(.45);
+  if(autopilotTarget)stopAutopilot('Asteroid impact. Manual control restored.');
+  return true;
+}
+
+function updateIdleShip(elapsed,dt) {
+  const idle=!introActive&&!introDive&&!returningToIntro&&!previewTarget&&!autopilotTarget&&velocity.lengthSq()<.04&&keys.size===0;
+  idleMotion=THREE.MathUtils.damp(idleMotion,idle&&!reducedMotion.matches?1:0,2.3,dt);
+  const cycle=Math.floor(elapsed/6);
+  const phase=elapsed-cycle*6;
+  const pulseAt=1+hash(cycle,65)*3;
+  const pulse=Math.exp(-(((phase-pulseAt)/.16)**2))*idleMotion;
+  const activeSide=hash(cycle,66)>.5?1:-1;
+  if(idleMotion>.001){
+    const idleRoll=(Math.sin(elapsed*.58)*.012+Math.sin(elapsed*.23)*.006+activeSide*pulse*.004)*idleMotion;
+    const idlePitch=Math.sin(elapsed*.43+.7)*.006*idleMotion;
+    shipMesh.rotation.z+=idleRoll;
+    shipMesh.rotation.x+=idlePitch;
+    if(cameraMode==='first-person'&&!previewTarget){
+      camera.rotateZ(idleRoll*.4);
+      camera.rotateX(idlePitch*.4);
+    }
+  }
+  attitudeJets.forEach(({sprite,side})=>{
+    sprite.material.opacity=side===activeSide?pulse*.65:0;
+  });
 }
 
 function createSolarSystem() {
@@ -537,9 +687,42 @@ function updateIntroFlight() {
   camera.lookAt(shot.cameraTarget);
 }
 
-function startGame() {
-  if(!introActive)return;
+function startGame(discoveryStart=false) {
+  if(!introActive||discoveryLaunchPending)return;
   const overlay=document.querySelector('#introOverlay');
+  if(discoveryStart){
+    discoveryLaunchPending=true;
+    const curtain=document.querySelector('#sceneCurtain');
+    curtain.classList.add('covered');
+    introHideTimer=window.setTimeout(()=>{
+      introHideTimer=null;
+      shipPosition.copy(discoveryStartPosition);
+      yaw=targetYaw=0;
+      pitch=targetPitch=bank=0;
+      velocity.set(0,0,0);
+      boostAmount=0;
+      discoveryDrift=!reducedMotion.matches;
+      cameraMode='chase';
+      introActive=false;
+      discoveryLaunchPending=false;
+      introDive=false;
+      launchTransition=null;
+      cameraTransition=null;
+      keys.clear();
+      try{sessionStorage.setItem('odyssey-flight-active','yes');}catch{}
+      overlay.hidden=true;
+      document.querySelector('#app').classList.remove('intro-mode','launching');
+      updateCamera(0,true);
+      saveFlightState();
+      shipAudio.start();
+      requestAnimationFrame(()=>requestAnimationFrame(()=>{
+        curtain.classList.remove('covered');
+        canvas.focus({preventScroll:true});
+      }));
+    },reducedMotion.matches?80:250);
+    return;
+  }
+  discoveryDrift=false;
   shipPosition.copy(shipMesh.position);
   yaw=targetYaw=shipMesh.rotation.y;
   pitch=shipMesh.rotation.x;
@@ -569,6 +752,8 @@ function startGame() {
 
 function returnToIntro() {
   if(returningToIntro)return;
+  endUnlockCinematic(true);
+  saveFlightState();
   returningToIntro=true;
   keys.clear();
   const curtain=document.querySelector('#sceneCurtain');
@@ -588,9 +773,14 @@ function returnToIntro() {
     overlay.hidden=false;
     introActive=true;
     introDive=false;
+    discoveryLaunchPending=false;
+    discoveryDrift=false;
     cameraTransition=null;
     launchTransition=null;
     previewTarget=null;
+    previewOrbitAngle=previewOrbitTargetAngle=0;
+    arrivalPreview=false;
+    parkedTarget=null;
     autopilotTarget=null;
     autopilotWaypoint=null;
     autopilotMessage='Manual flight';
@@ -602,6 +792,7 @@ function returnToIntro() {
     setDiscoveryOpen(false);
     setGuideHidden(true);
     selectPlanet('earth');
+    updateDiscoveryChoice();
     updateAutopilotUI();
     camera.fov=52;
     camera.updateProjectionMatrix();
@@ -610,6 +801,9 @@ function returnToIntro() {
     requestAnimationFrame(()=>requestAnimationFrame(()=>{
       curtain.classList.remove('covered');
       returningToIntro=false;
+      (gameMode==='discovery'&&!document.querySelector('#resumeGameButton').disabled
+        ?document.querySelector('#resumeGameButton')
+        :gameMode==='discovery'?document.querySelector('#newGameButton'):document.querySelector('#playButton')).focus({preventScroll:true});
     }));
   },reducedMotion.matches?80:250);
 }
@@ -618,29 +812,35 @@ function saveFlightState() {
   if(introActive)return;
   try {
     if(sessionStorage.getItem('odyssey-flight-active')!=='yes')return;
-    sessionStorage.setItem('odyssey-flight-state',JSON.stringify({
-      position:shipPosition.toArray(),yaw,pitch,cameraMode,selectedId,
+    const state=JSON.stringify({
+      position:shipPosition.toArray(),yaw,pitch,cameraMode,selectedId,discoveryDrift,
       autopilotId:autopilotTarget?.data.id??null,
+      parkedPreviewId:arrivalPreview?previewTarget?.data.id??null:null,
+      parkedOffset:arrivalPreview?parkedOffset.toArray():null,
+      previewOrbitAngle:arrivalPreview?previewOrbitTargetAngle:0,
       discoveryOpen:!document.querySelector('#discoveryPanel').hidden,
       guideOpen:!guideHidden,
-    }));
+    });
+    sessionStorage.setItem('odyssey-flight-state',state);
+    if(gameMode==='discovery')localStorage.setItem('odyssey-discovery-flight',state);
   } catch {}
 }
 
-function restoreFlightState() {
+function restoreFlightState(savedState=null) {
   try {
-    const state=JSON.parse(sessionStorage.getItem('odyssey-flight-state')||'null');
-    if(!state||!Array.isArray(state.position)||state.position.length!==3||!state.position.every(Number.isFinite)||!Number.isFinite(state.yaw)||!Number.isFinite(state.pitch))return;
+    const state=savedState??JSON.parse(sessionStorage.getItem('odyssey-flight-state')||'null');
+    if(!state||!Array.isArray(state.position)||state.position.length!==3||!state.position.every(Number.isFinite)||!Number.isFinite(state.yaw)||!Number.isFinite(state.pitch))return false;
     shipPosition.fromArray(state.position);
     yaw=targetYaw=state.yaw;
-    pitch=targetPitch=THREE.MathUtils.clamp(state.pitch,-maxManualPitch,maxManualPitch);
+    pitch=targetPitch=THREE.MathUtils.clamp(state.pitch,-maxAutopilotPitch,maxAutopilotPitch);
     bank=0;
     velocity.set(0,0,0);
+    discoveryDrift=gameMode==='discovery'&&state.discoveryDrift===true&&!reducedMotion.matches;
     cameraMode=state.cameraMode==='first-person'?'first-person':'chase';
     document.querySelector('#app').classList.toggle('camera-chase',cameraMode==='chase');
     document.querySelectorAll('[data-camera]').forEach(button=>button.setAttribute('aria-pressed',button.dataset.camera===cameraMode?'true':'false'));
     if(destinations.some(planet=>planet.id===state.selectedId))selectPlanet(state.selectedId);
-    if(state.autopilotId&&state.autopilotId!=='sun'&&destinations.some(planet=>planet.id===state.autopilotId)){
+    if(state.autopilotId&&state.autopilotId!=='sun'&&!isWorldLocked(state.autopilotId)&&destinations.some(planet=>planet.id===state.autopilotId)){
       autopilotTarget=bodies.find(body=>body.data.id===state.autopilotId);
       if(autopilotTarget){
         autopilotWaypoint=null;
@@ -648,16 +848,96 @@ function restoreFlightState() {
         updateAutopilotUI();
       }
     }
+    if(state.parkedPreviewId&&Array.isArray(state.parkedOffset)&&state.parkedOffset.length===3&&state.parkedOffset.every(Number.isFinite)){
+      const body=bodies.find(item=>item.data.id===state.parkedPreviewId);
+      if(body&&!isWorldLocked(body.data.id)){
+        arrivalPreview=true;
+        parkedTarget=body;
+        parkedOffset.fromArray(state.parkedOffset);
+        shipPosition.copy(body.group.position).add(parkedOffset);
+        previewTarget=body;
+        previewOrbitAngle=previewOrbitTargetAngle=Number.isFinite(state.previewOrbitAngle)?state.previewOrbitAngle:0;
+        document.querySelector('#previewName').textContent=`${body.data.name.toUpperCase()} / PREVIEW`;
+        document.querySelector('#previewBanner').hidden=false;
+        document.querySelector('#app').classList.add('destination-preview');
+      }
+    }
     if(state.discoveryOpen)setDiscoveryOpen(true);
     if(state.guideOpen)showGuide();
+    return true;
+  } catch {return false;}
+}
+
+function savedDiscoveryFlight() {
+  try {
+    const state=JSON.parse(localStorage.getItem('odyssey-discovery-flight')||'null');
+    return state&&Array.isArray(state.position)&&state.position.length===3&&state.position.every(Number.isFinite)&&Number.isFinite(state.yaw)&&Number.isFinite(state.pitch)?state:null;
+  } catch {return null;}
+}
+
+function updateDiscoveryChoice() {
+  const discoveryMode=gameMode==='discovery';
+  document.querySelector('#playButton').hidden=discoveryMode;
+  document.querySelector('#discoveryChoice').hidden=!discoveryMode;
+  const hasSave=Boolean(savedDiscoveryFlight())||scannedBodies.size>0;
+  document.querySelector('#resumeGameButton').disabled=!hasSave;
+  document.querySelector('#discoverySaveStatus').textContent=hasSave
+    ?`${scannedBodies.size} of ${destinations.length} worlds discovered. Resume your voyage or start again.`
+    :'No saved voyage yet. Start a new game to begin scanning.';
+}
+
+function startNewDiscoveryGame() {
+  scannedBodies.clear();
+  scanSeconds=0;scanTargetId=null;scanResultUntil=0;
+  document.querySelector('#scanFeedback').hidden=true;
+  try {
+    localStorage.removeItem('odyssey-scanned-worlds');
+    localStorage.removeItem('odyssey-discovery-flight');
+    sessionStorage.removeItem('odyssey-flight-state');
   } catch {}
+  setDiscoveryOpen(false);
+  setGuideHidden(true);
+  refreshDiscoveryUI();
+  startGame(true);
+}
+
+function resumeDiscoveryGame() {
+  if(!introActive)return;
+  const saved=savedDiscoveryFlight();
+  if(!saved){startGame(true);return;}
+  const curtain=document.querySelector('#sceneCurtain');
+  curtain.classList.add('covered');
+  window.setTimeout(()=>{
+    if(!introActive)return;
+    if(!restoreFlightState(saved)){
+      curtain.classList.remove('covered');
+      updateDiscoveryChoice();
+      return;
+    }
+    introActive=false;
+    introDive=false;
+    launchTransition=null;
+    cameraTransition=null;
+    keys.clear();
+    try{sessionStorage.setItem('odyssey-flight-active','yes');}catch{}
+    shipAudio.start();
+    document.querySelector('#introOverlay').hidden=true;
+    document.querySelector('#app').classList.remove('intro-mode','launching');
+    updateCamera(0,true);
+    saveFlightState();
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      curtain.classList.remove('covered');
+      canvas.focus({preventScroll:true});
+    }));
+  },reducedMotion.matches?80:250);
 }
 
 function setupIntro() {
-  document.querySelector('#playButton').addEventListener('click',startGame);
+  document.querySelector('#playButton').addEventListener('click',()=>startGame());
+  document.querySelector('#newGameButton').addEventListener('click',startNewDiscoveryGame);
+  document.querySelector('#resumeGameButton').addEventListener('click',resumeDiscoveryGame);
   try {
-    if(sessionStorage.getItem('odyssey-flight-active')==='yes') {
-      restoreFlightState();
+    if(sessionStorage.getItem('odyssey-flight-active')==='yes'&&restoreFlightState()) {
       introActive=false;
       document.querySelector('#introOverlay').hidden=true;
       document.querySelector('#app').classList.remove('intro-mode');
@@ -665,6 +945,30 @@ function setupIntro() {
       return;
     }
   } catch {}
+}
+
+function isWorldLocked(id) {
+  return gameMode==='discovery'&&!scannedBodies.has(id);
+}
+
+function setGameMode(mode,save=true) {
+  gameMode=mode==='exploration'?'exploration':'discovery';
+  document.querySelectorAll('[data-mode]').forEach(button=>button.setAttribute('aria-pressed',button.dataset.mode===gameMode?'true':'false'));
+  refreshDiscoveryUI();
+  if(isWorldLocked(selectedId)){
+    setDiscoveryOpen(false);
+    setGuideHidden(true);
+  }
+  updateAutopilotUI();
+  updateDiscoveryChoice();
+  if(save)try{localStorage.setItem('odyssey-flight-mode',gameMode);}catch{}
+}
+
+function setupGameModes() {
+  let saved='discovery';
+  try{saved=localStorage.getItem('odyssey-flight-mode')==='exploration'?'exploration':'discovery';}catch{}
+  document.querySelectorAll('[data-mode]').forEach(button=>button.addEventListener('click',()=>setGameMode(button.dataset.mode)));
+  setGameMode(saved,false);
 }
 
 function setupDestinationToggle() {
@@ -701,6 +1005,7 @@ function setGuideHidden(hidden) {
 }
 
 function showGuide() {
+  if(isWorldLocked(selectedId))return;
   setGuideHidden(false);
 }
 
@@ -764,7 +1069,8 @@ function updateCamera(dt,instant=false) {
     }
     return;
   }
-  const targetFov=previewTarget?53:cameraMode==='first-person'?72+(reducedMotion.matches?0:boostAmount*3):64+(reducedMotion.matches?0:boostAmount*4);
+  unlockLens=THREE.MathUtils.damp(unlockLens,unlockCinematicActive&&!reducedMotion.matches?1:0,unlockCinematicActive?2.5:4,dt);
+  const targetFov=(previewTarget?53:cameraMode==='first-person'?72+(reducedMotion.matches?0:boostAmount*3):64+(reducedMotion.matches?0:boostAmount*4))-unlockLens*5;
   const nextFov=instant?targetFov:THREE.MathUtils.damp(camera.fov,targetFov,5,dt);
   if(Math.abs(camera.fov-nextFov)>.005){camera.fov=nextFov;camera.updateProjectionMatrix();}
   engineGlows.forEach(glow=>{
@@ -785,11 +1091,13 @@ function updateCamera(dt,instant=false) {
   if(previewTarget) {
     const center=previewTarget.group.position;
     const radius=previewTarget.data.radius;
+    previewOrbitAngle=reducedMotion.matches?previewOrbitTargetAngle:THREE.MathUtils.damp(previewOrbitAngle,previewOrbitTargetAngle,5,dt);
     const sunward=previewTarget.data.id==='sun'
       ?shipPosition.clone().normalize()
       :previewTarget.data.id==='moon'
         ?center.clone().sub(bodies.find(body=>body.data.id==='earth').group.position).normalize()
         :center.clone().multiplyScalar(-1).normalize();
+    sunward.applyAxisAngle(worldUp,previewOrbitAngle);
     const viewPosition=center.clone().addScaledVector(sunward,radius*2.8+6).add(new THREE.Vector3(0,radius*.55+2,0));
     camera.position.copy(viewPosition);
     camera.lookAt(center);
@@ -886,9 +1194,119 @@ function buildPlanetList() {
     button.addEventListener('click',()=>selectPlanet(planet.id,true));
     list.append(button);
   });
+  refreshDiscoveryUI();
+}
+
+function loadDiscoveries() {
+  try {
+    const saved=JSON.parse(localStorage.getItem('odyssey-scanned-worlds')||'[]');
+    if(Array.isArray(saved))for(const id of saved){
+      if(destinations.some(planet=>planet.id===id))scannedBodies.add(id);
+    }
+  } catch {}
+}
+
+function refreshDiscoveryUI() {
+  document.querySelector('#discoveryCount').textContent=gameMode==='discovery'?`${scannedBodies.size} / ${destinations.length} SCANNED`:'FREE EXPLORATION';
+  document.querySelectorAll('.planet-row').forEach(row=>{
+    const planet=destinations.find(item=>item.id===row.dataset.id);
+    const scanned=scannedBodies.has(row.dataset.id);
+    const locked=isWorldLocked(row.dataset.id);
+    row.disabled=locked;
+    row.classList.toggle('locked',locked);
+    row.classList.toggle('active',!locked&&row.dataset.id===selectedId);
+    row.setAttribute('aria-current',!locked&&row.dataset.id===selectedId?'true':'false');
+    row.querySelector('.planet-row-name').textContent=locked?'Unknown world':planet.name;
+    row.querySelector('.planet-row-index').textContent=locked?'LOCKED':scanned?'✓':planet.index;
+    row.setAttribute('aria-label',locked?'Unknown destination. Scan it to unlock.':`Select ${planet.name}${scanned?', scanned':''}`);
+  });
+  document.querySelector('#discoveryToggle').hidden=isWorldLocked(selectedId);
+}
+
+function scanRangeFor(id) {
+  const planet=destinations.find(item=>item.id===id);
+  const center=id==='sun'?sunMesh.position:bodies.find(body=>body.data.id===id)?.group.position;
+  if(!planet||!center)return false;
+  return shipPosition.distanceTo(center)-planet.radius<=Math.max(24,planet.radius*.7);
+}
+
+function endUnlockCinematic(immediate=false) {
+  if(unlockCinematicTimer!==null){window.clearTimeout(unlockCinematicTimer);unlockCinematicTimer=null;}
+  if(unlockHideTimer!==null){window.clearTimeout(unlockHideTimer);unlockHideTimer=null;}
+  unlockCinematicActive=false;
+  const overlay=document.querySelector('#unlockCinematic');
+  overlay.classList.remove('active');
+  document.querySelector('#app').classList.remove('unlock-active');
+  if(immediate){overlay.hidden=true;unlockLens=0;}
+  else unlockHideTimer=window.setTimeout(()=>{overlay.hidden=true;unlockHideTimer=null;},350);
+}
+
+function showUnlockCinematic(planet,fact) {
+  endUnlockCinematic(true);
+  const overlay=document.querySelector('#unlockCinematic');
+  document.querySelector('#unlockName').textContent=planet.name;
+  document.querySelector('#unlockCount').textContent=`${scannedBodies.size} / ${destinations.length}`;
+  document.querySelector('#unlockFact').textContent=fact;
+  overlay.hidden=false;
+  unlockCinematicActive=true;
+  requestAnimationFrame(()=>{
+    if(!unlockCinematicActive)return;
+    overlay.classList.add('active');
+    document.querySelector('#app').classList.add('unlock-active');
+  });
+  unlockCinematicTimer=window.setTimeout(()=>endUnlockCinematic(),reducedMotion.matches?1600:3100);
+}
+
+function updateScanner(dt,elapsed) {
+  const feedback=document.querySelector('#scanFeedback');
+  const blocked=gameMode!=='discovery'||introActive||introDive||returningToIntro||previewTarget||unlockCinematicActive||
+    !document.querySelector('#helpOverlay').hidden||
+    !document.querySelector('#settingsOverlay').hidden||
+    !document.querySelector('#exitOverlay').hidden;
+  if(blocked){feedback.hidden=true;scanSeconds=0;scanTargetId=null;return;}
+  const id=pointedPlanet()?.object.userData.id;
+  if(keys.has('KeyR')&&id&&!scannedBodies.has(id)){
+    const planet=destinations.find(item=>item.id===id);
+    feedback.hidden=false;
+    feedback.classList.remove('complete');
+    document.querySelector('#scanFact').hidden=true;
+    if(!scanRangeFor(id)){
+      document.querySelector('#scanTitle').textContent='Move closer to scan unknown world';
+      document.querySelector('#scanFill').style.width='0%';
+      document.querySelector('#scanMeter').setAttribute('aria-valuenow','0');
+      scanSeconds=0;scanTargetId=null;
+      return;
+    }
+    if(scanTargetId!==id){scanTargetId=id;scanSeconds=0;}
+    scanSeconds=Math.min(2.4,scanSeconds+dt);
+    document.querySelector('#scanTitle').textContent=`Scanning unknown world · ${Math.round(scanSeconds/2.4*100)}%`;
+    document.querySelector('#scanFill').style.width=`${scanSeconds/2.4*100}%`;
+    document.querySelector('#scanMeter').setAttribute('aria-valuenow',String(Math.round(scanSeconds/2.4*100)));
+    if(scanSeconds>=2.4){
+      scannedBodies.add(id);
+      try{localStorage.setItem('odyssey-scanned-worlds',JSON.stringify([...scannedBodies]));}catch{}
+      refreshDiscoveryUI();
+      updateAutopilotUI();
+      const [title,description]=discovery[id].notes[0];
+      document.querySelector('#scanTitle').textContent=`${planet.name} discovered · ${scannedBodies.size}/${destinations.length}`;
+      const fact=document.querySelector('#scanFact');
+      fact.textContent=`${title}: ${description}`;
+      fact.hidden=false;
+      feedback.classList.add('complete');
+      scanResultUntil=elapsed+5;
+      scanSeconds=0;scanTargetId=null;
+      showUnlockCinematic(planet,`${title}: ${description}`);
+      feedback.hidden=true;
+      shipAudio.cue('discovery');
+    }
+    return;
+  }
+  scanSeconds=0;scanTargetId=null;
+  feedback.hidden=elapsed>=scanResultUntil;
 }
 
 function setDiscoveryOpen(open) {
+  if(open&&isWorldLocked(selectedId))return;
   const planet=destinations.find(item=>item.id===selectedId);
   const facts=discovery[planet.id];
   const panel=document.querySelector('#fieldGuide');
@@ -930,7 +1348,7 @@ function setDiscoveryOpen(open) {
 
 function selectPlanet(id,preview=false) {
   const planet=destinations.find(p=>p.id===id);
-  if(!planet)return;
+  if(!planet||isWorldLocked(id))return;
   if(selectedId!==id)setDiscoveryOpen(false);
   if(autopilotTarget&&autopilotTarget.data.id!==id)stopAutopilot('Course changed. Manual flight.');
   if(selectedId!==id&&!autopilotTarget)autopilotMessage='Manual flight';
@@ -957,28 +1375,56 @@ function selectPlanet(id,preview=false) {
   credit.href=photo.source;
   updateAutopilotUI();
   if(preview) {
+    discoveryDrift=false;
+    arrivalPreview=false;
+    parkedTarget=null;
+    previewOrbitAngle=previewOrbitTargetAngle=0;
     showGuide();
     beginCameraTransition(1.35);
     previewTarget=id==='sun'?{data:sunData,group:sunMesh}:bodies.find(body=>body.data.id===id);
     document.querySelector('#previewName').textContent=`${planet.name.toUpperCase()} / PREVIEW`;
     document.querySelector('#previewBanner').hidden=false;
     document.querySelector('#app').classList.add('destination-preview');
-    updateCamera(0,true);
+    updateCamera(0);
   }
+}
+
+function showArrivalPreview(body) {
+  endUnlockCinematic(true);
+  setDiscoveryOpen(false);
+  showGuide();
+  arrivalPreview=true;
+  parkedTarget=body;
+  parkedOffset.copy(shipPosition).sub(body.group.position);
+  previewOrbitAngle=previewOrbitTargetAngle=0;
+  beginCameraTransition(1.35);
+  previewTarget=body;
+  document.querySelector('#previewName').textContent=`${body.data.name.toUpperCase()} / PREVIEW`;
+  document.querySelector('#previewBanner').hidden=false;
+  document.querySelector('#app').classList.add('destination-preview');
+  updateCamera(0);
+}
+
+function rotatePreview(direction) {
+  if(!previewTarget)return;
+  previewOrbitTargetAngle+=direction*Math.PI/4;
 }
 
 function exitPreview() {
   if(!previewTarget)return;
   beginCameraTransition(1.05);
   previewTarget=null;
+  previewOrbitAngle=previewOrbitTargetAngle=0;
+  arrivalPreview=false;
+  parkedTarget=null;
   document.querySelector('#previewBanner').hidden=true;
   document.querySelector('#app').classList.remove('destination-preview');
-  updateCamera(0,true);
+  updateCamera(0);
 }
 
 function updateAutopilotUI() {
   const button=document.querySelector('#autopilotButton');
-  button.hidden=selectedId==='sun'&&!autopilotTarget;
+  button.hidden=isWorldLocked(selectedId)||(selectedId==='sun'&&!autopilotTarget);
   button.setAttribute('aria-pressed',autopilotTarget?'true':'false');
   button.textContent=autopilotTarget?'Cancel flight':`Fly to ${destinations.find(p=>p.id===selectedId).name}`;
   document.querySelector('#autopilotStatus').textContent=selectedId==='sun'&&!autopilotTarget?'Observe from a safe distance.':autopilotMessage;
@@ -995,11 +1441,13 @@ function stopAutopilot(message='Manual flight') {
 
 function toggleAutopilot() {
   shipAudio.start();
+  if(arrivalPreview){exitPreview();return;}
   if(autopilotTarget){stopAutopilot();return;}
-  if(selectedId==='sun')return;
+  if(selectedId==='sun'||isWorldLocked(selectedId))return;
   exitPreview();
   autopilotTarget=bodies.find(body=>body.data.id===selectedId);
   if(!autopilotTarget)return;
+  discoveryDrift=false;
   autopilotWaypoint=null;
   autopilotMessage=`Course set for ${autopilotTarget.data.name}`;
   keys.clear();
@@ -1053,6 +1501,7 @@ function setupControls() {
   const manualCodes=new Set(['KeyW','KeyS','KeyA','KeyD','KeyQ','KeyE','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','ShiftLeft','ShiftRight']);
   document.addEventListener('keydown',event=>{
     if(event.code==='Escape') {
+      if(unlockCinematicActive){endUnlockCinematic(true);return;}
       if(!document.querySelector('#exitOverlay').hidden)closeExit();
       else if(!document.querySelector('#helpOverlay').hidden)closeHelp();
       else if(!document.querySelector('#settingsOverlay').hidden)closeSettings();
@@ -1062,28 +1511,38 @@ function setupControls() {
     }
     if(introActive)return;
     if(event.target instanceof HTMLInputElement || !document.querySelector('#helpOverlay').hidden || !document.querySelector('#settingsOverlay').hidden || !document.querySelector('#exitOverlay').hidden)return;
+    if(unlockCinematicActive&&event.code!=='KeyR')endUnlockCinematic(true);
+    if(previewTarget&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&(event.code==='Comma'||event.code==='Period')){
+      event.preventDefault();
+      if(!event.repeat)rotatePreview(event.code==='Comma'?-1:1);
+      return;
+    }
     if(prevent.has(event.code))event.preventDefault();
     if(event.code==='KeyC' && !event.repeat) {
       const modes=['first-person','chase'];
       setCameraMode(modes[(modes.indexOf(cameraMode)+1)%modes.length]);
     }
     if(event.code==='KeyP' && !event.repeat){toggleAutopilot();return;}
+    if(event.code==='KeyR'&&!event.ctrlKey&&!event.metaKey&&!event.altKey){event.preventDefault();keys.add('KeyR');return;}
     if(event.code==='KeyF' && !event.repeat && !event.ctrlKey && !event.metaKey && !event.altKey){
       const hit=pointedPlanet();
       const id=hit?.object.userData.id;
       if(!guideHidden&&(!id||id===selectedId))setGuideHidden(true);
+      else if(id&&isWorldLocked(id))setGuideHidden(true);
       else if(id){
         selectPlanet(id);
         showGuide();
       }
       return;
     }
+    if(discoveryDrift&&manualCodes.has(event.code))discoveryDrift=false;
     if(previewTarget&&manualCodes.has(event.code))exitPreview();
     if(autopilotTarget&&manualCodes.has(event.code))stopAutopilot('Manual control restored');
     else if(autopilotMessage.startsWith('Arrived')&&manualCodes.has(event.code)){autopilotMessage='Manual flight';updateAutopilotUI();}
     keys.add(event.code);
   });
   document.addEventListener('keyup',event=>keys.delete(event.code));
+  document.querySelector('#app').addEventListener('pointerdown',()=>{if(unlockCinematicActive)endUnlockCinematic(true);});
   window.addEventListener('blur',()=>keys.clear());
   document.querySelectorAll('[data-camera]').forEach(button=>button.addEventListener('click',()=>setCameraMode(button.dataset.camera)));
   document.querySelector('#autopilotButton').addEventListener('click',toggleAutopilot);
@@ -1092,6 +1551,8 @@ function setupControls() {
   });
   document.querySelector('#discoveryInspect').addEventListener('click',()=>selectPlanet(selectedId,true));
   document.querySelector('#returnToShip').addEventListener('click',exitPreview);
+  document.querySelector('#previewOrbitLeft').addEventListener('click',()=>rotatePreview(-1));
+  document.querySelector('#previewOrbitRight').addEventListener('click',()=>rotatePreview(1));
   document.querySelector('#helpButton').addEventListener('click',openHelp);
   document.querySelector('#closeHelp').addEventListener('click',closeHelp);
   document.querySelector('#startExploring').addEventListener('click',closeHelp);
@@ -1177,9 +1638,11 @@ function autopilotGuidance() {
   const body=autopilotTarget;
   const target=body.group.position;
   const surfaceDistance=shipPosition.distanceTo(target)-body.data.radius;
-  if(surfaceDistance<=10.5) {
+  const viewingDistance=Math.max(10.5,body.data.radius*.45);
+  if(surfaceDistance<=viewingDistance+.5) {
     velocity.set(0,0,0);
     stopAutopilot(`Arrived near ${body.data.name}`);
+    showArrivalPreview(body);
     return null;
   }
   if(autopilotWaypoint&&shipPosition.distanceTo(autopilotWaypoint)<4)autopilotWaypoint=null;
@@ -1190,6 +1653,7 @@ function autopilotGuidance() {
     let blocking=null;
     let nearestAlong=Infinity;
     for(const obstacle of [{position:new THREE.Vector3(),radius:sunRadius+2},...bodies.filter(other=>other!==body).map(other=>({position:other.group.position,radius:other.data.radius+1.4})),...asteroidObstacles]) {
+      if(obstacle.alive===false)continue;
       const along=obstacle.position.clone().sub(shipPosition).dot(forward);
       if(along<0||along>routeLength||along>=nearestAlong)continue;
       const closest=shipPosition.clone().addScaledVector(forward,along);
@@ -1198,7 +1662,9 @@ function autopilotGuidance() {
       nearestAlong=along;
     }
     if(blocking){
-      const lateral=new THREE.Vector3(-forward.z,0,forward.x).normalize();
+      const lateral=new THREE.Vector3(-forward.z,0,forward.x);
+      if(lateral.lengthSq()<1e-4)lateral.set(Math.cos(yaw),0,-Math.sin(yaw));
+      lateral.normalize();
       if(lateral.dot(shipPosition.clone().sub(blocking.position))<0)lateral.negate();
       autopilotWaypoint=blocking.position.clone().addScaledVector(lateral,blocking.radius+11).addScaledVector(forward,-blocking.radius-5);
       autopilotWaypoint.y=Math.max(shipPosition.y,7);
@@ -1206,10 +1672,14 @@ function autopilotGuidance() {
   }
   const aim=autopilotWaypoint||target;
   const toward=aim.clone().sub(shipPosition).normalize();
-  const desiredYaw=Math.atan2(-toward.x,-toward.z);
-  targetYaw=yaw+Math.atan2(Math.sin(desiredYaw-yaw),Math.cos(desiredYaw-yaw));
-  targetPitch=THREE.MathUtils.clamp(Math.asin(THREE.MathUtils.clamp(toward.y,-1,1)),-Math.PI/3,Math.PI/3);
-  const remaining=autopilotWaypoint?shipPosition.distanceTo(autopilotWaypoint):surfaceDistance-10;
+  const horizontalDistance=Math.hypot(aim.x-shipPosition.x,aim.z-shipPosition.z);
+  const verticalDistance=Math.abs(aim.y-shipPosition.y);
+  if(horizontalDistance>Math.max(8,verticalDistance*.12)){
+    const desiredYaw=Math.atan2(-toward.x,-toward.z);
+    targetYaw=yaw+Math.atan2(Math.sin(desiredYaw-yaw),Math.cos(desiredYaw-yaw));
+  }else targetYaw=yaw;
+  targetPitch=THREE.MathUtils.clamp(Math.atan2(aim.y-shipPosition.y,horizontalDistance),-maxAutopilotPitch,maxAutopilotPitch);
+  const remaining=autopilotWaypoint?shipPosition.distanceTo(autopilotWaypoint):surfaceDistance-viewingDistance;
   const speed=THREE.MathUtils.clamp(remaining*.65,0,48);
   return {toward,speed};
 }
@@ -1218,6 +1688,15 @@ function moveShip(dt) {
   if(returningToIntro){velocity.set(0,0,0);boostAmount=0;return;}
   if(introDive){velocity.set(0,0,0);boostAmount=0;return;}
   if(introActive){velocity.set(0,0,0);boostAmount=0;return;}
+  if(parkedTarget){
+    shipPosition.copy(parkedTarget.group.position).add(parkedOffset);
+    velocity.set(0,0,0);
+    boostAmount=THREE.MathUtils.damp(boostAmount,0,5,dt);
+    targetPitch=0;
+    pitch=THREE.MathUtils.damp(pitch,0,3,dt);
+    bank=THREE.MathUtils.damp(bank,0,5,dt);
+    return;
+  }
   if(!document.querySelector('#helpOverlay').hidden || !document.querySelector('#settingsOverlay').hidden || !document.querySelector('#exitOverlay').hidden){velocity.multiplyScalar(Math.exp(-6*dt));bank*=Math.exp(-7*dt);boostAmount=THREE.MathUtils.damp(boostAmount,0,5,dt);return;}
   const guidance=autopilotTarget?autopilotGuidance():null;
   if(!autopilotTarget) {
@@ -1232,8 +1711,15 @@ function moveShip(dt) {
     }
   }
   const previousYaw=yaw;
-  yaw=THREE.MathUtils.damp(yaw,targetYaw,reducedMotion.matches?22:12,dt);
-  pitch=THREE.MathUtils.damp(pitch,targetPitch,reducedMotion.matches?22:7,dt);
+  if(autopilotTarget){
+    const yawError=Math.atan2(Math.sin(targetYaw-yaw),Math.cos(targetYaw-yaw));
+    const pitchError=targetPitch-pitch;
+    yaw+=THREE.MathUtils.clamp(yawError*(1-Math.exp(-3*dt)),-1.1*dt,1.1*dt);
+    pitch+=THREE.MathUtils.clamp(pitchError*(1-Math.exp(-3*dt)),-.85*dt,.85*dt);
+  }else{
+    yaw=THREE.MathUtils.damp(yaw,targetYaw,reducedMotion.matches?22:12,dt);
+    pitch=THREE.MathUtils.damp(pitch,targetPitch,reducedMotion.matches?22:7,dt);
+  }
   const turnRate=dt>0?(yaw-previousYaw)/dt:0;
   const desiredBank=reducedMotion.matches?0:THREE.MathUtils.clamp(turnRate*.13,-.22,.22);
   bank=THREE.MathUtils.damp(bank,desiredBank,6,dt);
@@ -1242,9 +1728,14 @@ function moveShip(dt) {
   desiredVelocity.set(0,0,0);
   if(autopilotTarget&&guidance) {
     const alignment=direction.dot(guidance.toward);
-    desiredVelocity.copy(direction).multiplyScalar(guidance.speed*THREE.MathUtils.clamp((alignment-.4)/.6,0,1));
+    desiredVelocity.copy(direction).multiplyScalar(guidance.speed*THREE.MathUtils.clamp((alignment-.7)/.3,0,1));
     const boostTarget=THREE.MathUtils.clamp((desiredVelocity.length()-10)/38,0,1);
     boostAmount=THREE.MathUtils.damp(boostAmount,boostTarget,3.2,dt);
+  } else if(discoveryDrift) {
+    const nearestSurface=Math.min(...bodies.map(body=>shipPosition.distanceTo(body.group.position)-body.data.radius));
+    const coastSpeed=THREE.MathUtils.clamp((nearestSurface-100)*.1,0,22);
+    desiredVelocity.copy(direction).multiplyScalar(coastSpeed);
+    if(coastSpeed===0)discoveryDrift=false;
   } else {
     if(keys.has('KeyW'))desiredVelocity.add(direction);
     if(keys.has('KeyS'))desiredVelocity.sub(direction);
@@ -1255,10 +1746,18 @@ function moveShip(dt) {
   }
   velocity.lerp(desiredVelocity,1-Math.exp(-4.6*dt));
   const next=shipPosition.clone().addScaledVector(velocity,dt);
-  const obstacles=[{position:new THREE.Vector3(),radius:sunRadius+2},...bodies.map(b=>({position:b.group.position,radius:b.data.radius+1.4})),...asteroidObstacles];
-  const hit=obstacles.some(o=>next.distanceToSquared(o.position)<o.radius*o.radius);
-  if(hit){velocity.set(0,0,0);if(autopilotTarget)stopAutopilot('Course blocked. Manual control restored.');}
-  else shipPosition.copy(next);
+  const solidBodies=[{position:new THREE.Vector3(),radius:sunRadius+2},...bodies.map(b=>({position:b.group.position,radius:b.data.radius+1.4}))];
+  if(solidBodies.some(o=>next.distanceToSquared(o.position)<o.radius*o.radius)){
+    velocity.set(0,0,0);
+    discoveryDrift=false;
+    if(autopilotTarget)stopAutopilot('Course blocked. Manual control restored.');
+    return;
+  }
+  for(const rock of asteroidRocks){
+    if(!rock.alive||next.distanceToSquared(rock.position)>=rock.radius*rock.radius)continue;
+    if(hitAsteroid(rock,next))return;
+  }
+  shipPosition.copy(next);
 }
 
 function updateBodies(elapsed,dt) {
@@ -1284,7 +1783,7 @@ function updateHud(elapsed) {
     return distance<best.distance?{body,distance}:best;
   },{body:null,distance:Infinity});
   document.querySelector('#speedReadout').textContent=Math.round(velocity.length()).toString();
-  document.querySelector('#nearestReadout').textContent=nearest.body.data.name;
+  document.querySelector('#nearestReadout').textContent=isWorldLocked(nearest.body.data.id)?'Unknown':nearest.body.data.name;
   document.querySelector('#distanceReadout').textContent=`${Math.round(nearest.distance)} units away`;
   if(autopilotTarget)document.querySelector('#autopilotStatus').textContent=`Flying to ${autopilotTarget.data.name} · ${Math.max(0,Math.round(shipPosition.distanceTo(autopilotTarget.group.position)-autopilotTarget.data.radius))} units`;
   let degrees=((THREE.MathUtils.radToDeg(yaw)%360)+360)%360;
@@ -1292,12 +1791,21 @@ function updateHud(elapsed) {
   const bankDegrees=Math.round(Math.abs(THREE.MathUtils.radToDeg(bank)));
   const pitchDegrees=Math.round(Math.abs(THREE.MathUtils.radToDeg(pitch)));
   document.querySelector('#bankReadout').textContent=bankDegrees>2?`BANK ${bank>0?'LEFT':'RIGHT'} ${bankDegrees}°`:pitchDegrees>2?`NOSE ${pitch>0?'UP':'DOWN'} ${pitchDegrees}°`:'FREE FLIGHT';
+  if(discoveryDrift)document.querySelector('#bankReadout').textContent='COASTING';
   if(boostAmount>.45)document.querySelector('#bankReadout').textContent='BOOST ENGAGED';
   if(autopilotTarget)document.querySelector('#bankReadout').textContent='AUTOPILOT';
   document.querySelector('.hud-arc').style.transform=`rotate(${THREE.MathUtils.radToDeg(bank)*.7}deg)`;
   const hit=pointedPlanet();
   const label=document.querySelector('#objectLabel');
-  label.textContent=hit?`${hit.object.userData.name} · F ${!guideHidden&&selectedId===hit.object.userData.id?'close':'info'}`:'';
+  if(hit){
+    const id=hit.object.userData.id;
+    if(isWorldLocked(id)){
+      label.textContent=`Unknown world · ${scanRangeFor(id)?'Hold R to scan':'move closer to scan'}`;
+    }else{
+      const scanHint=gameMode==='discovery'?' · Scanned':'';
+      label.textContent=`${hit.object.userData.name} · F ${!guideHidden&&selectedId===id?'close':'info'}${scanHint}`;
+    }
+  }else label.textContent='';
 }
 
 function resize() {
@@ -1336,9 +1844,12 @@ function animate() {
   const dt=Math.min(clock.getDelta(),.05);
   const elapsed=clock.elapsedTime;
   updateBodies(elapsed,dt);
+  updateAsteroids(dt);
   moveShip(dt);
   shipAudio.update(velocity.length(),boostAmount,Boolean(previewTarget));
   updateCamera(dt);
+  updateIdleShip(elapsed,dt);
+  updateScanner(dt,elapsed);
   drawBoostStreaks(elapsed);
   updateHud(elapsed);
   if(!introActive&&elapsed-lastFlightSave>.5){saveFlightState();lastFlightSave=elapsed;}
@@ -1353,6 +1864,7 @@ let firstFrameRendered=false;
 createSolarSystem();
 createShip();
 setupStart();
+loadDiscoveries();
 buildPlanetList();
 selectPlanet('earth');
 loadNames();
@@ -1360,6 +1872,10 @@ setupControls();
 setupAudioControls();
 setupDestinationToggle();
 setupGuideToggle();
+setupGameModes();
+// Apply the saved mode after the discovery gate is active. This populates the
+// guide in free exploration while keeping unscanned worlds masked in Discovery.
+selectPlanet(selectedId);
 setupIntro();
 resize();
 window.addEventListener('resize',resize);
