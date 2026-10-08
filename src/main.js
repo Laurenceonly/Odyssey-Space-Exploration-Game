@@ -25,7 +25,7 @@ let sunMesh;
 const engineGlows = [];
 const boostPlumes = [];
 let boostAmount = 0;
-let cameraMode = 'cockpit';
+let cameraMode = 'chase';
 let previewTarget = null;
 let cameraTransition = null;
 let introActive = true;
@@ -38,16 +38,16 @@ const desiredVelocity = new THREE.Vector3();
 const velocity = new THREE.Vector3();
 const temp = new THREE.Vector3();
 const raycaster = new THREE.Raycaster();
-const center = new THREE.Vector2();
+const reticlePosition = new THREE.Vector2();
 const keys = new Set();
 const bodies = [];
 const clickableMeshes = [];
+const planetSurfaces = new Map();
 let selectedId = 'earth';
 let yaw = 0;
 let pitch = 0;
 let targetYaw = 0;
 let targetPitch = 0;
-let manualPitchActive = false;
 let bank = 0;
 let autopilotTarget = null;
 let autopilotMessage = 'Manual flight';
@@ -55,21 +55,24 @@ let autopilotWaypoint = null;
 let lastHudUpdate = 0;
 let shipName = 'Odyssey';
 let pilotName = 'Explorer';
+let exitFromSettings = false;
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 const maxManualPitch = THREE.MathUtils.degToRad(28);
-const worldScale = 2.7;
+const worldScale = 3.2;
+const sunRadius = 40;
+const moonOrbitRadius = 25;
 
 const planets = [
-  { id:'mercury', name:'Mercury', index:'01', symbol:'☿', type:'ROCKY WORLD', distance:'0.39 AU', diameter:'4,879 km', description:'A cratered little world racing closest to the Sun.', orbit:34, radius:1.5, angle:1.45, speed:.00013, color:'#999b9a', base:[143,143,139], style:'rock', gradient:'radial-gradient(circle at 29% 24%,#c6c6bf,#727879 57%,#252c32 92%)' },
-  { id:'venus', name:'Venus', index:'02', symbol:'♀', type:'CLOUD WORLD', distance:'0.72 AU', diameter:'12,104 km', description:'A brilliant globe hidden beneath thick golden clouds.', orbit:47, radius:3.8, angle:-.75, speed:.00009, color:'#d8ad7e', base:[201,157,109], style:'cloud', gradient:'radial-gradient(circle at 28% 20%,#f7d4a2,#c28c60 60%,#3a2c2b 95%)' },
-  { id:'earth', name:'Earth', index:'03', symbol:'♁', type:'TERRESTRIAL', distance:'1.00 AU', diameter:'12,742 km', description:'Our pale blue home, wrapped in a thin, living atmosphere.', orbit:65, radius:4.1, angle:.58, speed:.00007, color:'#4b9ac9', base:[42,98,166], style:'earth', gradient:'radial-gradient(circle at 27% 23%,#85c6d3,#3488b7 44%,#174c78 70%,#071a32 95%)' },
-  { id:'mars', name:'Mars', index:'04', symbol:'♂', type:'ROCKY WORLD', distance:'1.52 AU', diameter:'6,779 km', description:'Rust-red deserts, giant volcanoes, and ancient riverbeds.', orbit:84, radius:2.2, angle:2.6, speed:.00005, color:'#c97759', base:[174,83,59], style:'rock', gradient:'radial-gradient(circle at 29% 22%,#e2a379,#a94d38 62%,#331f23 96%)' },
-  { id:'jupiter', name:'Jupiter', index:'05', symbol:'♃', type:'GAS GIANT', distance:'5.20 AU', diameter:'139,820 km', description:'A vast storm-wrapped giant with bands of amber and cream.', orbit:123, radius:11.4, angle:-2.45, speed:.000028, color:'#d0a685', base:[190,151,123], style:'gas', gradient:'repeating-linear-gradient(175deg,#ead5b6 0 11px,#c29170 12px 20px,#a66f5b 21px 27px,#dfba99 28px 38px)' },
-  { id:'saturn', name:'Saturn', index:'06', symbol:'♄', type:'RINGED GIANT', distance:'9.58 AU', diameter:'116,460 km', description:'A luminous world encircled by a broad field of icy rings.', orbit:164, radius:9.2, angle:1.95, speed:.00002, color:'#d8c39b', base:[194,174,129], style:'gas', gradient:'repeating-linear-gradient(175deg,#e7d8b5 0 14px,#c6ae83 15px 23px,#ab946e 24px 29px,#decda7 30px 41px)' },
-  { id:'uranus', name:'Uranus', index:'07', symbol:'♅', type:'ICE GIANT', distance:'19.2 AU', diameter:'50,724 km', description:'A quiet cyan giant turning on its side in the outer dark.', orbit:204, radius:6.6, angle:-1.48, speed:.000013, color:'#98d7db', base:[131,192,195], style:'ice', gradient:'radial-gradient(circle at 28% 22%,#c7efeb,#75b8c4 67%,#254e67 95%)' },
-  { id:'neptune', name:'Neptune', index:'08', symbol:'♆', type:'ICE GIANT', distance:'30.1 AU', diameter:'49,244 km', description:'Deep blue, windswept, and far beyond the familiar worlds.', orbit:243, radius:6.3, angle:2.95, speed:.000009, color:'#5279ce', base:[49,83,164], style:'ice', gradient:'radial-gradient(circle at 27% 22%,#789bdc,#3452a6 68%,#152454 96%)' },
+  { id:'mercury', name:'Mercury', index:'01', symbol:'☿', type:'ROCKY WORLD', distance:'0.39 AU', diameter:'4,879 km', description:'A cratered little world racing closest to the Sun.', orbit:34, radius:6, angle:1.45, speed:.00013, color:'#999b9a', base:[143,143,139], style:'rock', gradient:'radial-gradient(circle at 29% 24%,#c6c6bf,#727879 57%,#252c32 92%)' },
+  { id:'venus', name:'Venus', index:'02', symbol:'♀', type:'CLOUD WORLD', distance:'0.72 AU', diameter:'12,104 km', description:'A brilliant globe hidden beneath thick golden clouds.', orbit:47, radius:15.2, angle:-.75, speed:.00009, color:'#d8ad7e', base:[201,157,109], style:'cloud', gradient:'radial-gradient(circle at 28% 20%,#f7d4a2,#c28c60 60%,#3a2c2b 95%)' },
+  { id:'earth', name:'Earth', index:'03', symbol:'♁', type:'TERRESTRIAL', distance:'1.00 AU', diameter:'12,742 km', description:'Our pale blue home, wrapped in a thin, living atmosphere.', orbit:65, radius:16.4, angle:.58, speed:.00007, color:'#4b9ac9', base:[42,98,166], style:'earth', gradient:'radial-gradient(circle at 27% 23%,#85c6d3,#3488b7 44%,#174c78 70%,#071a32 95%)' },
+  { id:'mars', name:'Mars', index:'04', symbol:'♂', type:'ROCKY WORLD', distance:'1.52 AU', diameter:'6,779 km', description:'Rust-red deserts, giant volcanoes, and ancient riverbeds.', orbit:84, radius:8.8, angle:2.6, speed:.00005, color:'#c97759', base:[174,83,59], style:'rock', gradient:'radial-gradient(circle at 29% 22%,#e2a379,#a94d38 62%,#331f23 96%)' },
+  { id:'jupiter', name:'Jupiter', index:'05', symbol:'♃', type:'GAS GIANT', distance:'5.20 AU', diameter:'139,820 km', description:'A vast storm-wrapped giant with bands of amber and cream.', orbit:123, radius:45.6, angle:-2.45, speed:.000028, color:'#d0a685', base:[190,151,123], style:'gas', gradient:'repeating-linear-gradient(175deg,#ead5b6 0 11px,#c29170 12px 20px,#a66f5b 21px 27px,#dfba99 28px 38px)' },
+  { id:'saturn', name:'Saturn', index:'06', symbol:'♄', type:'RINGED GIANT', distance:'9.58 AU', diameter:'116,460 km', description:'A luminous world encircled by a broad field of icy rings.', orbit:164, radius:36.8, angle:1.95, speed:.00002, color:'#d8c39b', base:[194,174,129], style:'gas', gradient:'repeating-linear-gradient(175deg,#e7d8b5 0 14px,#c6ae83 15px 23px,#ab946e 24px 29px,#decda7 30px 41px)' },
+  { id:'uranus', name:'Uranus', index:'07', symbol:'♅', type:'ICE GIANT', distance:'19.2 AU', diameter:'50,724 km', description:'A quiet cyan giant turning on its side in the outer dark.', orbit:204, radius:26.4, angle:-1.48, speed:.000013, color:'#98d7db', base:[131,192,195], style:'ice', gradient:'radial-gradient(circle at 28% 22%,#c7efeb,#75b8c4 67%,#254e67 95%)' },
+  { id:'neptune', name:'Neptune', index:'08', symbol:'♆', type:'ICE GIANT', distance:'30.1 AU', diameter:'49,244 km', description:'Deep blue, windswept, and far beyond the familiar worlds.', orbit:243, radius:25.2, angle:2.95, speed:.000009, color:'#5279ce', base:[49,83,164], style:'ice', gradient:'radial-gradient(circle at 27% 22%,#789bdc,#3452a6 68%,#152454 96%)' },
 ];
-const moonData = {id:'moon',name:'Moon',index:'03A',seed:9,symbol:'☾',type:'EARTH SATELLITE',distance:'1.00 AU',diameter:'3,474 km',description:'Earth’s cratered companion, with ancient highlands and quiet maria.',radius:1.25,color:'#aeb9c0',base:[151,157,159],style:'rock',gradient:'radial-gradient(circle at 28% 24%,#d3d5d0,#8a9499 58%,#343b42 96%)'};
+const moonData = {id:'moon',name:'Moon',index:'03A',seed:9,symbol:'☾',type:'EARTH SATELLITE',distance:'1.00 AU',diameter:'3,474 km',description:'Earth’s cratered companion, with ancient highlands and quiet maria.',radius:5,color:'#aeb9c0',base:[151,157,159],style:'rock',gradient:'radial-gradient(circle at 28% 24%,#d3d5d0,#8a9499 58%,#343b42 96%)'};
 const destinations=[...planets.slice(0,3),moonData,...planets.slice(3)];
 let moonBody;
 
@@ -100,8 +103,8 @@ function sampleNoise(field,u,v) {
 
 function surfaceTexture(planet) {
   const surface = document.createElement('canvas');
-  surface.width = 512;
-  surface.height = 256;
+  surface.width = 768;
+  surface.height = 384;
   const ctx = surface.getContext('2d');
   const frame = ctx.createImageData(surface.width, surface.height);
   const [r0,g0,b0] = planet.base;
@@ -156,6 +159,7 @@ function surfaceTexture(planet) {
       } else {
         const relief=(terrain-.5)*96+(n3-.5)*20;
         r+=relief;g+=relief*.8;b+=relief*.68;
+        if(planet.id==='mars'&&Math.abs(lat-.5)>.445+(n1-.5)*.025){r=205;g=195;b=180;}
       }
       const p=(y*surface.width+x)*4;
       frame.data[p]=r;
@@ -182,6 +186,28 @@ function surfaceTexture(planet) {
   return texture;
 }
 
+function earthCloudTexture() {
+  const surface=document.createElement('canvas');
+  surface.width=768;surface.height=384;
+  const ctx=surface.getContext('2d');
+  const image=ctx.createImageData(surface.width,surface.height);
+  const broad=noiseField(22,12,271);
+  const fine=noiseField(88,44,283);
+  for(let y=0;y<surface.height;y++)for(let x=0;x<surface.width;x++){
+    const u=x/surface.width,v=y/surface.height;
+    const cloud=sampleNoise(broad,u,v)*.7+sampleNoise(fine,u,v)*.3;
+    const swirl=Math.sin(v*55+u*19+cloud*9)*.035;
+    const alpha=THREE.MathUtils.clamp((cloud+swirl-.53)*4.5,0,.72);
+    const p=(y*surface.width+x)*4;
+    image.data[p]=239;image.data[p+1]=245;image.data[p+2]=247;
+    image.data[p+3]=Math.round(alpha*255);
+  }
+  ctx.putImageData(image,0,0);
+  const texture=new THREE.CanvasTexture(surface);
+  texture.colorSpace=THREE.SRGBColorSpace;
+  return texture;
+}
+
 function makeGlow(color, size, opacity) {
   const c=document.createElement('canvas');c.width=c.height=128;
   const cx=c.getContext('2d');
@@ -201,7 +227,7 @@ function makeOrbit(radius) {
     const a=i/192*Math.PI*2;
     points.push(new THREE.Vector3(Math.cos(a)*radius,0,Math.sin(a)*radius));
   }
-  const orbit=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(points),new THREE.LineBasicMaterial({color:0x70a5ac,transparent:true,opacity:.11,depthWrite:false}));
+  const orbit=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(points),new THREE.LineBasicMaterial({color:0xffffff,transparent:true,opacity:.11,depthWrite:false}));
   scene.add(orbit);
 }
 
@@ -369,14 +395,14 @@ function createStars() {
 
 function createSolarSystem() {
   createStars();
-  scene.add(new THREE.AmbientLight(0xb5d0e8, .78));
+  scene.add(new THREE.AmbientLight(0xb5d0e8, .42));
   const sunlight=new THREE.PointLight(0xffe6bc,2300,0,1.05);
   sunlight.position.set(0,0,0);scene.add(sunlight);
-  sunMesh=new THREE.Mesh(new THREE.SphereGeometry(12,64,40),new THREE.MeshBasicMaterial({map:surfaceTexture({id:'sun',index:'00',style:'sun',base:[255,171,72]}),toneMapped:false}));
-  sunMesh.userData.name='Sun';sunMesh.userData.radius=12;
+  sunMesh=new THREE.Mesh(new THREE.SphereGeometry(sunRadius,64,40),new THREE.MeshBasicMaterial({map:surfaceTexture({id:'sun',index:'00',style:'sun',base:[255,171,72]}),toneMapped:false}));
+  sunMesh.userData.name='Sun';sunMesh.userData.radius=sunRadius;
   scene.add(sunMesh);clickableMeshes.push(sunMesh);
-  scene.add(makeGlow('255,151,59',88,.4));
-  scene.add(makeGlow('255,207,112',40,.48));
+  scene.add(makeGlow('255,151,59',175,.4));
+  scene.add(makeGlow('255,207,112',90,.48));
   const asteroidPositions=[];
   for(let i=0;i<650;i++) {
     const angle=hash(i,5)*Math.PI*2;
@@ -388,31 +414,38 @@ function createSolarSystem() {
   planets.forEach((planet)=>{
     makeOrbit(planet.orbit*worldScale);
     const group=new THREE.Group();
-    const mesh=new THREE.Mesh(new THREE.SphereGeometry(planet.radius,64,40),new THREE.MeshStandardMaterial({map:surfaceTexture(planet),roughness:1,metalness:0,emissive:new THREE.Color(planet.color),emissiveIntensity:.035}));
+    const surface=surfaceTexture(planet);
+    planetSurfaces.set(planet.id,surface.image);
+    const mesh=new THREE.Mesh(new THREE.SphereGeometry(planet.radius,80,56),new THREE.MeshStandardMaterial({map:surface,bumpMap:['mercury','venus','earth','mars'].includes(planet.id)?surface:null,bumpScale:planet.radius*.025,roughness:1,metalness:0,emissive:new THREE.Color(planet.color),emissiveIntensity:.018}));
     mesh.rotation.z=planet.id==='uranus'?1.65:.1;
     mesh.userData.name=planet.name;
     mesh.userData.id=planet.id;
     mesh.userData.radius=planet.radius;
     group.add(mesh);
+    let clouds=null;
     if(planet.id==='earth') {
-      const air=new THREE.Mesh(new THREE.SphereGeometry(planet.radius*1.055,36,24),new THREE.MeshBasicMaterial({color:0x83cef7,transparent:true,opacity:.095,side:THREE.BackSide,depthWrite:false}));
+      clouds=new THREE.Mesh(new THREE.SphereGeometry(planet.radius*1.018,80,56),new THREE.MeshStandardMaterial({map:earthCloudTexture(),transparent:true,depthWrite:false,roughness:1,opacity:.86}));
+      group.add(clouds);
+      const air=new THREE.Mesh(new THREE.SphereGeometry(planet.radius*1.065,48,32),new THREE.MeshBasicMaterial({color:0x83cef7,transparent:true,opacity:.07,side:THREE.BackSide,depthWrite:false}));
       group.add(air);
-      group.add(makeGlow('66,147,231',18,.17));
-      const lunarOrbit=new THREE.Mesh(new THREE.RingGeometry(9.98,10.02,128),new THREE.MeshBasicMaterial({color:0x76909b,transparent:true,opacity:.24,side:THREE.DoubleSide,depthWrite:false}));
+      group.add(makeGlow('66,147,231',planet.radius*4.5,.17));
+      const lunarOrbit=new THREE.Mesh(new THREE.RingGeometry(moonOrbitRadius-.02,moonOrbitRadius+.02,128),new THREE.MeshBasicMaterial({color:0x76909b,transparent:true,opacity:.24,side:THREE.DoubleSide,depthWrite:false}));
       lunarOrbit.rotation.x=-Math.PI/2;group.add(lunarOrbit);
     }
     if(planet.id==='saturn') makeRings(group,planet.radius*1.24,planet.radius*2.15);
     if(planet.id==='uranus') makeRings(group,planet.radius*1.35,planet.radius*1.75);
     group.position.set(Math.cos(planet.angle)*planet.orbit*worldScale,0,Math.sin(planet.angle)*planet.orbit*worldScale);
     scene.add(group);
-    bodies.push({data:planet,group,mesh});
+    bodies.push({data:planet,group,mesh,clouds});
     clickableMeshes.push(mesh);
     if(planet.id==='earth') {
       const moonGroup=new THREE.Group();
-      const moonMesh=new THREE.Mesh(new THREE.SphereGeometry(moonData.radius,40,28),new THREE.MeshStandardMaterial({map:surfaceTexture(moonData),roughness:1}));
+      const moonSurface=surfaceTexture(moonData);
+      planetSurfaces.set(moonData.id,moonSurface.image);
+      const moonMesh=new THREE.Mesh(new THREE.SphereGeometry(moonData.radius,40,28),new THREE.MeshStandardMaterial({map:moonSurface,roughness:1}));
       moonMesh.userData.name='Moon';moonMesh.userData.id='moon';moonMesh.userData.radius=moonData.radius;
       moonGroup.add(moonMesh);
-      moonGroup.position.copy(group.position).add(new THREE.Vector3(10,0,0));
+      moonGroup.position.copy(group.position).add(new THREE.Vector3(moonOrbitRadius,0,0));
       scene.add(moonGroup);
       moonBody={data:moonData,group:moonGroup,mesh:moonMesh};
       bodies.push(moonBody);
@@ -427,7 +460,6 @@ function lookAtPoint(point) {
   pitch=Math.asin(THREE.MathUtils.clamp(direction.y,-1,1));
   targetYaw=yaw;
   targetPitch=pitch;
-  manualPitchActive=false;
 }
 
 function setupStart() {
@@ -454,13 +486,14 @@ function startGame() {
   if(!introActive)return;
   const overlay=document.querySelector('#introOverlay');
   shipPosition.copy(shipMesh.position);
-  yaw=shipMesh.rotation.y;targetYaw=yaw;
-  pitch=shipMesh.rotation.x;targetPitch=pitch;
-  bank=shipMesh.rotation.z;
-  manualPitchActive=true;
+  lookAtPoint(bodies.find(body=>body.data.id==='earth').group.position);
+  pitch=0;
+  targetPitch=0;
+  bank=0;
   beginCameraTransition(2.8);
   introDive=true;
   introActive=false;
+  try{sessionStorage.setItem('odyssey-flight-active','yes');}catch{}
   keys.clear();
   shipAudio.start();
   document.querySelector('#app').classList.remove('intro-mode');
@@ -471,65 +504,68 @@ function startGame() {
 
 function setupIntro() {
   document.querySelector('#playButton').addEventListener('click',startGame);
+  try {
+    if(sessionStorage.getItem('odyssey-flight-active')==='yes') {
+      introActive=false;
+      document.querySelector('#introOverlay').hidden=true;
+      document.querySelector('#app').classList.remove('intro-mode');
+      updateCamera(0,true);
+      return;
+    }
+  } catch {}
   document.querySelector('#playButton').focus({preventScroll:true});
 }
 
 function setupDestinationToggle() {
   const button=document.querySelector('#destinationsToggle');
+  const close=document.querySelector('#destinationsClose');
   const panel=document.querySelector('.destination-panel');
   let hidden=false;
   try{hidden=localStorage.getItem('odyssey-hide-destinations')==='yes';}catch{}
   function applyHidden() {
+    const hadFocus=panel.contains(document.activeElement);
     document.querySelector('#app').classList.toggle('destinations-hidden',hidden);
     panel.inert=hidden;
     panel.setAttribute('aria-hidden',hidden?'true':'false');
     button.setAttribute('aria-expanded',hidden?'false':'true');
-    button.setAttribute('aria-label',hidden?'Show destinations':'Hide destinations');
-    button.querySelector('span').textContent=hidden?'›':'‹';
+    button.hidden=!hidden;
+    if(hidden&&hadFocus)button.focus({preventScroll:true});
     try{localStorage.setItem('odyssey-hide-destinations',hidden?'yes':'no');}catch{}
   }
-  button.addEventListener('click',()=>{hidden=!hidden;applyHidden();});
+  button.addEventListener('click',()=>{hidden=false;applyHidden();});
+  close.addEventListener('click',()=>{hidden=true;applyHidden();});
   applyHidden();
 }
 
 let guideHidden=true;
-let guideIdleTimer;
 
 function setGuideHidden(hidden) {
   guideHidden=hidden;
   const panel=document.querySelector('#fieldGuide');
-  const button=document.querySelector('#guideToggle');
+  const hadFocus=panel.contains(document.activeElement);
   document.querySelector('#app').classList.toggle('guide-hidden',hidden);
   panel.inert=hidden;
   panel.setAttribute('aria-hidden',hidden?'true':'false');
-  button.setAttribute('aria-expanded',hidden?'false':'true');
-  button.setAttribute('aria-label',hidden?'Show field guide':'Hide field guide');
-  button.querySelector('span').textContent=hidden?'‹':'›';
-  if(hidden&&panel.contains(document.activeElement))button.focus({preventScroll:true});
-}
-
-function scheduleGuideHide() {
-  window.clearTimeout(guideIdleTimer);
-  if(guideHidden)return;
-  guideIdleTimer=window.setTimeout(()=>setGuideHidden(true),12000);
+  if(hidden&&hadFocus)document.querySelector('#settingsButton').focus({preventScroll:true});
 }
 
 function showGuide() {
   setGuideHidden(false);
-  scheduleGuideHide();
 }
 
 function setupGuideToggle() {
-  const panel=document.querySelector('#fieldGuide');
-  const button=document.querySelector('#guideToggle');
   setGuideHidden(true);
-  button.addEventListener('click',()=>{
-    if(guideHidden)showGuide();
-    else {window.clearTimeout(guideIdleTimer);setGuideHidden(true);}
-  });
-  panel.addEventListener('pointermove',scheduleGuideHide);
-  panel.addEventListener('focusin',scheduleGuideHide);
-  panel.addEventListener('keydown',scheduleGuideHide);
+  document.querySelector('#guideClose').addEventListener('click',()=>setGuideHidden(true));
+}
+
+function pointedPlanet() {
+  if(previewTarget)return null;
+  const reticle=document.querySelector('#crosshair').getBoundingClientRect();
+  const bounds=canvas.getBoundingClientRect();
+  reticlePosition.set((reticle.left+reticle.width/2-bounds.left)/bounds.width*2-1,1-(reticle.top+reticle.height/2-bounds.top)/bounds.height*2);
+  raycaster.setFromCamera(reticlePosition,camera);
+  const hit=raycaster.intersectObjects(clickableMeshes,false).find(item=>item.distance<2000);
+  return destinations.some(planet=>planet.id===hit?.object.userData.id)?hit:null;
 }
 
 function beginCameraTransition(duration=1.2) {
@@ -551,7 +587,7 @@ function applyCameraTransition(dt) {
 
 function updateCamera(dt,instant=false) {
   if(introActive){updateIntroFlight();return;}
-  const targetFov=previewTarget?53:67+(reducedMotion.matches?0:boostAmount*5);
+  const targetFov=previewTarget?53:cameraMode==='first-person'?72+(reducedMotion.matches?0:boostAmount*3):64+(reducedMotion.matches?0:boostAmount*4);
   const nextFov=instant?targetFov:THREE.MathUtils.damp(camera.fov,targetFov,5,dt);
   if(Math.abs(camera.fov-nextFov)>.005){camera.fov=nextFov;camera.updateProjectionMatrix();}
   engineGlows.forEach(glow=>{
@@ -567,7 +603,8 @@ function updateCamera(dt,instant=false) {
   direction.set(0,0,-1).applyEuler(shipRotation);
   shipMesh.position.copy(shipPosition);
   shipMesh.rotation.copy(shipRotation);
-  shipMesh.visible=cameraMode!=='cockpit'||(introDive&&Boolean(cameraTransition)&&camera.position.distanceTo(shipPosition)>5);
+  const cameraDistance=camera.position.distanceTo(shipPosition);
+  shipMesh.visible=cameraTransition?cameraDistance>5:cameraMode!=='first-person';
   if(previewTarget) {
     const center=previewTarget.group.position;
     const radius=previewTarget.data.radius;
@@ -580,7 +617,7 @@ function updateCamera(dt,instant=false) {
     applyCameraTransition(dt);
     return;
   }
-  if(cameraMode==='cockpit') {
+  if(cameraMode==='first-person') {
     camera.position.copy(shipPosition);
     camera.rotation.set(pitch,yaw,reducedMotion.matches?0:bank*.28,'YXZ');
     applyCameraTransition(dt);
@@ -588,27 +625,75 @@ function updateCamera(dt,instant=false) {
   }
   const targetPosition=shipPosition.clone();
   levelDirection.set(-Math.sin(yaw),0,-Math.cos(yaw));
-  if(cameraMode==='chase') {
-    targetPosition.addScaledVector(levelDirection,-9).y+=2.8;
-  } else {
-    targetPosition.addScaledVector(levelDirection,8).y+=2;
-  }
+  targetPosition.addScaledVector(levelDirection,-8.5).y+=3.2;
   if(instant || cameraTransition || camera.position.distanceToSquared(targetPosition)>2500)camera.position.copy(targetPosition);
   else camera.position.lerp(targetPosition,1-Math.exp(-9*dt));
-  if(cameraMode==='chase')camera.lookAt(temp.copy(shipPosition).addScaledVector(levelDirection,3));
-  else camera.lookAt(shipPosition);
-  if(!reducedMotion.matches)camera.rotateZ(cameraMode==='chase'?bank*.13:-bank*.08);
+  camera.lookAt(temp.copy(shipPosition).addScaledVector(levelDirection,3));
+  if(!reducedMotion.matches)camera.rotateZ(bank*.13);
   applyCameraTransition(dt);
 }
 
 function setCameraMode(mode) {
-  if(!['cockpit','chase','front'].includes(mode))return;
+  if(!['first-person','chase'].includes(mode))return;
   exitPreview();
+  beginCameraTransition(.95);
   cameraMode=mode;
-  document.querySelector('#app').classList.toggle('camera-front',mode==='front');
   document.querySelector('#app').classList.toggle('camera-chase',mode==='chase');
   document.querySelectorAll('[data-camera]').forEach(button=>button.setAttribute('aria-pressed',button.dataset.camera===mode?'true':'false'));
-  updateCamera(0,true);
+  updateCamera(0);
+}
+
+function createPlanetIcon(planet) {
+  const icon=document.createElement('canvas');
+  icon.className='planet-mini';
+  icon.width=96;icon.height=72;
+  icon.setAttribute('aria-hidden','true');
+  const ctx=icon.getContext('2d');
+  const source=planetSurfaces.get(planet.id);
+  if(!source)return icon;
+  const sourceCtx=source.getContext('2d');
+  const pixels=sourceCtx.getImageData(0,0,source.width,source.height).data;
+  const cx=48,cy=36,radius=28;
+  const ringed=planet.id==='saturn'||planet.id==='uranus';
+  const ringAngle=planet.id==='uranus'?-1.2:-.32;
+  const drawRings=(front)=>{
+    const bands=planet.id==='saturn'
+      ? [[44,10.5,3.5,'#e7d7ad'],[38,8.4,2,'#aa9271'],[33,6.8,1.2,'#f2e5c8']]
+      : [[39,9,2.6,'#bad4cf'],[34,7.8,1.2,'#789fa8']];
+    for(const [rx,ry,width,color] of bands){
+      ctx.beginPath();
+      ctx.ellipse(cx,cy,rx,ry,ringAngle,front?0:Math.PI,front?Math.PI:Math.PI*2);
+      ctx.strokeStyle=color;ctx.globalAlpha=front?.85:.58;ctx.lineWidth=width;ctx.stroke();
+    }
+    ctx.globalAlpha=1;
+  };
+  const discCanvas=document.createElement('canvas');
+  discCanvas.width=icon.width;discCanvas.height=icon.height;
+  const discCtx=discCanvas.getContext('2d');
+  const disc=discCtx.createImageData(icon.width,icon.height);
+  for(let y=cy-radius-1;y<=cy+radius+1;y++)for(let x=cx-radius-1;x<=cx+radius+1;x++){
+    const nx=(x+.5-cx)/radius,ny=(y+.5-cy)/radius;
+    const distance=nx*nx+ny*ny;
+    if(distance>=1.07)continue;
+    const nz=Math.sqrt(Math.max(0,1-Math.min(distance,1)));
+    const u=(.5+Math.atan2(nx,nz)/(Math.PI*2)+1)%1;
+    const v=Math.acos(Math.max(-1,Math.min(1,-ny)))/Math.PI;
+    const sx=Math.min(source.width-1,Math.floor(u*source.width));
+    const sy=Math.min(source.height-1,Math.floor(v*source.height));
+    const sourceIndex=(sy*source.width+sx)*4;
+    const destIndex=(y*icon.width+x)*4;
+    const light=Math.max(0,nx*-.38+ny*-.42+nz*.82);
+    const shade=.31+.69*light;
+    disc.data[destIndex]=pixels[sourceIndex]*shade;
+    disc.data[destIndex+1]=pixels[sourceIndex+1]*shade;
+    disc.data[destIndex+2]=pixels[sourceIndex+2]*shade;
+    disc.data[destIndex+3]=Math.round(Math.max(0,Math.min(1,(1.015-Math.sqrt(distance))*radius))*255);
+  }
+  discCtx.putImageData(disc,0,0);
+  if(ringed)drawRings(false);
+  ctx.drawImage(discCanvas,0,0);
+  if(ringed)drawRings(true);
+  return icon;
 }
 
 function buildPlanetList() {
@@ -616,9 +701,9 @@ function buildPlanetList() {
   destinations.forEach(planet=>{
     const button=document.createElement('button');
     button.type='button';button.className='planet-row';button.dataset.id=planet.id;
-    button.style.setProperty('--planet-color',planet.color);
     button.setAttribute('aria-label',`Select ${planet.name}`);
-    button.innerHTML=`<span class="planet-mini ${planet.id==='saturn'?'saturn':''}"></span><span class="planet-row-name">${planet.name}</span><span class="planet-row-index">${planet.index}</span>`;
+    button.innerHTML=`<span class="planet-row-name">${planet.name}</span><span class="planet-row-index">${planet.index}</span>`;
+    button.prepend(createPlanetIcon(planet));
     button.addEventListener('click',()=>selectPlanet(planet.id,true));
     list.append(button);
   });
@@ -645,7 +730,7 @@ function selectPlanet(id,preview=false) {
   art.style.setProperty('--art-gradient',planet.gradient);
   art.style.setProperty('--art-glow',planet.color);
   if(!autopilotTarget){
-    document.querySelector('#autopilotButton').innerHTML=`Fly to ${planet.name} <span class="button-arrow">↗</span>`;
+    document.querySelector('#autopilotButton').textContent=`Fly to ${planet.name}`;
     document.querySelector('#autopilotStatus').textContent=autopilotMessage;
   }
   if(preview) {
@@ -671,7 +756,7 @@ function exitPreview() {
 function updateAutopilotUI() {
   const button=document.querySelector('#autopilotButton');
   button.setAttribute('aria-pressed',autopilotTarget?'true':'false');
-  button.innerHTML=autopilotTarget?`Cancel flight <span class="button-arrow">×</span>`:`Fly to ${destinations.find(p=>p.id===selectedId).name} <span class="button-arrow">↗</span>`;
+  button.textContent=autopilotTarget?'Cancel flight':`Fly to ${destinations.find(p=>p.id===selectedId).name}`;
   document.querySelector('#autopilotStatus').textContent=autopilotMessage;
   document.querySelector('#app').classList.toggle('autopilot-active',Boolean(autopilotTarget));
 }
@@ -692,7 +777,6 @@ function toggleAutopilot() {
   autopilotWaypoint=null;
   autopilotMessage=`Course set for ${autopilotTarget.data.name}`;
   keys.clear();
-  manualPitchActive=false;
   updateAutopilotUI();
   shipAudio.cue('engage');
 }
@@ -701,6 +785,13 @@ function setupAudioControls() {
   const button=document.querySelector('#soundButton');
   const volume=document.querySelector('#musicVolume');
   const volumeValue=document.querySelector('#musicVolumeValue');
+  const showControls=document.querySelector('#showControlsInput');
+  try{showControls.checked=localStorage.getItem('odyssey-show-controls')!=='no';}catch{}
+  document.querySelector('#app').classList.toggle('hide-control-hints',!showControls.checked);
+  showControls.addEventListener('change',()=>{
+    document.querySelector('#app').classList.toggle('hide-control-hints',!showControls.checked);
+    try{localStorage.setItem('odyssey-show-controls',showControls.checked?'yes':'no');}catch{}
+  });
   volume.value=String(shipAudio.getMusicVolume());
   volumeValue.value=`${shipAudio.getMusicVolume()}%`;
   volume.addEventListener('input',()=>{volumeValue.value=`${shipAudio.setMusicVolume(volume.value)}%`;});
@@ -729,15 +820,32 @@ function setupControls() {
   const prevent=new Set(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space']);
   const manualCodes=new Set(['KeyW','KeyS','KeyA','KeyD','KeyQ','KeyE','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','ShiftLeft','ShiftRight']);
   document.addEventListener('keydown',event=>{
-    if(event.code==='Escape') {closeHelp();closeSettings();exitPreview();return;}
+    if(event.code==='Escape') {
+      if(!document.querySelector('#exitOverlay').hidden)closeExit();
+      else if(!document.querySelector('#helpOverlay').hidden)closeHelp();
+      else if(!document.querySelector('#settingsOverlay').hidden)closeSettings();
+      else if(previewTarget)exitPreview();
+      else if(!introActive)openExit();
+      return;
+    }
     if(introActive)return;
-    if(event.target instanceof HTMLInputElement || !document.querySelector('#helpOverlay').hidden || !document.querySelector('#settingsOverlay').hidden)return;
+    if(event.target instanceof HTMLInputElement || !document.querySelector('#helpOverlay').hidden || !document.querySelector('#settingsOverlay').hidden || !document.querySelector('#exitOverlay').hidden)return;
     if(prevent.has(event.code))event.preventDefault();
     if(event.code==='KeyC' && !event.repeat) {
-      const modes=['cockpit','chase','front'];
+      const modes=['first-person','chase'];
       setCameraMode(modes[(modes.indexOf(cameraMode)+1)%modes.length]);
     }
     if(event.code==='KeyP' && !event.repeat){toggleAutopilot();return;}
+    if(event.code==='KeyF' && !event.repeat && !event.ctrlKey && !event.metaKey && !event.altKey){
+      const hit=pointedPlanet();
+      const id=hit?.object.userData.id;
+      if(!guideHidden&&(!id||id===selectedId))setGuideHidden(true);
+      else if(id){
+        selectPlanet(id);
+        showGuide();
+      }
+      return;
+    }
     if(previewTarget&&manualCodes.has(event.code))exitPreview();
     if(autopilotTarget&&manualCodes.has(event.code))stopAutopilot('Manual control restored');
     else if(autopilotMessage.startsWith('Arrived')&&manualCodes.has(event.code)){autopilotMessage='Manual flight';updateAutopilotUI();}
@@ -755,6 +863,13 @@ function setupControls() {
   document.querySelector('#settingsButton').addEventListener('click',openSettings);
   document.querySelector('#closeSettings').addEventListener('click',closeSettings);
   document.querySelector('#settingsOverlay').addEventListener('click',event=>{if(event.target.id==='settingsOverlay')closeSettings();});
+  document.querySelector('#settingsExitButton').addEventListener('click',openExit);
+  document.querySelector('#cancelExit').addEventListener('click',closeExit);
+  document.querySelector('#confirmExit').addEventListener('click',()=>{
+    try{sessionStorage.removeItem('odyssey-flight-active');}catch{}
+    window.location.reload();
+  });
+  document.querySelector('#exitOverlay').addEventListener('click',event=>{if(event.target.id==='exitOverlay')closeExit();});
   document.querySelector('#settingsForm').addEventListener('submit',event=>{
     event.preventDefault();
     shipName=document.querySelector('#shipNameInput').value.trim().slice(0,20)||'Odyssey';
@@ -763,6 +878,24 @@ function setupControls() {
     try{localStorage.setItem('odyssey-names',JSON.stringify({shipName,pilotName}));}catch{}
     closeSettings();
   });
+}
+
+function openExit() {
+  if(introActive)return;
+  exitFromSettings=!document.querySelector('#settingsOverlay').hidden;
+  closeHelp(false);
+  closeSettings(false);
+  keys.clear();
+  document.querySelector('#exitOverlay').hidden=false;
+  document.querySelector('#cancelExit').focus();
+}
+
+function closeExit() {
+  if(document.querySelector('#exitOverlay').hidden)return;
+  document.querySelector('#exitOverlay').hidden=true;
+  if(exitFromSettings)openSettings();
+  else canvas.focus({preventScroll:true});
+  exitFromSettings=false;
 }
 
 function openHelp() {
@@ -822,7 +955,7 @@ function autopilotGuidance() {
     const route=target.clone().sub(shipPosition);
     const routeLength=route.length();
     const forward=route.clone().normalize();
-    for(const obstacle of [{position:new THREE.Vector3(),radius:14},...bodies.filter(other=>other!==body).map(other=>({position:other.group.position,radius:other.data.radius+1.4}))]) {
+    for(const obstacle of [{position:new THREE.Vector3(),radius:sunRadius+2},...bodies.filter(other=>other!==body).map(other=>({position:other.group.position,radius:other.data.radius+1.4}))]) {
       const along=obstacle.position.clone().sub(shipPosition).dot(forward);
       if(along<0||along>routeLength)continue;
       const closest=shipPosition.clone().addScaledVector(forward,along);
@@ -846,16 +979,16 @@ function autopilotGuidance() {
 
 function moveShip(dt) {
   if(introActive){velocity.set(0,0,0);boostAmount=0;return;}
-  if(!document.querySelector('#helpOverlay').hidden || !document.querySelector('#settingsOverlay').hidden){velocity.multiplyScalar(Math.exp(-6*dt));bank*=Math.exp(-7*dt);boostAmount=THREE.MathUtils.damp(boostAmount,0,5,dt);return;}
+  if(!document.querySelector('#helpOverlay').hidden || !document.querySelector('#settingsOverlay').hidden || !document.querySelector('#exitOverlay').hidden){velocity.multiplyScalar(Math.exp(-6*dt));bank*=Math.exp(-7*dt);boostAmount=THREE.MathUtils.damp(boostAmount,0,5,dt);return;}
   const guidance=autopilotTarget?autopilotGuidance():null;
   if(!autopilotTarget) {
     if(keys.has('KeyA')||keys.has('ArrowLeft'))targetYaw+=dt*1.35;
     if(keys.has('KeyD')||keys.has('ArrowRight'))targetYaw-=dt*1.35;
     const pitchInput=Number(keys.has('KeyQ')||keys.has('ArrowUp'))-Number(keys.has('KeyE')||keys.has('ArrowDown'));
-    if(pitchInput){targetPitch=THREE.MathUtils.clamp(targetPitch+pitchInput*dt*1.1,-maxManualPitch,maxManualPitch);manualPitchActive=true;}
-    else if(manualPitchActive){
-      targetPitch=THREE.MathUtils.damp(targetPitch,0,.7,dt);
-      if(Math.abs(targetPitch)<.002){targetPitch=0;manualPitchActive=false;}
+    if(pitchInput)targetPitch=THREE.MathUtils.clamp(targetPitch+pitchInput*dt*1.1,-maxManualPitch,maxManualPitch);
+    else {
+      targetPitch=THREE.MathUtils.damp(targetPitch,0,1.6,dt);
+      if(Math.abs(targetPitch)<.002)targetPitch=0;
     }
   }
   const previousYaw=yaw;
@@ -881,7 +1014,7 @@ function moveShip(dt) {
   }
   velocity.lerp(desiredVelocity,1-Math.exp(-4.6*dt));
   const next=shipPosition.clone().addScaledVector(velocity,dt);
-  const obstacles=[{position:new THREE.Vector3(),radius:14},...bodies.map(b=>({position:b.group.position,radius:b.data.radius+1.4}))];
+  const obstacles=[{position:new THREE.Vector3(),radius:sunRadius+2},...bodies.map(b=>({position:b.group.position,radius:b.data.radius+1.4}))];
   const hit=obstacles.some(o=>next.distanceToSquared(o.position)<o.radius*o.radius);
   if(hit){velocity.set(0,0,0);if(autopilotTarget)stopAutopilot('Course blocked. Manual control restored.');}
   else shipPosition.copy(next);
@@ -889,14 +1022,15 @@ function moveShip(dt) {
 
 function updateBodies(elapsed,dt) {
   sunMesh.rotation.y+=dt*.025;
-  bodies.forEach(({data,group,mesh})=>{
+  bodies.forEach(({data,group,mesh,clouds})=>{
     if(data.id==='moon')return;
     data.angle+=dt*data.speed;
     group.position.set(Math.cos(data.angle)*data.orbit*worldScale,0,Math.sin(data.angle)*data.orbit*worldScale);
     mesh.rotation.y+=dt*.08;
+    if(clouds)clouds.rotation.y+=dt*.09;
   });
   const earth=bodies.find(body=>body.data.id==='earth');
-  moonBody.group.position.copy(earth.group.position).add(new THREE.Vector3(Math.cos(elapsed*.14)*10,0,Math.sin(elapsed*.14)*10));
+  moonBody.group.position.copy(earth.group.position).add(new THREE.Vector3(Math.cos(elapsed*.14)*moonOrbitRadius,0,Math.sin(elapsed*.14)*moonOrbitRadius));
   moonBody.mesh.rotation.y+=dt*.04;
 }
 
@@ -919,12 +1053,9 @@ function updateHud(elapsed) {
   if(boostAmount>.45)document.querySelector('#bankReadout').textContent='BOOST ENGAGED';
   if(autopilotTarget)document.querySelector('#bankReadout').textContent='AUTOPILOT';
   document.querySelector('.hud-arc').style.transform=`rotate(${THREE.MathUtils.radToDeg(bank)*.7}deg)`;
-  const reticle=document.querySelector('.crosshair').getBoundingClientRect();
-  center.set((reticle.left+reticle.width/2)/window.innerWidth*2-1,1-(reticle.top+reticle.height/2)/window.innerHeight*2);
-  raycaster.setFromCamera(center,camera);
-  const hits=raycaster.intersectObjects(clickableMeshes,false);
-  const hit=hits.find(item=>item.distance<2000);
-  document.querySelector('#objectLabel').textContent=hit?`${hit.object.userData.name}  ·  ${Math.round(hit.distance)} units`:'';
+  const hit=pointedPlanet();
+  const label=document.querySelector('#objectLabel');
+  label.textContent=hit?`${hit.object.userData.name} · F ${!guideHidden&&selectedId===hit.object.userData.id?'close':'info'}`:'';
 }
 
 function resize() {
@@ -950,7 +1081,7 @@ function drawBoostStreaks(elapsed) {
     const radius=(.12+phase*.8)*reach;
     const length=(12+phase*40)*intensity;
     const dx=Math.cos(angle),dy=Math.sin(angle);
-    speedContext.strokeStyle=`rgba(151,223,244,${intensity*(.045+phase*.13)})`;
+    speedContext.strokeStyle=`rgba(255,255,255,${intensity*(.045+phase*.13)})`;
     speedContext.beginPath();
     speedContext.moveTo(width/2+dx*radius,height/2+dy*radius);
     speedContext.lineTo(width/2+dx*(radius+length),height/2+dy*(radius+length));
