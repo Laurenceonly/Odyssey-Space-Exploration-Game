@@ -4,6 +4,7 @@ import { discovery } from './discovery.js';
 import { planetPhotos } from './planet-photos.js';
 import { createFlybyTracker } from './flyby-tracker.js';
 import { cometPosition } from './space-events.js';
+import { landmarks, surfaceLandmarkAt } from './landmarks.js';
 
 const canvas = document.querySelector('#universe');
 const speedCanvas = document.querySelector('#speedFx');
@@ -30,6 +31,13 @@ let cometBody;
 let cometTail;
 let cometTailPositions;
 let cometComa;
+let saturnRingPlane;
+let saturnShardMesh;
+let saturnRingDust;
+const saturnShards=[];
+const saturnRingBands=[];
+const landmarkMeshes=[];
+const scannedLandmarks=new Set();
 const engineGlows = [];
 const boostPlumes = [];
 const attitudeJets = [];
@@ -70,6 +78,11 @@ const asteroidObstacles = [];
 const scannedBodies = new Set();
 let captainLog = [];
 let pendingLogSnapshots = [];
+let photos = [];
+let photoPending = false;
+let photoFeedbackTimer = null;
+let lastPhotoTrigger = null;
+const maxPhotos = 24;
 const flybyTracker = createFlybyTracker();
 const suppressedFlybyWorlds = new Set();
 const maxCaptainLogEntries = 250;
@@ -219,6 +232,16 @@ function surfaceTexture(planet) {
     }
   }
   ctx.putImageData(frame,0,0);
+  if(planet.id==='mars'){
+    const x=surface.width*.34,y=surface.height*.44;
+    const glow=ctx.createRadialGradient(x,y,3,x,y,39);
+    glow.addColorStop(0,'rgba(218,167,128,.65)');
+    glow.addColorStop(.55,'rgba(150,88,69,.28)');
+    glow.addColorStop(1,'rgba(89,51,46,0)');
+    ctx.fillStyle=glow;ctx.beginPath();ctx.ellipse(x,y,43,26,-.2,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='rgba(83,49,43,.3)';ctx.lineWidth=3;
+    ctx.beginPath();ctx.ellipse(x,y,11,7,-.2,0,Math.PI*2);ctx.stroke();
+  }
   if (planet.style==='rock') {
     for(let i=0;i<165;i++) {
       const x=hash(i,3,seed)*surface.width;
@@ -291,6 +314,72 @@ function makeRings(parent, inner, outer) {
     ring.rotation.x=Math.PI/2.6;
     parent.add(ring);
   }
+}
+
+function makeSaturnRings(parent,radius) {
+  const inner=radius*1.24,gapInner=radius*1.73,gapOuter=radius*1.79,outer=radius*2.15;
+  saturnRingPlane=new THREE.Group();
+  saturnRingPlane.rotation.x=Math.PI/2.6;
+  parent.add(saturnRingPlane);
+  for(const [from,to,count] of [[inner,gapInner,6],[gapOuter,outer,5]])for(let i=0;i<count;i++){
+    const start=from+(to-from)*i/count;
+    const end=start+(to-from)/count*.88;
+    const opacity=.31+(i%3)*.07;
+    const ring=new THREE.Mesh(new THREE.RingGeometry(start,end,128),new THREE.MeshBasicMaterial({color:i%3===0?0x9f8d71:0xd5c4a5,transparent:true,opacity,side:THREE.DoubleSide,depthWrite:false}));
+    ring.userData.baseOpacity=opacity;
+    saturnRingPlane.add(ring);
+    saturnRingBands.push(ring);
+  }
+  const gapTarget=new THREE.Mesh(new THREE.RingGeometry(gapInner,gapOuter,128),new THREE.MeshBasicMaterial({transparent:true,opacity:0,side:THREE.DoubleSide,depthWrite:false}));
+  gapTarget.userData.landmarkId='cassini-division';
+  saturnRingPlane.add(gapTarget);
+  landmarkMeshes.push(gapTarget);
+  const positions=new Float32Array(15000*3),colors=new Float32Array(15000*3);
+  const palette=[new THREE.Color(0xe4ddd0),new THREE.Color(0xb9afa0),new THREE.Color(0xf0e8db)];
+  for(let i=0;i<15000;i++){
+    const band=hash(i,201)<.57?[inner,gapInner]:[gapOuter,outer];
+    const r=Math.sqrt(THREE.MathUtils.lerp(band[0]**2,band[1]**2,hash(i,202)));
+    const angle=hash(i,203)*Math.PI*2,offset=i*3;
+    positions[offset]=Math.cos(angle)*r;
+    positions[offset+1]=Math.sin(angle)*r;
+    positions[offset+2]=(hash(i,204)-.5)*.45;
+    const color=palette[i%palette.length];
+    colors[offset]=color.r;colors[offset+1]=color.g;colors[offset+2]=color.b;
+  }
+  const particles=new THREE.BufferGeometry();
+  particles.setAttribute('position',new THREE.BufferAttribute(positions,3));
+  particles.setAttribute('color',new THREE.BufferAttribute(colors,3));
+  saturnRingDust=new THREE.Points(particles,new THREE.PointsMaterial({size:.55,sizeAttenuation:true,vertexColors:true,transparent:true,opacity:.82,depthWrite:false}));
+  saturnRingPlane.add(saturnRingDust);
+  saturnShardMesh=new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1,0),new THREE.MeshStandardMaterial({color:0xd7d0c0,roughness:1,flatShading:true}),260);
+  saturnShardMesh.frustumCulled=false;
+  saturnRingPlane.add(saturnShardMesh);
+  for(let i=0;i<260;i++){
+    const band=hash(i,211)<.57?[inner,gapInner]:[gapOuter,outer];
+    saturnShards.push({id:10000+i,origin:'ring',angle:hash(i,212)*Math.PI*2,orbitRadius:THREE.MathUtils.lerp(band[0],band[1],hash(i,213)),height:(hash(i,214)-.5)*.7,size:.2+hash(i,215)*.95,radius:.7+hash(i,215)*.95,position:new THREE.Vector3(),velocity:new THREE.Vector3(),spin:new THREE.Vector3(),alive:true});
+  }
+}
+
+const saturnShardDummy=new THREE.Object3D();
+function updateSaturnRings(elapsed) {
+  if(!saturnRingPlane)return;
+  saturnRingPlane.updateWorldMatrix(true,false);
+  saturnRingDust.rotation.z=elapsed*.004;
+  const distance=shipPosition.distanceTo(saturnRingPlane.parent.position);
+  const solidity=THREE.MathUtils.clamp((distance-105)/140,0,1);
+  for(const band of saturnRingBands)band.material.opacity=band.userData.baseOpacity*(.08+.92*solidity);
+  saturnShards.forEach((shard,index)=>{
+    if(!shard.alive){saturnShardDummy.scale.setScalar(0);saturnShardDummy.updateMatrix();saturnShardMesh.setMatrixAt(index,saturnShardDummy.matrix);return;}
+    const angle=shard.angle+elapsed*.015*(58/shard.orbitRadius)**1.5;
+    saturnShardDummy.position.set(Math.cos(angle)*shard.orbitRadius,Math.sin(angle)*shard.orbitRadius,shard.height);
+    saturnShardDummy.rotation.set(elapsed*.03+index,index*.4+elapsed*.02,index*.17);
+    saturnShardDummy.scale.setScalar(shard.size);
+    saturnShardDummy.updateMatrix();
+    saturnShardMesh.setMatrixAt(index,saturnShardDummy.matrix);
+    shard.position.copy(saturnShardDummy.position);
+    saturnRingPlane.localToWorld(shard.position);
+  });
+  saturnShardMesh.instanceMatrix.needsUpdate=true;
 }
 
 function fuselageGeometry() {
@@ -589,7 +678,7 @@ function hitAsteroid(rock,next) {
 function logAsteroidEncounter(rock,broken,speed) {
   if(introActive||speed<2||clock.elapsedTime-(rock.lastLoggedImpactAt??-Infinity)<1.2)return;
   rock.lastLoggedImpactAt=clock.elapsedTime;
-  recordLog('impact',null,{broken,speed:Math.round(speed)});
+  recordLog('impact',null,{broken,speed:Math.round(speed),source:rock.origin||'belt'});
 }
 
 function updateIdleShip(elapsed,dt) {
@@ -657,7 +746,7 @@ function createSolarSystem() {
       const lunarOrbit=new THREE.Mesh(new THREE.RingGeometry(moonOrbitRadius-.02,moonOrbitRadius+.02,128),new THREE.MeshBasicMaterial({color:0x76909b,transparent:true,opacity:.24,side:THREE.DoubleSide,depthWrite:false}));
       lunarOrbit.rotation.x=-Math.PI/2;group.add(lunarOrbit);
     }
-    if(planet.id==='saturn') makeRings(group,planet.radius*1.24,planet.radius*2.15);
+    if(planet.id==='saturn') makeSaturnRings(group,planet.radius);
     if(planet.id==='uranus') makeRings(group,planet.radius*1.35,planet.radius*1.75);
     group.position.set(Math.cos(planet.angle)*planet.orbit*worldScale,0,Math.sin(planet.angle)*planet.orbit*worldScale);
     scene.add(group);
@@ -847,6 +936,9 @@ function returnToIntro() {
     document.querySelector('#helpOverlay').hidden=true;
     document.querySelector('#logOverlay').hidden=true;
     document.querySelector('#voyageOverlay').hidden=true;
+    document.querySelector('#photoViewer').hidden=true;
+    document.querySelector('#photoFeedback').hidden=true;
+    photoPending=false;
     document.querySelector('#previewBanner').hidden=true;
     const app=document.querySelector('#app');
     app.classList.remove('destination-preview','autopilot-active','launching');
@@ -972,18 +1064,24 @@ function updateDiscoveryChoice() {
 
 function startNewDiscoveryGame() {
   scannedBodies.clear();
+  scannedLandmarks.clear();
   captainLog=[];
   pendingLogSnapshots=[];
+  photos=[];
+  photoPending=false;
   flybyTracker.clear();
   suppressedFlybyWorlds.clear();
   asteroidRocks.forEach(rock=>{delete rock.lastLoggedImpactAt;});
   renderCaptainLog();
+  renderPhotoGallery();
   scanSeconds=0;scanTargetId=null;scanResultUntil=0;
   document.querySelector('#scanFeedback').hidden=true;
   try {
     localStorage.removeItem('odyssey-scanned-worlds');
     localStorage.removeItem('odyssey-discovery-flight');
     localStorage.removeItem('odyssey-discovery-log');
+    localStorage.removeItem('odyssey-discovery-landmarks');
+    localStorage.removeItem('odyssey-discovery-photos');
     sessionStorage.removeItem('odyssey-flight-state');
   } catch {}
   setDiscoveryOpen(false);
@@ -1046,6 +1144,8 @@ function setGameMode(mode,save=true) {
   gameMode=mode==='exploration'?'exploration':'discovery';
   document.querySelector('#app').classList.toggle('exploration-mode',gameMode==='exploration');
   loadCaptainLog();
+  loadPhotos();
+  loadLandmarks();
   renderVoyages();
   document.querySelectorAll('[data-mode]').forEach(button=>button.setAttribute('aria-pressed',button.dataset.mode===gameMode?'true':'false'));
   refreshDiscoveryUI();
@@ -1116,6 +1216,18 @@ function pointedPlanet() {
   raycaster.setFromCamera(reticlePosition,camera);
   const hit=raycaster.intersectObjects(clickableMeshes,false).find(item=>item.distance<2000);
   return destinations.some(planet=>planet.id===hit?.object.userData.id)?hit:null;
+}
+
+function pointedLandmark(worldHit=pointedPlanet()) {
+  if(previewTarget)return null;
+  const surfaceId=worldHit?.object.userData.id;
+  if(surfaceId&&worldHit.uv){
+    const landmark=surfaceLandmarkAt(surfaceId,worldHit.uv.x,worldHit.uv.y);
+    if(landmark&&!isWorldLocked(landmark.worldId))return {landmark,hit:worldHit};
+  }
+  const ringHit=raycaster.intersectObjects(landmarkMeshes,false).find(hit=>hit.distance<2000&&(!worldHit||hit.distance<worldHit.distance));
+  const landmark=landmarks.find(item=>item.id===ringHit?.object.userData.landmarkId);
+  return landmark&&!isWorldLocked(landmark.worldId)?{landmark,hit:ringHit}:null;
 }
 
 function beginCameraTransition(duration=1.2) {
@@ -1300,6 +1412,36 @@ function loadDiscoveries() {
   } catch {}
 }
 
+function loadLandmarks() {
+  scannedLandmarks.clear();
+  try{
+    const saved=JSON.parse(localStorage.getItem(`odyssey-${gameMode}-landmarks`)||'[]');
+    if(Array.isArray(saved))for(const id of saved)if(landmarks.some(item=>item.id===id))scannedLandmarks.add(id);
+  }catch{}
+  renderLandmarkList();
+}
+
+function renderLandmarkList() {
+  const list=document.querySelector('#landmarkList');
+  if(!list)return;
+  list.replaceChildren();
+  const local=landmarks.filter(item=>item.worldId===selectedId);
+  list.hidden=!local.length||isWorldLocked(selectedId);
+  if(list.hidden)return;
+  const heading=document.createElement('h4');heading.textContent=`LANDMARKS · ${local.filter(item=>scannedLandmarks.has(item.id)).length}/${local.length}`;
+  list.append(heading);
+  for(const landmark of local){
+    const item=document.createElement('div');item.className='landmark-item';
+    const name=document.createElement('strong');name.textContent=scannedLandmarks.has(landmark.id)?landmark.name:'Undiscovered feature';
+    const description=document.createElement('p');description.textContent=scannedLandmarks.has(landmark.id)?landmark.fact:`${landmark.hint} Aim nearby and hold R to scan.`;
+    item.append(name,description);
+    if(scannedLandmarks.has(landmark.id)){
+      const source=document.createElement('a');source.href=landmark.source;source.target='_blank';source.rel='noopener noreferrer';source.textContent='NASA source';item.append(source);
+    }
+    list.append(item);
+  }
+}
+
 function refreshDiscoveryUI() {
   document.querySelector('#discoveryCount').textContent=gameMode==='discovery'?`${scannedBodies.size} / ${destinations.length} SCANNED`:'FREE EXPLORATION';
   document.querySelectorAll('.planet-row').forEach(row=>{
@@ -1354,15 +1496,48 @@ function showUnlockCinematic(planet,fact) {
 
 function updateScanner(dt,elapsed) {
   const feedback=document.querySelector('#scanFeedback');
-  const blocked=gameMode!=='discovery'||introActive||introDive||returningToIntro||previewTarget||unlockCinematicActive||
+  const blocked=introActive||introDive||returningToIntro||previewTarget||unlockCinematicActive||
     !document.querySelector('#helpOverlay').hidden||
     !document.querySelector('#logOverlay').hidden||
     !document.querySelector('#voyageOverlay').hidden||
     !document.querySelector('#settingsOverlay').hidden||
     !document.querySelector('#exitOverlay').hidden;
   if(blocked){feedback.hidden=true;scanSeconds=0;scanTargetId=null;return;}
-  const id=pointedPlanet()?.object.userData.id;
-  if(keys.has('KeyR')&&id&&!scannedBodies.has(id)){
+  const worldHit=pointedPlanet();
+  const aimed=pointedLandmark(worldHit);
+  if(keys.has('KeyR')&&aimed&&!scannedLandmarks.has(aimed.landmark.id)){
+    const {landmark,hit}=aimed;
+    feedback.hidden=false;
+    feedback.classList.remove('complete');
+    document.querySelector('#scanFact').hidden=true;
+    if(shipPosition.distanceTo(hit.point)>landmark.range){
+      document.querySelector('#scanTitle').textContent='Move closer to scan this feature';
+      document.querySelector('#scanFill').style.width='0%';
+      document.querySelector('#scanMeter').setAttribute('aria-valuenow','0');
+      scanSeconds=0;scanTargetId=null;
+      return;
+    }
+    if(scanTargetId!==landmark.id){scanTargetId=landmark.id;scanSeconds=0;}
+    scanSeconds=Math.min(2.2,scanSeconds+dt);
+    document.querySelector('#scanTitle').textContent=`Scanning feature · ${Math.round(scanSeconds/2.2*100)}%`;
+    document.querySelector('#scanFill').style.width=`${scanSeconds/2.2*100}%`;
+    document.querySelector('#scanMeter').setAttribute('aria-valuenow',String(Math.round(scanSeconds/2.2*100)));
+    if(scanSeconds>=2.2){
+      scannedLandmarks.add(landmark.id);
+      try{localStorage.setItem(`odyssey-${gameMode}-landmarks`,JSON.stringify([...scannedLandmarks]));}catch{}
+      recordLog('landmark',landmark.worldId,{landmarkId:landmark.id});
+      renderLandmarkList();
+      const fact=document.querySelector('#scanFact');fact.textContent=landmark.fact;fact.hidden=false;
+      document.querySelector('#scanTitle').textContent=`${landmark.name} discovered`;
+      feedback.classList.add('complete');
+      scanResultUntil=elapsed+5;
+      scanSeconds=0;scanTargetId=null;
+      shipAudio.cue('discovery');
+    }
+    return;
+  }
+  const id=worldHit?.object.userData.id;
+  if(gameMode==='discovery'&&keys.has('KeyR')&&id&&!scannedBodies.has(id)){
     const planet=destinations.find(item=>item.id===id);
     const targetKind=id==='comet'?'object':'world';
     feedback.hidden=false;
@@ -1386,7 +1561,7 @@ function updateScanner(dt,elapsed) {
       try{localStorage.setItem('odyssey-scanned-worlds',JSON.stringify([...scannedBodies]));}catch{}
       refreshDiscoveryUI();
       updateAutopilotUI();
-      const [title,description]=discovery[id].notes[0];
+      const [title,description]=discovery[id].notes.find(([note])=>!landmarks.some(item=>item.worldId===id&&item.name===note))||['Discovery',discovery[id].lead];
       document.querySelector('#scanTitle').textContent=`${planet.name} discovered · ${scannedBodies.size}/${destinations.length}`;
       const fact=document.querySelector('#scanFact');
       fact.textContent=`${title}: ${description}`;
@@ -1430,12 +1605,14 @@ function setDiscoveryOpen(open) {
   const notes=document.querySelector('#discoveryNotes');
   notes.replaceChildren();
   for(const [title,description] of facts.notes){
+    if(landmarks.some(item=>item.worldId===planet.id&&item.name===title))continue;
     const item=document.createElement('div');
     const heading=document.createElement('h4');heading.textContent=title;
     const copy=document.createElement('p');copy.textContent=description;
     item.append(heading,copy);notes.append(item);
   }
   document.querySelector('#discoverySource').href=facts.source;
+  renderLandmarkList();
   document.querySelector('#discoveryInspect').textContent=planet.id==='sun'?'View Sun from a distance':`View ${planet.name} up close`;
   requestAnimationFrame(()=>{
     if(!details.hidden){
@@ -1469,7 +1646,7 @@ function selectPlanet(id,preview=false) {
   if(id!=='comet'){
     const photo=planetPhotos[id];
     const image=document.querySelector('#planetPhoto');
-    image.src=`/planet-photos/${photo.file}`;
+    image.src=`${import.meta.env.BASE_URL}planet-photos/${photo.file}`;
     image.alt=`NASA image of ${planet.name}`;
     const credit=document.querySelector('#planetPhotoCredit');
     credit.textContent=photo.credit;
@@ -1607,11 +1784,67 @@ function captainLogKey() {
   return gameMode==='discovery'?'odyssey-discovery-log':'odyssey-exploration-log';
 }
 
+function photoKey() {
+  return gameMode==='discovery'?'odyssey-discovery-photos':'odyssey-exploration-photos';
+}
+
+function loadPhotos() {
+  photoPending=false;
+  try {
+    const saved=JSON.parse(localStorage.getItem(photoKey())||'[]');
+    photos=Array.isArray(saved)?saved.filter(photo=>
+      photo&&typeof photo.id==='string'&&Number.isFinite(photo.at)&&Math.abs(photo.at)<=8.64e15&&
+      (photo.worldId===null||destinations.some(world=>world.id===photo.worldId))&&
+      typeof photo.image==='string'&&/^data:image\/jpeg;base64,/.test(photo.image)
+    ).slice(0,maxPhotos):[];
+  }catch{photos=[];}
+  renderPhotoGallery();
+}
+
+function photoFeedback(message) {
+  const feedback=document.querySelector('#photoFeedback');
+  feedback.textContent=message;
+  feedback.hidden=false;
+  if(photoFeedbackTimer!==null)window.clearTimeout(photoFeedbackTimer);
+  photoFeedbackTimer=window.setTimeout(()=>{feedback.hidden=true;photoFeedbackTimer=null;},3600);
+}
+
+function requestPhoto() {
+  if(introActive||introDive||launchTransition||returningToIntro||photoPending||unlockCinematicActive||
+    ['helpOverlay','logOverlay','voyageOverlay','settingsOverlay','exitOverlay'].some(id=>!document.getElementById(id).hidden))return;
+  if(photos.length>=maxPhotos){photoFeedback('Gallery full · delete a photo in Captain’s log');return;}
+  photoPending=true;
+}
+
+function capturePhoto() {
+  if(!photoPending)return;
+  photoPending=false;
+  const target=previewTarget?.data.id||pointedPlanet()?.object.userData.id||null;
+  const at=Date.now();
+  const id=`${at}-${Math.random().toString(36).slice(2,7)}`;
+  for(const [width,quality] of [[960,.76],[640,.65]]){
+    try {
+      const frame=document.createElement('canvas');
+      frame.width=Math.min(width,canvas.width);
+      frame.height=Math.max(1,Math.round(frame.width*canvas.height/canvas.width));
+      frame.getContext('2d').drawImage(canvas,0,0,frame.width,frame.height);
+      const image=frame.toDataURL('image/jpeg',quality);
+      const next=[{id,at,worldId:target,image},...photos];
+      localStorage.setItem(photoKey(),JSON.stringify(next));
+      photos=next;
+      renderPhotoGallery();
+      photoFeedback('Photo saved · L → Photo gallery');
+      return;
+    }catch{}
+  }
+  photoFeedback('Could not save photo · browser storage may be full');
+}
+
 function loadCaptainLog() {
   try {
     const saved=JSON.parse(localStorage.getItem(captainLogKey())||'[]');
     captainLog=Array.isArray(saved)?saved.filter(entry=>
-      entry&&['scan','flyby','station','impact'].includes(entry.type)&&Number.isFinite(entry.at)&&Math.abs(entry.at)<=8.64e15&&
+      entry&&['scan','landmark','flyby','station','impact'].includes(entry.type)&&Number.isFinite(entry.at)&&Math.abs(entry.at)<=8.64e15&&
       (entry.worldId===null||destinations.some(world=>world.id===entry.worldId))&&
       (entry.image===undefined||typeof entry.image==='string'&&/^data:image\/(jpeg|webp);base64,/.test(entry.image))
     ).slice(0,maxCaptainLogEntries):[];
@@ -1783,10 +2016,7 @@ function renderCaptainLog() {
   if(!list)return;
   list.replaceChildren();
   document.querySelector('#logTitle').textContent=`Captain ${pilotName}'s Log`;
-  document.querySelector('#logCount').textContent=`${captainLog.length} ${captainLog.length===1?'ENTRY':'ENTRIES'}`;
-  document.querySelector('#logSummary').textContent=gameMode==='discovery'
-    ?`${scannedBodies.size} of ${destinations.length} discoveries scanned · Discovery voyage`
-    :'Free exploration voyage';
+  if(document.querySelector('#logTab').getAttribute('aria-selected')==='true')setLogTab('log');
   if(!captainLog.length){
     const empty=document.createElement('p');empty.className='log-empty';
     empty.textContent='Your flight story begins with a scan, a close approach, or an encounter.';
@@ -1810,7 +2040,7 @@ function renderCaptainLog() {
     }
     const content=document.createElement('div');
     const meta=document.createElement('div');meta.className='log-entry-meta';
-    const kind=document.createElement('span');kind.textContent=entry.type==='scan'?'DISCOVERY':entry.type==='flyby'?(entry.passKind==='approach'?'CLOSE APPROACH':'FLYBY'):entry.type==='station'?'STATION KEEPING':'ENCOUNTER';
+    const kind=document.createElement('span');kind.textContent=entry.type==='scan'?'DISCOVERY':entry.type==='landmark'?'LANDMARK':entry.type==='flyby'?(entry.passKind==='approach'?'CLOSE APPROACH':'FLYBY'):entry.type==='station'?'STATION KEEPING':'ENCOUNTER';
     const date=document.createElement('time');date.dateTime=new Date(entry.at).toISOString();date.textContent=new Date(entry.at).toLocaleString();
     meta.append(kind,date);
     const heading=document.createElement('h3');
@@ -1820,6 +2050,10 @@ function renderCaptainLog() {
     if(entry.type==='scan'){
       heading.textContent=`${name} discovered`;
       detail.textContent=`Scan complete. This ${entry.worldId==='comet'?'object':'world'} is now available in Destinations and the Field Guide.`;
+    }else if(entry.type==='landmark'){
+      const landmark=landmarks.find(item=>item.id===entry.landmarkId);
+      heading.textContent=landmark?`${landmark.name} discovered`:`${name} landmark discovered`;
+      detail.textContent=landmark?.fact||'A close-range feature was recorded.';
     }else if(entry.type==='flyby'){
       heading.textContent=`${name} · ${entry.passKind==='approach'?'close approach':'flyby'}`;
       detail.textContent=`Closest approach: ${Math.max(0,Math.round(entry.distance||0))} units above the surface.`;
@@ -1827,19 +2061,94 @@ function renderCaptainLog() {
       heading.textContent=`Holding position near ${name}`;
       detail.textContent=`Autopilot arrival · ${Math.max(0,Math.round(entry.distance||0))} units above the surface.`;
     }else{
-      heading.textContent=entry.broken?'Asteroid fractured':'Asteroid impact';
+      heading.textContent=entry.source==='ring'?(entry.broken?'Ring particle fractured':'Ring particle impact'):entry.broken?'Asteroid fractured':'Asteroid impact';
       detail.textContent=entry.broken
-        ?`The rock broke into drifting fragments at ${Math.max(0,Math.round(entry.speed||0))} units/s.`
+        ?`The ${entry.source==='ring'?'ice particle':'rock'} broke into drifting fragments at ${Math.max(0,Math.round(entry.speed||0))} units/s.`
         :`The ship deflected a larger rock at ${Math.max(0,Math.round(entry.speed||0))} units/s.`;
     }
     content.append(meta,heading,detail);article.append(content);list.append(article);
   }
 }
 
+function renderPhotoGallery() {
+  const gallery=document.querySelector('#photoEntries');
+  if(!gallery)return;
+  gallery.replaceChildren();
+  document.querySelector('#photosTab').textContent=`Photo gallery (${photos.length})`;
+  if(!photos.length){
+    const empty=document.createElement('p');
+    empty.className='log-empty';
+    empty.textContent='Frame a view and press T, or use Take photo during flight.';
+    gallery.append(empty);
+    return;
+  }
+  for(const photo of photos){
+    const card=document.createElement('article');card.className='photo-card';
+    const imageButton=document.createElement('button');imageButton.type='button';imageButton.className='photo-card-image-button';imageButton.setAttribute('aria-label','View photo');
+    const image=document.createElement('img');image.src=photo.image;image.alt='Photo taken during space flight';
+    imageButton.append(image);
+    imageButton.addEventListener('click',()=>openPhotoViewer(photo,imageButton));
+    const details=document.createElement('div');details.className='photo-details';
+    const world=destinations.find(item=>item.id===photo.worldId);
+    const title=document.createElement('strong');
+    title.textContent=world?(isWorldLocked(world.id)?'Unidentified object':world.name):'Open space';
+    const date=document.createElement('time');date.dateTime=new Date(photo.at).toISOString();date.textContent=new Date(photo.at).toLocaleString();
+    const actions=document.createElement('div');actions.className='photo-actions';
+    const download=document.createElement('a');download.href=photo.image;download.download=`odyssey-${photo.at}.jpg`;download.textContent='Download';
+    const remove=document.createElement('button');remove.type='button';remove.textContent='Delete';remove.setAttribute('aria-label',`Delete photo from ${date.textContent}`);
+    remove.addEventListener('click',()=>{
+      const next=photos.filter(item=>item.id!==photo.id);
+      try{localStorage.setItem(photoKey(),JSON.stringify(next));photos=next;renderPhotoGallery();setLogTab('photos');}
+      catch{photoFeedback('Could not update the gallery');}
+    });
+    actions.append(download,remove);
+    details.append(title,date,actions);
+    card.append(imageButton,details);gallery.append(card);
+  }
+}
+
+function openPhotoViewer(photo,trigger) {
+  lastPhotoTrigger=trigger;
+  const world=destinations.find(item=>item.id===photo.worldId);
+  document.querySelector('#photoViewerTitle').textContent=world?(isWorldLocked(world.id)?'Unidentified object':world.name):'Open space';
+  document.querySelector('#photoViewerDate').textContent=new Date(photo.at).toLocaleString();
+  document.querySelector('#photoViewerImage').src=photo.image;
+  const download=document.querySelector('#photoViewerDownload');
+  download.href=photo.image;
+  download.download=`odyssey-${photo.at}.jpg`;
+  document.querySelector('#photoViewer').hidden=false;
+  document.querySelector('#closePhotoViewer').focus({preventScroll:true});
+}
+
+function closePhotoViewer() {
+  const viewer=document.querySelector('#photoViewer');
+  if(viewer.hidden)return;
+  viewer.hidden=true;
+  document.querySelector('#photoViewerImage').removeAttribute('src');
+  lastPhotoTrigger?.focus({preventScroll:true});
+  lastPhotoTrigger=null;
+}
+
+function setLogTab(tab) {
+  const showPhotos=tab==='photos';
+  document.querySelector('#logTab').setAttribute('aria-selected',String(!showPhotos));
+  document.querySelector('#photosTab').setAttribute('aria-selected',String(showPhotos));
+  document.querySelector('#logEntries').hidden=showPhotos;
+  document.querySelector('#photoEntries').hidden=!showPhotos;
+  document.querySelector('#logCount').textContent=showPhotos
+    ?`${photos.length} ${photos.length===1?'PHOTO':'PHOTOS'}`
+    :`${captainLog.length} ${captainLog.length===1?'ENTRY':'ENTRIES'}`;
+  document.querySelector('#logSummary').textContent=showPhotos
+    ?`${gameMode==='discovery'?'Discovery':'Exploration'} photo collection`
+    :gameMode==='discovery'?`${scannedBodies.size} of ${destinations.length} discoveries scanned · Discovery voyage`:'Free exploration voyage';
+}
+
 function openLog() {
   if(introActive||returningToIntro)return;
   keys.clear();
   renderCaptainLog();
+  renderPhotoGallery();
+  setLogTab('log');
   document.querySelector('#logOverlay').hidden=false;
   document.querySelector('#closeLog').focus({preventScroll:true});
 }
@@ -1858,7 +2167,8 @@ function setupControls() {
   document.addEventListener('keydown',event=>{
     if(event.code==='Escape') {
       if(unlockCinematicActive){endUnlockCinematic(true);return;}
-      if(!document.querySelector('#exitOverlay').hidden)closeExit();
+      if(!document.querySelector('#photoViewer').hidden)closePhotoViewer();
+      else if(!document.querySelector('#exitOverlay').hidden)closeExit();
       else if(!document.querySelector('#logOverlay').hidden)closeLog();
       else if(!document.querySelector('#voyageOverlay').hidden)closeVoyages();
       else if(!document.querySelector('#helpOverlay').hidden)closeHelp();
@@ -1870,6 +2180,7 @@ function setupControls() {
     if(introActive)return;
     if(event.target instanceof HTMLInputElement || !document.querySelector('#helpOverlay').hidden || !document.querySelector('#logOverlay').hidden || !document.querySelector('#voyageOverlay').hidden || !document.querySelector('#settingsOverlay').hidden || !document.querySelector('#exitOverlay').hidden)return;
     if(event.code==='KeyL'&&!event.repeat&&!event.ctrlKey&&!event.metaKey&&!event.altKey){openLog();return;}
+    if(event.code==='KeyT'&&!event.repeat&&!event.ctrlKey&&!event.metaKey&&!event.altKey){requestPhoto();return;}
     if(unlockCinematicActive&&event.code!=='KeyR')endUnlockCinematic(true);
     if(previewTarget&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&(event.code==='Comma'||event.code==='Period')){
       event.preventDefault();
@@ -1915,6 +2226,11 @@ function setupControls() {
   document.querySelector('#helpButton').addEventListener('click',openHelp);
   document.querySelector('#logButton').addEventListener('click',openLog);
   document.querySelector('#logPanelButton').addEventListener('click',openLog);
+  document.querySelector('#takePhoto').addEventListener('click',requestPhoto);
+  document.querySelector('#logTab').addEventListener('click',()=>setLogTab('log'));
+  document.querySelector('#photosTab').addEventListener('click',()=>setLogTab('photos'));
+  document.querySelector('#closePhotoViewer').addEventListener('click',closePhotoViewer);
+  document.querySelector('#photoViewer').addEventListener('click',event=>{if(event.target.id==='photoViewer')closePhotoViewer();});
   document.querySelector('#closeLog').addEventListener('click',closeLog);
   document.querySelector('#logOverlay').addEventListener('click',event=>{if(event.target.id==='logOverlay')closeLog();});
   document.querySelector('#closeHelp').addEventListener('click',closeHelp);
@@ -2002,7 +2318,7 @@ function autopilotGuidance() {
   const body=autopilotTarget;
   const target=body.group.position;
   const surfaceDistance=shipPosition.distanceTo(target)-body.data.radius;
-  const viewingDistance=Math.max(10.5,body.data.radius*.45);
+  const viewingDistance=body.data.id==='saturn'?body.data.radius*1.5:Math.max(10.5,body.data.radius*.45);
   if(surfaceDistance<=viewingDistance+.5) {
     velocity.set(0,0,0);
     stopAutopilot(`Arrived near ${body.data.name}`);
@@ -2121,6 +2437,13 @@ function moveShip(dt) {
     if(!rock.alive||next.distanceToSquared(rock.position)>=rock.radius*rock.radius)continue;
     if(hitAsteroid(rock,next))return;
   }
+  if(!autopilotTarget){
+    const saturn=bodies.find(body=>body.data.id==='saturn');
+    if(saturn&&next.distanceToSquared(saturn.group.position)<125*125)for(const shard of saturnShards){
+      if(!shard.alive||next.distanceToSquared(shard.position)>=shard.radius*shard.radius)continue;
+      if(hitAsteroid(shard,next))return;
+    }
+  }
   shipPosition.copy(next);
 }
 
@@ -2137,6 +2460,7 @@ function updateBodies(elapsed,dt) {
   const earth=bodies.find(body=>body.data.id==='earth');
   moonBody.group.position.copy(earth.group.position).add(new THREE.Vector3(Math.cos(elapsed*.14)*moonOrbitRadius,0,Math.sin(elapsed*.14)*moonOrbitRadius));
   moonBody.mesh.rotation.y+=dt*.04;
+  updateSaturnRings(elapsed);
 }
 
 function updateHud(elapsed) {
@@ -2162,8 +2486,13 @@ function updateHud(elapsed) {
   updateSignal();
   document.querySelector('.hud-arc').style.transform=`rotate(${THREE.MathUtils.radToDeg(bank)*.7}deg)`;
   const hit=pointedPlanet();
+  const landmarkTarget=pointedLandmark(hit);
   const label=document.querySelector('#objectLabel');
-  if(hit){
+  if(landmarkTarget){
+    const {landmark,hit:featureHit}=landmarkTarget;
+    const name=scannedLandmarks.has(landmark.id)?landmark.name:'Unidentified landmark';
+    label.textContent=scannedLandmarks.has(landmark.id)?name:`${name} · ${shipPosition.distanceTo(featureHit.point)<=landmark.range?'Hold R to scan':'move closer to scan'}`;
+  }else if(hit){
     const id=hit.object.userData.id;
     if(isWorldLocked(id)){
       label.textContent=`Unknown ${id==='comet'?'object':'world'} · ${scanRangeFor(id)?'Hold R to scan':'move closer to scan'}`;
@@ -2251,6 +2580,7 @@ function animate() {
   updateHud(elapsed);
   if(!introActive&&elapsed-lastFlightSave>.5){saveFlightState();lastFlightSave=elapsed;}
   renderer.render(scene,camera);
+  capturePhoto();
   captureLogSnapshots();
   if(!firstFrameRendered){
     firstFrameRendered=true;
