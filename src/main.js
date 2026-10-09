@@ -1625,10 +1625,14 @@ function setDiscoveryOpen(open) {
 function selectPlanet(id,preview=false) {
   const planet=destinations.find(p=>p.id===id);
   if(!planet||isWorldLocked(id))return;
-  if(selectedId!==id)setDiscoveryOpen(false);
+  if(selectedId!==id){
+    setDiscoveryOpen(false);
+    document.querySelector('#fieldGuide').scrollTop=0;
+  }
   if(autopilotTarget&&autopilotTarget.data.id!==id)stopAutopilot('Course changed. Manual flight.');
   if(selectedId!==id&&!autopilotTarget)autopilotMessage='Manual flight';
   selectedId=id;
+  document.querySelector('#discoveryToggle').hidden=false;
   document.querySelectorAll('.planet-row').forEach(row=>{
     const active=row.dataset.id===id;row.classList.toggle('active',active);row.setAttribute('aria-current',active?'true':'false');
   });

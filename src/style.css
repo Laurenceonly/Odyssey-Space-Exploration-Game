@@ -263,6 +263,7 @@ button:focus-visible,.intro-play:focus-visible{outline-color:#ffffff}
 @media(max-width:540px){.info-panel.discovery-open{left:10px;right:10px;bottom:59px;width:calc(100% - 20px);height:min(68vh,500px)}.info-panel.discovery-open .planet-art{height:120px;min-height:120px}.info-panel.discovery-open .planet-art-disc{width:65px;height:65px}.info-panel.discovery-open .info-topline{display:flex}.info-panel.discovery-open #planetDescription{display:block}.info-panel.discovery-open .fact-grid{display:grid}}
 
 .planet-art{display:flex;align-items:center;justify-content:center;background:#0b0b0b}
+.info-panel{overflow-x:hidden;overflow-y:auto;scrollbar-width:thin;scrollbar-color:#666 transparent}
 .info-panel .planet-art{height:195px;min-height:195px;flex:none}
 .info-panel .info-main{margin-top:0;padding-top:8px}
 .planet-art-photo{display:block;width:min(92%,250px);height:calc(100% - 25px);object-fit:contain;object-position:center;filter:drop-shadow(0 0 14px rgba(255,255,255,.07))}
