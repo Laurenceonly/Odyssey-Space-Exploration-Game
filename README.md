@@ -35,6 +35,23 @@ npm run build
 npm run preview
 ```
 
+## Deployment
+
+Play the current version at **https://odyssey-explorer-psi.vercel.app**.
+
+The Vercel project `odyssey-explorer` is connected to
+`Laurenceonly/Odyssey-Space-Exploration-Game`. Pushes to `main` automatically
+build and publish the production site; other branches and pull requests receive
+preview deployments.
+
+Vercel uses the Vite framework preset, `npm run build`, and the `dist` output
+directory, as declared in `vercel.json`. No game server or database is required.
+Player progress remains in each browser and does not transfer between domains.
+
+For a manual deployment from a linked checkout, run `npx vercel deploy --prod`.
+Local Vercel credentials, environment files, and earlier deployment packages are
+excluded from Git or Vercel uploads.
+
 ## Game modes
 
 ### Discovery
