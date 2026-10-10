@@ -19,6 +19,8 @@ class Param {
 }
 class Node {
   gain=new Param();frequency=new Param();Q=new Param();
+  detune=new Param();pan=new Param();threshold=new Param();knee=new Param();
+  ratio=new Param();attack=new Param();release=new Param();
   connect(){}
   disconnect(){}
   start(){}
@@ -33,6 +35,8 @@ class FakeAudioContext {
   createOscillator(){return new Node();}
   createBiquadFilter(){return new Node();}
   createConvolver(){return new Node();}
+  createDynamicsCompressor(){return new Node();}
+  createStereoPanner(){return new Node();}
   createBufferSource(){return new Node();}
   createBuffer(channels,length){return {getChannelData:()=>new Float32Array(length)};}
   resume(){return Promise.resolve();}
@@ -51,6 +55,9 @@ assert.equal(saved.get('odyssey-music-track'),'starlight');
 assert.equal(createShipAudio().getMusicSelection(),'starlight');
 audio.setMusicVolume(120);
 audio.update(20,.3);
+audio.asteroidImpact(true,14,.6,.5,.3);
+clock.currentTime+=1;
+audio.asteroidImpact(false,3,3,-.5,.1);
 audio.setEnabled(false);
 audio.setEnabled(true);
 console.log('Audio scheduling, playlist rotation, track switching, and saved choice passed.');

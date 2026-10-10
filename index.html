@@ -15,7 +15,7 @@
       <canvas id="speedFx" aria-hidden="true"></canvas>
       <div class="grain" aria-hidden="true"></div>
 
-      <section id="introOverlay" class="intro-overlay" role="dialog" aria-modal="true" aria-labelledby="introTitle">
+      <section id="introOverlay" class="intro-overlay" role="dialog" aria-modal="true" aria-labelledby="introTitle" inert>
         <div class="intro-copy">
           <h1 id="introTitle">Odyssey</h1>
           <blockquote class="intro-quote"><p>“That’s one small step for a man, one giant leap for mankind.”</p><cite>Neil Armstrong · Apollo 11</cite></blockquote>
@@ -139,7 +139,15 @@
       </div>
       <div id="exitOverlay" class="help-overlay" hidden><div class="help-card exit-card" role="alertdialog" aria-modal="true" aria-labelledby="exitTitle" aria-describedby="exitDescription" tabindex="-1"><div class="help-kicker">FLIGHT CONTROL</div><h2 id="exitTitle">End this flight?</h2><p id="exitDescription">You will return to the intro. You can launch again at any time.</p><div class="exit-actions"><button id="cancelExit" type="button">Keep flying</button><button id="confirmExit" class="travel-button" type="button">Return to intro</button></div></div></div>
       <div id="sceneCurtain" class="scene-curtain covered" aria-hidden="true"></div>
+      <div id="loadingScreen" class="loading-screen" role="status" aria-live="polite">
+        <div class="loading-copy">
+          <p class="loading-title">Preparing your voyage</p>
+          <p id="loadingStatus">Building the solar system…</p>
+          <progress id="loadingProgress" max="100" value="0" aria-label="Solar system loading progress"></progress>
+        </div>
+      </div>
     </div>
+    <a class="texture-credit" href="https://www.solarsystemscope.com/textures/" target="_blank" rel="noopener noreferrer">Planet maps: Solar System Scope · CC BY 4.0</a>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

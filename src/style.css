@@ -1,10 +1,13 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Oxanium:wght@400;500;600;700&display=swap');
 
-:root{font-family:'DM Sans',system-ui,sans-serif;color:#f1f1f1;background:#010101;font-synthesis:none;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased}
+:root{font-family:'DM Sans',system-ui,sans-serif;color:#f1f1f1;background:#010101;font-synthesis:none;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased;color-scheme:dark}
 *{box-sizing:border-box}
 html,body,#app{margin:0;width:100%;height:100%;min-height:100%;overflow:hidden}
 button{font:inherit;cursor:pointer}
 button:focus-visible{outline:2px solid #e5e5e5;outline-offset:4px}
+::selection{background:#c7d8e8;color:#10151b}
+button{touch-action:manipulation}
+#app .info-title-row h2,#app .help-card h2{letter-spacing:-.035em}
 #app{position:relative;isolation:isolate;background:#000000}
 #universe{display:block;width:100%;height:100%;outline:none}
 #speedFx{position:absolute;inset:0;width:100%;height:100%;z-index:3;pointer-events:none}
@@ -14,6 +17,15 @@ button:focus-visible{outline:2px solid #e5e5e5;outline-offset:4px}
 .intro-overlay[hidden]{display:none}
 .scene-curtain{position:absolute;inset:0;z-index:50;background:#000;opacity:0;pointer-events:none;transition:opacity .25s cubic-bezier(.23,1,.32,1)}
 .scene-curtain.covered{opacity:1;pointer-events:auto}
+.loading-screen{position:absolute;inset:0;z-index:51;display:grid;place-items:center;background:#000;color:#f1f1f1}
+.loading-screen[hidden]{display:none}
+.loading-copy{width:min(320px,calc(100vw - 48px));text-align:center}
+.loading-title{margin:0 0 12px;font:600 20px/1.3 'Oxanium',sans-serif}
+#loadingStatus{margin:0 0 24px;color:#bdbdbd;font:400 13px/1.5 'DM Sans',sans-serif}
+#loadingProgress{display:block;width:100%;height:3px;border:0;background:#272727;accent-color:#f1f1f1}
+#loadingProgress::-webkit-progress-bar{background:#272727}
+#loadingProgress::-webkit-progress-value{background:#f1f1f1}
+#loadingProgress::-moz-progress-bar{background:#f1f1f1}
 @media(prefers-reduced-motion:reduce){.scene-curtain{transition-duration:.08s}}
 .intro-copy{position:relative;max-width:750px;color:#f7f7f7}
 .intro-copy h1{margin:0 0 28px;font:600 clamp(64px,8vw,112px)/1 'Oxanium',sans-serif;letter-spacing:.045em;text-transform:uppercase;text-shadow:0 12px 36px rgba(0,0,0,.8)}
@@ -280,3 +292,5 @@ button:focus-visible,.intro-play:focus-visible{outline-color:#ffffff}
 .settings-card select{width:100%;height:44px;padding:0 12px;border:1px solid #606060;background:#101010;color:#f1f1f1;font:500 13px 'Oxanium',sans-serif;outline:0;cursor:pointer}
 .settings-card select:focus-visible{border-color:#fff;box-shadow:0 0 0 2px rgba(255,255,255,.2)}
 .music-now-playing{margin-top:8px;color:#a9a9a9;font:500 10px 'Oxanium',sans-serif}
+.texture-credit{position:fixed;bottom:5px;right:12px;z-index:9;color:#868b91;font:9px/1.3 'DM Sans',sans-serif;text-decoration:none}
+.texture-credit:hover,.texture-credit:focus-visible{color:#e5e9ed;text-decoration:underline}

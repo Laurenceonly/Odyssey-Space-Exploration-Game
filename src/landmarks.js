@@ -1,14 +1,14 @@
 export const landmarks = [
   {
     id:'olympus-mons',worldId:'mars',name:'Olympus Mons',kind:'VOLCANO',
-    u:.34,v:.56,uRadius:.085,vRadius:.085,range:58,
+    u:.127,v:.60,uRadius:.04,vRadius:.065,range:58,
     hint:'Search the raised terrain north of the Martian equator.',
     fact:'The largest volcano in the solar system rises above the Martian plains.',
     source:'https://science.nasa.gov/mars/facts/',
   },
   {
     id:'great-red-spot',worldId:'jupiter',name:'Great Red Spot',kind:'STORM',
-    u:.73,v:.39,uRadius:.11,vRadius:.085,range:125,
+    u:.365,v:.39,uRadius:.045,vRadius:.05,range:125,
     hint:'Watch the southern cloud bands for an oval storm.',
     fact:'This immense storm has persisted in Jupiter’s atmosphere for centuries.',
     source:'https://science.nasa.gov/jupiter/jupiter-facts/',

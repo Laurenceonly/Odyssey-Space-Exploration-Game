@@ -4,6 +4,11 @@ import { discovery } from './discovery.js';
 import { planetPhotos } from './planet-photos.js';
 import { createFlybyTracker } from './flyby-tracker.js';
 import { cometPosition } from './space-events.js';
+import { cometTailCount, cometTailShape, writeCometTail } from './comet-tail.js';
+import { rockContact, resolveRockImpact } from './rock-physics.js';
+import { orbitalSafeHeight, clearOrbitalSweep, clearBodyOverlap } from './body-clearance.js';
+import { createAtmosphere } from './atmosphere.js';
+import { applyPlanetSurface, applyEarthNightLights, applyRingShadow, loadPlanetTexture, waitForPlanetTextures } from './planet-materials.js';
 import { landmarks, surfaceLandmarkAt } from './landmarks.js';
 
 const canvas = document.querySelector('#universe');
@@ -13,11 +18,10 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPrefere
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.8));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.4;
+renderer.toneMappingExposure = 1.12;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000104);
-scene.fog = new THREE.FogExp2(0x000104, 0.0001);
 const camera = new THREE.PerspectiveCamera(67, 1, 0.1, 5000);
 camera.rotation.order = 'YXZ';
 const clock = new THREE.Clock();
@@ -30,12 +34,15 @@ let sunMesh;
 let cometBody;
 let cometTail;
 let cometTailPositions;
+let cometTailColors;
+let cometElapsed=0;
 let cometComa;
 let saturnRingPlane;
 let saturnShardMesh;
 let saturnRingDust;
 const saturnShards=[];
 const saturnRingBands=[];
+const orbitGuides=[];
 const landmarkMeshes=[];
 const scannedLandmarks=new Set();
 const engineGlows = [];
@@ -45,6 +52,12 @@ const asteroidFields = [];
 const asteroidRocks = [];
 const asteroidFragments = [];
 let asteroidFragmentMesh;
+let impactDustMesh;
+const impactDust=[];
+let impactShake=0;
+let impactShakeAge=0;
+let impactFeedbackUntil=0;
+let impactFeedbackText='';
 let boostAmount = 0;
 let idleMotion = 0;
 let cameraMode = 'chase';
@@ -129,7 +142,7 @@ const planets = [
 ];
 const moonData = {id:'moon',name:'Moon',index:'03A',seed:9,symbol:'☾',type:'EARTH SATELLITE',distance:'1.00 AU',diameter:'3,474 km',description:'Earth’s cratered companion, with ancient highlands and quiet maria.',radius:5,color:'#aeb9c0',base:[151,157,159],style:'rock',gradient:'radial-gradient(circle at 28% 24%,#d3d5d0,#8a9499 58%,#343b42 96%)'};
 const sunData={id:'sun',name:'Sun',index:'00',symbol:'☼',type:'YELLOW DWARF STAR',distance:'0 AU',diameter:'1.4 million km',description:'The star at the center of our solar system, powered by nuclear fusion.',radius:sunRadius,color:'#ffae45',base:[255,171,72],style:'sun'};
-const cometData={id:'comet',name:'Comet',index:'C1',seed:41,symbol:'☄',type:'ICY VISITOR',distance:'Changing',diameter:'Simulated nucleus',description:'A dark icy nucleus follows a long orbit. Its dust and gas brighten near the Sun.',radius:3.8,color:'#b7c4c4',base:[83,91,92],style:'rock',gradient:'radial-gradient(circle at 27% 24%,#aeb9b9,#626d70 60%,#252c30 95%)'};
+const cometData={id:'comet',name:'Comet',index:'C1',seed:41,symbol:'☄',type:'ICY VISITOR',distance:'Changing',diameter:'Simulated nucleus',description:'An icy visitor sweeps through the planetary region, trailing dust and blue ionized gas. Its coma and tails brighten near the Sun.',radius:3.8,color:'#b7c4c4',base:[83,91,92],style:'rock',gradient:'radial-gradient(circle at 27% 24%,#aeb9b9,#626d70 60%,#252c30 95%)'};
 const destinations=[sunData,...planets.slice(0,3),moonData,...planets.slice(3),cometData];
 const voyages=[
   {id:'inner',name:'Inner Worlds',stops:['mercury','venus','earth','moon','mars']},
@@ -166,8 +179,8 @@ function sampleNoise(field,u,v) {
 
 function surfaceTexture(planet) {
   const surface = document.createElement('canvas');
-  surface.width = 768;
-  surface.height = 384;
+  surface.width = planet.id==='mercury'?1536:768;
+  surface.height = surface.width/2;
   const ctx = surface.getContext('2d');
   const frame = ctx.createImageData(surface.width, surface.height);
   const [r0,g0,b0] = planet.base;
@@ -208,7 +221,7 @@ function surfaceTexture(planet) {
         g+=(stripes+(terrain-.5)*.5)*contrast*.8;
         b+=(stripes+(terrain-.5)*.4)*contrast*.65;
         if(planet.id==='jupiter'){
-          const dx=Math.min(Math.abs(lon-.73),1-Math.abs(lon-.73))/.105;
+          const dx=Math.min(Math.abs(lon-.365),1-Math.abs(lon-.365))/.045;
           const dy=(lat-.61)/.055;
           const spot=THREE.MathUtils.clamp(1-(dx*dx+dy*dy),0,1);
           r+=spot*43;g-=spot*25;b-=spot*27;
@@ -233,7 +246,7 @@ function surfaceTexture(planet) {
   }
   ctx.putImageData(frame,0,0);
   if(planet.id==='mars'){
-    const x=surface.width*.34,y=surface.height*.44;
+    const x=surface.width*.127,y=surface.height*.40;
     const glow=ctx.createRadialGradient(x,y,3,x,y,39);
     glow.addColorStop(0,'rgba(218,167,128,.65)');
     glow.addColorStop(.55,'rgba(150,88,69,.28)');
@@ -301,6 +314,7 @@ function makeOrbit(radius) {
     points.push(new THREE.Vector3(Math.cos(a)*radius,0,Math.sin(a)*radius));
   }
   const orbit=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(points),new THREE.LineBasicMaterial({color:0xffffff,transparent:true,opacity:.11,depthWrite:false}));
+  orbitGuides.push(orbit);
   scene.add(orbit);
 }
 
@@ -309,9 +323,10 @@ function makeRings(parent, inner, outer) {
   for(let i=0;i<count;i++) {
     const start=inner+(outer-inner)*i/count;
     const geometry=new THREE.RingGeometry(start,start+(outer-inner)/count*.76,128);
-    const material=new THREE.MeshBasicMaterial({color:i%3===0?0x9f8d71:0xd0b995,transparent:true,opacity:.34+(i%3)*.08,side:THREE.DoubleSide,depthWrite:false});
+    const material=new THREE.MeshStandardMaterial({color:i%3===0?0x625b53:0x938b80,roughness:1,transparent:true,opacity:.18+(i%3)*.04,side:THREE.DoubleSide,depthWrite:false});
+    applyRingShadow(material,parent.position,outer/1.75);
     const ring=new THREE.Mesh(geometry,material);
-    ring.rotation.x=Math.PI/2.6;
+    ring.rotation.x=-Math.PI/2;
     parent.add(ring);
   }
 }
@@ -319,13 +334,15 @@ function makeRings(parent, inner, outer) {
 function makeSaturnRings(parent,radius) {
   const inner=radius*1.24,gapInner=radius*1.73,gapOuter=radius*1.79,outer=radius*2.15;
   saturnRingPlane=new THREE.Group();
-  saturnRingPlane.rotation.x=Math.PI/2.6;
+  saturnRingPlane.rotation.x=-Math.PI/2;
   parent.add(saturnRingPlane);
   for(const [from,to,count] of [[inner,gapInner,6],[gapOuter,outer,5]])for(let i=0;i<count;i++){
     const start=from+(to-from)*i/count;
     const end=start+(to-from)/count*.88;
     const opacity=.31+(i%3)*.07;
-    const ring=new THREE.Mesh(new THREE.RingGeometry(start,end,128),new THREE.MeshBasicMaterial({color:i%3===0?0x9f8d71:0xd5c4a5,transparent:true,opacity,side:THREE.DoubleSide,depthWrite:false}));
+    const ringMaterial=new THREE.MeshStandardMaterial({color:i%3===0?0x9f8d71:0xd5c4a5,roughness:1,transparent:true,opacity,side:THREE.DoubleSide,depthWrite:false});
+    applyRingShadow(ringMaterial,parent.position,radius);
+    const ring=new THREE.Mesh(new THREE.RingGeometry(start,end,128),ringMaterial);
     ring.userData.baseOpacity=opacity;
     saturnRingPlane.add(ring);
     saturnRingBands.push(ring);
@@ -349,19 +366,21 @@ function makeSaturnRings(parent,radius) {
   const particles=new THREE.BufferGeometry();
   particles.setAttribute('position',new THREE.BufferAttribute(positions,3));
   particles.setAttribute('color',new THREE.BufferAttribute(colors,3));
-  saturnRingDust=new THREE.Points(particles,new THREE.PointsMaterial({size:.55,sizeAttenuation:true,vertexColors:true,transparent:true,opacity:.82,depthWrite:false}));
+  const ringGrain=makeGlow('255,255,255',1,1);
+  saturnRingDust=new THREE.Points(particles,new THREE.PointsMaterial({map:ringGrain.material.map,size:.18,sizeAttenuation:true,vertexColors:true,transparent:true,opacity:.48,depthWrite:false}));
+  ringGrain.material.dispose();
   saturnRingPlane.add(saturnRingDust);
   saturnShardMesh=new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1,0),new THREE.MeshStandardMaterial({color:0xd7d0c0,roughness:1,flatShading:true}),260);
   saturnShardMesh.frustumCulled=false;
   saturnRingPlane.add(saturnShardMesh);
   for(let i=0;i<260;i++){
     const band=hash(i,211)<.57?[inner,gapInner]:[gapOuter,outer];
-    saturnShards.push({id:10000+i,origin:'ring',angle:hash(i,212)*Math.PI*2,orbitRadius:THREE.MathUtils.lerp(band[0],band[1],hash(i,213)),height:(hash(i,214)-.5)*.7,size:.2+hash(i,215)*.95,radius:.7+hash(i,215)*.95,position:new THREE.Vector3(),velocity:new THREE.Vector3(),spin:new THREE.Vector3(),alive:true});
+    saturnShards.push({id:10000+i,origin:'ring',angle:hash(i,212)*Math.PI*2,orbitRadius:THREE.MathUtils.lerp(band[0],band[1],hash(i,213)),height:(hash(i,214)-.5)*.7,size:.2+hash(i,215)*.95,radius:1.7+hash(i,215)*.95,position:new THREE.Vector3(),velocity:new THREE.Vector3(),driftVelocity:new THREE.Vector3(),driftOffset:new THREE.Vector3(),spin:new THREE.Vector3(),alive:true});
   }
 }
 
 const saturnShardDummy=new THREE.Object3D();
-function updateSaturnRings(elapsed) {
+function updateSaturnRings(elapsed,dt) {
   if(!saturnRingPlane)return;
   saturnRingPlane.updateWorldMatrix(true,false);
   saturnRingDust.rotation.z=elapsed*.004;
@@ -372,12 +391,23 @@ function updateSaturnRings(elapsed) {
     if(!shard.alive){saturnShardDummy.scale.setScalar(0);saturnShardDummy.updateMatrix();saturnShardMesh.setMatrixAt(index,saturnShardDummy.matrix);return;}
     const angle=shard.angle+elapsed*.015*(58/shard.orbitRadius)**1.5;
     saturnShardDummy.position.set(Math.cos(angle)*shard.orbitRadius,Math.sin(angle)*shard.orbitRadius,shard.height);
-    saturnShardDummy.rotation.set(elapsed*.03+index,index*.4+elapsed*.02,index*.17);
+    shard.driftRotation??=new THREE.Vector3();
+    shard.driftRotation.addScaledVector(shard.spin,dt);
+    saturnShardDummy.rotation.set(elapsed*.03+index+shard.driftRotation.x,index*.4+elapsed*.02+shard.driftRotation.y,index*.17+shard.driftRotation.z);
     saturnShardDummy.scale.setScalar(shard.size);
-    saturnShardDummy.updateMatrix();
-    saturnShardMesh.setMatrixAt(index,saturnShardDummy.matrix);
+    shard.previousPosition??=new THREE.Vector3();
+    shard.previousPosition.copy(shard.position);
     shard.position.copy(saturnShardDummy.position);
     saturnRingPlane.localToWorld(shard.position);
+    shard.driftOffset.addScaledVector(shard.driftVelocity,dt);
+    shard.position.add(shard.driftOffset);
+    if(shard.initialized&&dt>0)shard.velocity.copy(shard.position).sub(shard.previousPosition).divideScalar(dt);
+    else shard.previousPosition.copy(shard.position);
+    shard.initialized=true;
+    saturnShardDummy.position.copy(shard.position);
+    saturnRingPlane.worldToLocal(saturnShardDummy.position);
+    saturnShardDummy.updateMatrix();
+    saturnShardMesh.setMatrixAt(index,saturnShardDummy.matrix);
   });
   saturnShardMesh.instanceMatrix.needsUpdate=true;
 }
@@ -444,6 +474,7 @@ function createShip() {
   const glass = new THREE.MeshStandardMaterial({color:0x10384f,metalness:.58,roughness:.17,emissive:0x0a344a,emissiveIntensity:.4});
   const engineMaterial = new THREE.MeshBasicMaterial({color:0x6ddbd7});
   shipMesh = new THREE.Group();
+  shipMesh.rotation.order='YXZ';
   shipMesh.add(new THREE.Mesh(fuselageGeometry(),hull));
   const canopy = new THREE.Mesh(new THREE.SphereGeometry(.54,18,12),glass);
   canopy.scale.set(1,.49,1.47);canopy.position.set(0,.39,-.63);shipMesh.add(canopy);
@@ -543,7 +574,7 @@ function createAsteroidBelt() {
   const dummy=new THREE.Object3D();
   const palette=[new THREE.Color(0x8b8176),new THREE.Color(0x6f7675),new THREE.Color(0xa0927e)];
   for(let variant=0;variant<variants;variant++) {
-    const geometry=new THREE.DodecahedronGeometry(1,0);
+    const geometry=new THREE.DodecahedronGeometry(1,1);
     const positions=geometry.getAttribute('position');
     for(let vertex=0;vertex<positions.count;vertex++) {
       const x=positions.getX(vertex),y=positions.getY(vertex),z=positions.getZ(vertex);
@@ -551,7 +582,8 @@ function createAsteroidBelt() {
       positions.setXYZ(vertex,x*roughness,y*roughness,z*roughness);
     }
     geometry.computeVertexNormals();
-    const material=new THREE.MeshStandardMaterial({color:0xffffff,roughness:1,metalness:0,flatShading:true});
+    const texture=surfaceTexture({...moonData,seed:50+variant,base:[133,126,115]});
+    const material=new THREE.MeshStandardMaterial({map:texture,bumpMap:texture,bumpScale:.12,color:0xffffff,roughness:1,metalness:0,flatShading:true});
     const mesh=new THREE.InstancedMesh(geometry,material,countPerVariant);
     mesh.frustumCulled=false;
     const rocks=[];
@@ -589,12 +621,21 @@ function createAsteroidBelt() {
   }
   asteroidFragmentMesh=new THREE.InstancedMesh(
     new THREE.DodecahedronGeometry(1,0),
-    new THREE.MeshStandardMaterial({color:0x9a9083,roughness:1,flatShading:true}),
-    96,
+    new THREE.MeshStandardMaterial({color:0xffffff,roughness:1,flatShading:true}),
+    192,
   );
   asteroidFragmentMesh.count=0;
   asteroidFragmentMesh.frustumCulled=false;
   scene.add(asteroidFragmentMesh);
+  const dustGeometry=new THREE.BufferGeometry();
+  dustGeometry.setAttribute('position',new THREE.BufferAttribute(new Float32Array(160*3),3));
+  dustGeometry.setAttribute('color',new THREE.BufferAttribute(new Float32Array(160*3),3));
+  dustGeometry.setDrawRange(0,0);
+  const dustGlow=makeGlow('255,255,255',1,.65);
+  impactDustMesh=new THREE.Points(dustGeometry,new THREE.PointsMaterial({map:dustGlow.material.map,vertexColors:true,size:.7,transparent:true,opacity:.35,depthWrite:false}));
+  dustGlow.material.dispose();
+  impactDustMesh.frustumCulled=false;
+  scene.add(impactDustMesh);
 }
 
 const asteroidDummy=new THREE.Object3D();
@@ -602,6 +643,8 @@ function updateAsteroids(dt) {
   for(const {mesh,rocks} of asteroidFields) {
     rocks.forEach((rock,index)=>{
       if(!rock.alive){asteroidDummy.scale.setScalar(0);asteroidDummy.updateMatrix();mesh.setMatrixAt(index,asteroidDummy.matrix);return;}
+      rock.previousPosition??=rock.position.clone();
+      rock.previousPosition.copy(rock.position);
       rock.position.addScaledVector(rock.velocity,dt);
       if(!reducedMotion.matches){
         rock.rotation.x+=rock.spin.x*dt;
@@ -629,50 +672,91 @@ function updateAsteroids(dt) {
     asteroidDummy.scale.setScalar(fragment.size*Math.min(1,fragment.life/.5));
     asteroidDummy.updateMatrix();
     asteroidFragmentMesh.setMatrixAt(index,asteroidDummy.matrix);
+    asteroidFragmentMesh.setColorAt(index,fragment.color);
   });
   asteroidFragmentMesh.count=asteroidFragments.length;
   asteroidFragmentMesh.instanceMatrix.needsUpdate=true;
+  if(asteroidFragmentMesh.instanceColor)asteroidFragmentMesh.instanceColor.needsUpdate=true;
+  const dustPositions=impactDustMesh.geometry.attributes.position;
+  const dustColors=impactDustMesh.geometry.attributes.color;
+  for(let i=impactDust.length-1;i>=0;i--){
+    const dust=impactDust[i];
+    dust.life-=dt;
+    if(dust.life<=0){impactDust.splice(i,1);continue;}
+    dust.position.addScaledVector(dust.velocity,dt);
+  }
+  impactDust.forEach((dust,i)=>{
+    dustPositions.setXYZ(i,dust.position.x,dust.position.y,dust.position.z);
+    const fade=Math.min(1,dust.life/.8);
+    dustColors.setXYZ(i,dust.color.r*fade,dust.color.g*fade,dust.color.b*fade);
+  });
+  dustPositions.needsUpdate=true;dustColors.needsUpdate=true;
+  impactDustMesh.geometry.setDrawRange(0,impactDust.length);
 }
 
 function breakAsteroid(rock,impactSpeed) {
   rock.alive=false;
-  for(let piece=0;piece<7;piece++) {
-    const azimuth=hash(rock.id,piece+72)*Math.PI*2;
-    const rise=hash(rock.id,piece+84)*2-1;
+  for(let piece=0;piece<8;piece++) {
+    const pair=Math.floor(piece/2);
+    const azimuth=hash(rock.id,pair+72)*Math.PI*2;
+    const rise=hash(rock.id,pair+84)*2-1;
     const spread=Math.sqrt(1-rise*rise);
     const outward=new THREE.Vector3(Math.cos(azimuth)*spread,rise,Math.sin(azimuth)*spread);
+    if(piece%2)outward.negate();
     asteroidFragments.push({
       position:rock.position.clone(),
-      velocity:outward.multiplyScalar(2+impactSpeed*.16).addScaledVector(velocity,.22),
+      velocity:outward.multiplyScalar(.5+impactSpeed*.075).add(rock.velocity),
       rotation:new THREE.Vector3(),
       spin:new THREE.Vector3((hash(rock.id,piece+96)-.5)*3,(hash(rock.id,piece+108)-.5)*3,(hash(rock.id,piece+120)-.5)*3),
-      size:rock.size*(.12+hash(rock.id,piece+132)*.15),
-      life:1.8+hash(rock.id,piece+144)*1.1,
+      size:rock.size*.5,
+      color:new THREE.Color(rock.origin==='ring'?0xd2dce0:0x9a9083),
+      life:4+hash(rock.id,piece+144)*3,
     });
   }
-  if(asteroidFragments.length>96)asteroidFragments.splice(0,asteroidFragments.length-96);
+  if(asteroidFragments.length>192)asteroidFragments.splice(0,asteroidFragments.length-192);
 }
 
-function hitAsteroid(rock,next) {
-  const normal=next.clone().sub(rock.position).normalize();
-  if(normal.lengthSq()===0)normal.copy(velocity).negate().normalize();
-  const impactSpeed=Math.max(0,-velocity.clone().sub(rock.velocity).dot(normal));
-  if(impactSpeed<.2)return false;
-  if(rock.size<1.6 || (rock.size<3 && impactSpeed>28)){
-    breakAsteroid(rock,impactSpeed);
-    shipAudio.asteroidImpact(true,impactSpeed,rock.size);
-    logAsteroidEncounter(rock,true,impactSpeed);
-    velocity.multiplyScalar(.8);
-    return false;
+function hitAsteroid(rock,contact,dt) {
+  const {normal}=contact;
+  const impact=resolveRockImpact(velocity,rock.velocity,normal,rock.size,rock.origin==='ring');
+  if(impact.speed<.05)return false;
+  if(rock.driftVelocity)rock.driftVelocity.add(impact.rockVelocity.clone().sub(rock.velocity));
+  rock.velocity.copy(impact.rockVelocity);
+  velocity.copy(impact.shipVelocity);
+  rock.spin.add(new THREE.Vector3(normal.z,-normal.x,normal.y).multiplyScalar(Math.min(impact.impulse/impact.rockMass*.015,.6)));
+  if(impact.broken)breakAsteroid(rock,impact.speed);
+  shipPosition.copy(contact.point).addScaledVector(normal,.03);
+  // Spend the remaining frame moving after contact; a broken pebble must not
+  // snap the ship backwards to the outside of its former collision sphere.
+  shipPosition.addScaledVector(velocity,dt*(1-contact.fraction));
+  if(!impact.broken&&shipPosition.distanceToSquared(rock.position)<rock.radius**2){
+    shipPosition.copy(rock.position).addScaledVector(normal,rock.radius+.03);
   }
-  shipAudio.asteroidImpact(false,impactSpeed);
-  logAsteroidEncounter(rock,false,impactSpeed);
-  rock.velocity.addScaledVector(normal,-Math.min(impactSpeed*.24,10));
-  rock.spin.add(new THREE.Vector3(normal.z,-normal.x,normal.y).multiplyScalar(Math.min(impactSpeed*.018,.55)));
-  rock.position.addScaledVector(normal,-Math.max(.2,rock.radius-shipPosition.distanceTo(rock.position)+.2));
-  velocity.addScaledVector(normal,-1.35*velocity.dot(normal)).multiplyScalar(.45);
+  const pan=-normal.dot(new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw)));
+  shipAudio.asteroidImpact(impact.broken,impact.speed,rock.size,pan,impact.severity);
+  logAsteroidEncounter(rock,impact.broken,impact.speed);
+  impactShake=Math.max(impactShake,impact.severity);impactShakeAge=0;
+  impactFeedbackUntil=clock.elapsedTime+1.8;
+  impactFeedbackText=impact.broken?'ROCK FRACTURED':impact.speed<8?'GENTLE CONTACT':'HULL IMPACT';
+  if(impact.broken){
+    for(let i=0;i<24;i++){
+      const spread=new THREE.Vector3(hash(i,rock.id)-.5,hash(i,rock.id+1)-.5,hash(i,rock.id+2)-.5).normalize();
+      impactDust.push({position:rock.position.clone(),velocity:rock.velocity.clone().addScaledVector(spread,1+impact.speed*.08),life:1.5+hash(i,91),color:new THREE.Color(rock.origin==='ring'?0xc3d8e0:0x8e8270)});
+    }
+    if(impactDust.length>160)impactDust.splice(0,impactDust.length-160);
+  }
   if(autopilotTarget)stopAutopilot('Asteroid impact. Manual control restored.');
   return true;
+}
+
+function updateImpactCamera(dt) {
+  impactShakeAge+=dt;
+  impactShake*=Math.exp(-7*dt);
+  if(reducedMotion.matches||introActive||introDive||previewTarget||impactShake<.002)return;
+  const envelope=impactShake*Math.exp(-impactShakeAge*2);
+  camera.translateX(Math.sin(impactShakeAge*43)*envelope*.12);
+  camera.translateY(Math.sin(impactShakeAge*31)*envelope*.08);
+  camera.rotateZ(Math.sin(impactShakeAge*37)*envelope*.009);
 }
 
 function logAsteroidEncounter(rock,broken,speed) {
@@ -706,13 +790,16 @@ function updateIdleShip(elapsed,dt) {
 
 function createSolarSystem() {
   createStars();
-  scene.add(new THREE.AmbientLight(0xb5d0e8, .42));
-  const sunlight=new THREE.PointLight(0xffe6bc,2300,0,1.05);
+  scene.add(new THREE.AmbientLight(0xb5d0e8, .09));
+  // Distances are compressed for play: preserve readable sunlight throughout
+  // the system while keeping a single correct light direction and terminator.
+  const sunlight=new THREE.PointLight(0xfff4e8,3.4,0,0);
   sunlight.position.set(0,0,0);scene.add(sunlight);
   const sunSurface=surfaceTexture(sunData);
   planetSurfaces.set('sun',sunSurface.image);
   sunMesh=new THREE.Mesh(new THREE.SphereGeometry(sunRadius,64,40),new THREE.MeshBasicMaterial({map:sunSurface,toneMapped:false}));
   sunMesh.userData.id='sun';sunMesh.userData.name='Sun';sunMesh.userData.radius=sunRadius;
+  applyPlanetSurface(sunMesh,'sun',image=>updatePlanetSurface('sun',image));
   scene.add(sunMesh);clickableMeshes.push(sunMesh);
   scene.add(makeGlow('255,151,59',175,.4));
   scene.add(makeGlow('255,207,112',90,.48));
@@ -730,8 +817,11 @@ function createSolarSystem() {
     const group=new THREE.Group();
     const surface=surfaceTexture(planet);
     planetSurfaces.set(planet.id,surface.image);
-    const mesh=new THREE.Mesh(new THREE.SphereGeometry(planet.radius,80,56),new THREE.MeshStandardMaterial({map:surface,bumpMap:['mercury','venus','earth','mars'].includes(planet.id)?surface:null,bumpScale:planet.radius*.025,roughness:1,metalness:0,emissive:new THREE.Color(planet.color),emissiveIntensity:.018}));
-    mesh.rotation.z=planet.id==='uranus'?1.65:.1;
+    const mesh=new THREE.Mesh(new THREE.SphereGeometry(planet.radius,80,56),new THREE.MeshStandardMaterial({map:surface,roughness:planet.id==='earth'?.72:1,metalness:0}));
+    applyPlanetSurface(mesh,planet.id,image=>updatePlanetSurface(planet.id,image));
+    const axialTilt={mercury:.0006,venus:3.096,earth:.409,mars:.439,jupiter:.055,saturn:.466,uranus:1.706,neptune:.494}[planet.id];
+    if(['saturn','uranus'].includes(planet.id))group.rotation.z=axialTilt;
+    else mesh.rotation.z=axialTilt;
     mesh.userData.name=planet.name;
     mesh.userData.id=planet.id;
     mesh.userData.radius=planet.radius;
@@ -739,15 +829,23 @@ function createSolarSystem() {
     let clouds=null;
     if(planet.id==='earth') {
       clouds=new THREE.Mesh(new THREE.SphereGeometry(planet.radius*1.018,80,56),new THREE.MeshStandardMaterial({map:earthCloudTexture(),transparent:true,depthWrite:false,roughness:1,opacity:.86}));
+      clouds.rotation.z=axialTilt;
       group.add(clouds);
-      const air=new THREE.Mesh(new THREE.SphereGeometry(planet.radius*1.065,48,32),new THREE.MeshBasicMaterial({color:0x83cef7,transparent:true,opacity:.07,side:THREE.BackSide,depthWrite:false}));
-      group.add(air);
-      group.add(makeGlow('66,147,231',planet.radius*4.5,.17));
+      loadPlanetTexture('earth_clouds',texture=>{
+        const fallback=clouds.material.map;
+        clouds.material.map=null;clouds.material.alphaMap=texture;
+        texture.colorSpace=THREE.NoColorSpace;clouds.material.needsUpdate=true;
+        fallback?.dispose();
+      },{data:true});
+      applyEarthNightLights(mesh);
+      group.add(createAtmosphere(planet.radius,0x6cbdff,.7));
       const lunarOrbit=new THREE.Mesh(new THREE.RingGeometry(moonOrbitRadius-.02,moonOrbitRadius+.02,128),new THREE.MeshBasicMaterial({color:0x76909b,transparent:true,opacity:.24,side:THREE.DoubleSide,depthWrite:false}));
       lunarOrbit.rotation.x=-Math.PI/2;group.add(lunarOrbit);
     }
     if(planet.id==='saturn') makeSaturnRings(group,planet.radius);
     if(planet.id==='uranus') makeRings(group,planet.radius*1.35,planet.radius*1.75);
+    if(['venus','jupiter','saturn','uranus','neptune'].includes(planet.id))group.add(createAtmosphere(planet.radius,planet.color,.28));
+    if(planet.id==='mars')group.add(createAtmosphere(planet.radius,0xd99670,.12));
     group.position.set(Math.cos(planet.angle)*planet.orbit*worldScale,0,Math.sin(planet.angle)*planet.orbit*worldScale);
     scene.add(group);
     bodies.push({data:planet,group,mesh,clouds});
@@ -757,6 +855,7 @@ function createSolarSystem() {
       const moonSurface=surfaceTexture(moonData);
       planetSurfaces.set(moonData.id,moonSurface.image);
       const moonMesh=new THREE.Mesh(new THREE.SphereGeometry(moonData.radius,40,28),new THREE.MeshStandardMaterial({map:moonSurface,roughness:1}));
+      applyPlanetSurface(moonMesh,'moon',image=>updatePlanetSurface('moon',image));
       moonMesh.userData.name='Moon';moonMesh.userData.id='moon';moonMesh.userData.radius=moonData.radius;
       moonGroup.add(moonMesh);
       moonGroup.position.copy(group.position).add(new THREE.Vector3(moonOrbitRadius,0,0));
@@ -779,15 +878,21 @@ function createSolarSystem() {
   nucleusGeometry.computeVertexNormals();
   const nucleus=new THREE.Mesh(nucleusGeometry,new THREE.MeshStandardMaterial({map:cometSurface,bumpMap:cometSurface,bumpScale:.13,roughness:1}));
   cometGroup.add(nucleus);
-  cometComa=makeGlow('205,224,229',21,.38);
+  cometComa=makeGlow('175,222,255',21,.65);
   cometGroup.add(cometComa);
   const hit=new THREE.Mesh(new THREE.SphereGeometry(10,16,12),new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}));
   hit.userData={id:'comet',name:'Comet',radius:cometData.radius};
   cometGroup.add(hit);clickableMeshes.push(hit);
   const tailGeometry=new THREE.BufferGeometry();
-  cometTailPositions=new Float32Array(210*3);
+  cometTailPositions=new Float32Array(cometTailCount*3);
+  cometTailColors=new Float32Array(cometTailCount*3);
   tailGeometry.setAttribute('position',new THREE.BufferAttribute(cometTailPositions,3));
-  cometTail=new THREE.Points(tailGeometry,new THREE.PointsMaterial({color:0xd7e3e5,size:2.1,sizeAttenuation:false,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending}));
+  tailGeometry.setAttribute('color',new THREE.BufferAttribute(cometTailColors,3));
+  tailGeometry.attributes.position.setUsage(THREE.DynamicDrawUsage);
+  tailGeometry.attributes.color.setUsage(THREE.DynamicDrawUsage);
+  const tailGlow=makeGlow('255,255,255',1,1);
+  cometTail=new THREE.Points(tailGeometry,new THREE.PointsMaterial({map:tailGlow.material.map,vertexColors:true,size:6,sizeAttenuation:true,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending}));
+  tailGlow.material.dispose();
   cometGroup.add(cometTail);
   scene.add(cometGroup);
   cometBody={data:cometData,group:cometGroup,mesh:nucleus};
@@ -797,25 +902,18 @@ function createSolarSystem() {
 
 function updateComet(dt) {
   if(!cometBody)return;
-  const orbit=cometPosition(Date.now()/1000);
+  cometElapsed+=dt;
+  const orbit=cometPosition(cometElapsed);
   cometBody.group.position.set(orbit.x,orbit.y,orbit.z);
   cometBody.mesh.rotation.y+=dt*.16;
-  cometComa.material.opacity=.12+orbit.activity*.72;
-  cometComa.scale.setScalar(11+orbit.activity*25);
-  cometTail.material.opacity=orbit.activity*.68;
-  const outward=cometBody.group.position.clone().normalize();
-  const across=new THREE.Vector3().crossVectors(outward,worldUp).normalize();
-  const above=new THREE.Vector3().crossVectors(outward,across).normalize();
-  for(let i=0;i<210;i++){
-    const phase=hash(i,57),distance=(5+phase*135)*orbit.activity;
-    const spread=(.3+phase*8)*Math.sqrt(orbit.activity);
-    const angle=hash(i,58)*Math.PI*2;
-    const offset=i*3;
-    cometTailPositions[offset]=outward.x*distance+across.x*Math.cos(angle)*spread+above.x*Math.sin(angle)*spread;
-    cometTailPositions[offset+1]=outward.y*distance+across.y*Math.cos(angle)*spread+above.y*Math.sin(angle)*spread;
-    cometTailPositions[offset+2]=outward.z*distance+across.z*Math.cos(angle)*spread+above.z*Math.sin(angle)*spread;
-  }
+  cometComa.material.opacity=.5+orbit.activity*.3;
+  cometComa.scale.setScalar(21+orbit.activity*22);
+  const earlier=cometPosition(cometElapsed-.1),later=cometPosition(cometElapsed+.1);
+  const orbitalVelocity=new THREE.Vector3(later.x-earlier.x,later.y-earlier.y,later.z-earlier.z);
+  const shape=writeCometTail(cometTailPositions,cometTailColors,reducedMotion.matches?0:cometElapsed,orbit.activity,cometBody.group.position,orbitalVelocity);
+  cometTail.material.opacity=shape.opacity;
   cometTail.geometry.attributes.position.needsUpdate=true;
+  cometTail.geometry.attributes.color.needsUpdate=true;
   cometTail.geometry.computeBoundingSphere();
 }
 
@@ -829,7 +927,7 @@ function lookAtPoint(point) {
 
 function setupStart() {
   const earth=bodies.find(b=>b.data.id==='earth');
-  shipPosition.copy(earth.group.position).add(new THREE.Vector3(10,4,18));
+  shipPosition.copy(earth.group.position).add(new THREE.Vector3(10,orbitalSafeHeight(moonData.radius),18));
   lookAtPoint(earth.group.position);
   updateCamera(0,true);
   camera.fov=52;
@@ -839,7 +937,7 @@ function setupStart() {
 function introShot(elapsed) {
   const earth=bodies.find(body=>body.data.id==='earth').group.position;
   const angle=introOrbitAngle+elapsed*.055;
-  const shipPosition=new THREE.Vector3(earth.x+Math.cos(angle)*introOrbitRadius,earth.y+4+Math.sin(elapsed*.35)*.35,earth.z+Math.sin(angle)*introOrbitRadius);
+  const shipPosition=new THREE.Vector3(earth.x+Math.cos(angle)*introOrbitRadius,earth.y+orbitalSafeHeight(moonData.radius)+Math.sin(elapsed*.35)*.35,earth.z+Math.sin(angle)*introOrbitRadius);
   const shipQuaternion=new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.sin(elapsed*.32)*.025,Math.PI-angle,Math.sin(elapsed*.48)*.04,'YXZ'));
   const cameraPosition=earth.clone().add(new THREE.Vector3(22+Math.sin(elapsed*.14)*1.5,13+Math.sin(elapsed*.2)*.6,38+Math.cos(elapsed*.14)*1.5));
   const cameraTarget=earth.clone().lerp(shipPosition,.64);
@@ -892,10 +990,12 @@ function startGame(discoveryStart=false) {
   }
   discoveryDrift=false;
   shipPosition.copy(shipMesh.position);
-  yaw=targetYaw=shipMesh.rotation.y;
-  pitch=shipMesh.rotation.x;
-  targetPitch=0;
-  bank=shipMesh.rotation.z;
+  // Read the displayed orientation in the flight controller's axis order.
+  // XYZ Euler components can turn a gentle intro tilt into a near-180° roll.
+  shipRotation.setFromQuaternion(shipMesh.quaternion,'YXZ');
+  yaw=targetYaw=shipRotation.y;
+  pitch=targetPitch=shipRotation.x;
+  bank=shipRotation.z;
   introDive=!reducedMotion.matches;
   if(introDive){
     launchTransition={
@@ -1037,6 +1137,10 @@ function restoreFlightState(savedState=null) {
         document.querySelector('#previewBanner').hidden=false;
         document.querySelector('#app').classList.add('destination-preview');
       }
+    }
+    if(gameMode==='exploration'&&!autopilotTarget&&!parkedTarget){
+      const earth=bodies.find(body=>body.data.id==='earth');
+      clearOrbitalSweep(shipPosition,earth.group.position,moonOrbitRadius,moonData.radius);
     }
     if(state.discoveryOpen)setDiscoveryOpen(true);
     if(state.guideOpen)showGuide();
@@ -1248,6 +1352,14 @@ function applyCameraTransition(dt) {
 }
 
 function updateCamera(dt,instant=false) {
+  // Narrow screens reserve their lower half for the two guide panels.
+  // Shift the preview into the open space and fit its full horizontal extent.
+  const narrowPreview=Boolean(previewTarget)&&camera.aspect<.75;
+  if(narrowPreview){
+    if(!camera.view?.enabled||camera.view.fullWidth!==window.innerWidth||camera.view.fullHeight!==window.innerHeight){
+      camera.setViewOffset(window.innerWidth,window.innerHeight,0,window.innerHeight*.21,window.innerWidth,window.innerHeight);
+    }
+  }else if(camera.view?.enabled)camera.clearViewOffset();
   if(introActive){updateIntroFlight();return;}
   if(launchTransition){
     const transition=launchTransition;
@@ -1293,18 +1405,32 @@ function updateCamera(dt,instant=false) {
   shipMesh.position.copy(shipPosition);
   shipMesh.rotation.copy(shipRotation);
   const cameraDistance=camera.position.distanceTo(shipPosition);
-  shipMesh.visible=cameraTransition?cameraDistance>5:cameraMode!=='first-person';
+  for(const guide of orbitGuides)guide.visible=!previewTarget;
+  shipMesh.visible=!previewTarget&&(cameraTransition?cameraDistance>5:cameraMode!=='first-person');
   if(previewTarget) {
     const center=previewTarget.group.position;
     const radius=previewTarget.data.radius;
     previewOrbitAngle=reducedMotion.matches?previewOrbitTargetAngle:THREE.MathUtils.damp(previewOrbitAngle,previewOrbitTargetAngle,5,dt);
+    if(previewTarget.data.id==='comet'){
+      const outward=center.clone().normalize();
+      const side=new THREE.Vector3().crossVectors(outward,worldUp).normalize();
+      side.applyAxisAngle(worldUp,previewOrbitAngle);
+      const length=cometTailShape(cometPosition(cometElapsed).activity).length;
+      const focus=center.clone().addScaledVector(outward,length*.46);
+      const fit=Math.max(1,.9/camera.aspect);
+      camera.position.copy(focus).addScaledVector(side,length*1.55*fit).addScaledVector(worldUp,length*.35*fit);
+      camera.lookAt(focus);
+      applyCameraTransition(dt);
+      return;
+    }
     const sunward=previewTarget.data.id==='sun'
       ?shipPosition.clone().normalize()
-      :previewTarget.data.id==='moon'
-        ?center.clone().sub(bodies.find(body=>body.data.id==='earth').group.position).normalize()
-        :center.clone().multiplyScalar(-1).normalize();
-    sunward.applyAxisAngle(worldUp,previewOrbitAngle);
-    const viewPosition=center.clone().addScaledVector(sunward,radius*2.8+6).add(new THREE.Vector3(0,radius*.55+2,0));
+      :center.clone().multiplyScalar(-1).normalize();
+    sunward.applyAxisAngle(worldUp,previewOrbitAngle+(previewTarget.data.id==='sun'?0:.6));
+    const previewDistance=previewTarget.data.id==='saturn'?5.8:previewTarget.data.id==='uranus'?4.4:2.8;
+    const elevation=previewTarget.data.id==='saturn'?2.2:.55;
+    const fit=Math.max(1,.9/camera.aspect);
+    const viewPosition=center.clone().addScaledVector(sunward,(radius*previewDistance+6)*fit).add(new THREE.Vector3(0,(radius*elevation+2)*fit,0));
     camera.position.copy(viewPosition);
     camera.lookAt(center);
     applyCameraTransition(dt);
@@ -1334,6 +1460,16 @@ function setCameraMode(mode) {
   document.querySelector('#app').classList.toggle('camera-chase',mode==='chase');
   document.querySelectorAll('[data-camera]').forEach(button=>button.setAttribute('aria-pressed',button.dataset.camera===mode?'true':'false'));
   updateCamera(0);
+}
+
+function updatePlanetSurface(id,image) {
+  const surface=document.createElement('canvas');
+  surface.width=image.width;surface.height=image.height;
+  surface.getContext('2d').drawImage(image,0,0);
+  planetSurfaces.set(id,surface);
+  const row=document.querySelector(`.planet-row[data-id="${id}"]`);
+  const planet=destinations.find(item=>item.id===id);
+  if(row&&planet)row.querySelector('.planet-mini')?.replaceWith(createPlanetIcon(planet));
 }
 
 function createPlanetIcon(planet) {
@@ -2336,7 +2472,7 @@ function autopilotGuidance() {
     const forward=route.clone().normalize();
     let blocking=null;
     let nearestAlong=Infinity;
-    for(const obstacle of [{position:new THREE.Vector3(),radius:sunRadius+2},...bodies.filter(other=>other!==body).map(other=>({position:other.group.position,radius:other.data.radius+1.4})),...asteroidObstacles]) {
+    for(const obstacle of [{position:new THREE.Vector3(),radius:sunRadius+2},...bodies.filter(other=>other!==body).map(other=>({position:other.group.position,radius:other.data.radius+1.4})),...asteroidObstacles.filter(rock=>rock.alive)]) {
       if(obstacle.alive===false)continue;
       const along=obstacle.position.clone().sub(shipPosition).dot(forward);
       if(along<0||along>routeLength||along>=nearestAlong)continue;
@@ -2437,25 +2573,39 @@ function moveShip(dt) {
     if(autopilotTarget)stopAutopilot('Course blocked. Manual control restored.');
     return;
   }
-  for(const rock of asteroidRocks){
-    if(!rock.alive||next.distanceToSquared(rock.position)>=rock.radius*rock.radius)continue;
-    if(hitAsteroid(rock,next))return;
+  const contacts=[];
+  for(const rock of [...asteroidRocks,...saturnShards]){
+    if(!rock.alive||!rock.initialized&&rock.origin==='ring')continue;
+    const previous=rock.previousPosition??rock.position;
+    const reach=rock.radius+velocity.length()*dt+previous.distanceTo(rock.position);
+    if(shipPosition.distanceToSquared(previous)>reach*reach)continue;
+    const contact=rockContact(shipPosition,next,previous,rock.radius,rock.position);
+    if(contact)contacts.push({rock,contact});
   }
-  if(!autopilotTarget){
-    const saturn=bodies.find(body=>body.data.id==='saturn');
-    if(saturn&&next.distanceToSquared(saturn.group.position)<125*125)for(const shard of saturnShards){
-      if(!shard.alive||next.distanceToSquared(shard.position)>=shard.radius*shard.radius)continue;
-      if(hitAsteroid(shard,next))return;
-    }
-  }
+  contacts.sort((a,b)=>a.contact.fraction-b.contact.fraction);
+  for(const {rock,contact} of contacts)if(hitAsteroid(rock,contact,dt))return;
   shipPosition.copy(next);
+}
+
+function clearShipBodyOverlaps() {
+  if(introActive||introDive||returningToIntro)return;
+  let cleared=clearBodyOverlap(shipPosition,velocity,sunMesh.position,sunRadius+2);
+  for(const body of bodies){
+    if(clearBodyOverlap(shipPosition,velocity,body.group.position,body.data.radius+1.4))cleared=true;
+  }
+  if(cleared){
+    discoveryDrift=false;
+    parkedTarget=null;
+    arrivalPreview=false;
+    if(autopilotTarget)stopAutopilot('Moving body contact. Manual control restored.');
+  }
 }
 
 function updateBodies(elapsed,dt) {
   sunMesh.rotation.y+=dt*.025;
   bodies.forEach(({data,group,mesh,clouds})=>{
     if(data.id==='moon')return;
-    if(data.id==='comet'){updateComet(dt);return;}
+    if(data.id==='comet')return;
     data.angle+=dt*data.speed;
     group.position.set(Math.cos(data.angle)*data.orbit*worldScale,0,Math.sin(data.angle)*data.orbit*worldScale);
     mesh.rotation.y+=dt*.08;
@@ -2464,7 +2614,6 @@ function updateBodies(elapsed,dt) {
   const earth=bodies.find(body=>body.data.id==='earth');
   moonBody.group.position.copy(earth.group.position).add(new THREE.Vector3(Math.cos(elapsed*.14)*moonOrbitRadius,0,Math.sin(elapsed*.14)*moonOrbitRadius));
   moonBody.mesh.rotation.y+=dt*.04;
-  updateSaturnRings(elapsed);
 }
 
 function updateHud(elapsed) {
@@ -2487,6 +2636,8 @@ function updateHud(elapsed) {
   if(discoveryDrift)document.querySelector('#bankReadout').textContent='COASTING';
   if(boostAmount>.45)document.querySelector('#bankReadout').textContent='BOOST ENGAGED';
   if(autopilotTarget)document.querySelector('#bankReadout').textContent='AUTOPILOT';
+  if(elapsed<impactFeedbackUntil)document.querySelector('#bankReadout').textContent=impactFeedbackText;
+  if(selectedId==='comet')document.querySelector('#planetDistance').textContent=`${Math.round(cometBody.group.position.length())} units`;
   updateSignal();
   document.querySelector('.hud-arc').style.transform=`rotate(${THREE.MathUtils.radToDeg(bank)*.7}deg)`;
   const hit=pointedPlanet();
@@ -2548,21 +2699,32 @@ function resize() {
 function drawBoostStreaks(elapsed) {
   const width=window.innerWidth,height=window.innerHeight;
   speedContext.clearRect(0,0,width,height);
-  if(reducedMotion.matches||boostAmount<.08)return;
+  if(reducedMotion.matches||introActive||introDive||previewTarget||boostAmount<.08)return;
   const reach=Math.hypot(width,height)*.52;
   const intensity=boostAmount*boostAmount;
   speedContext.lineWidth=1;
-  for(let i=0;i<48;i++) {
+  for(let i=0;i<24;i++) {
     const angle=hash(i,19)*Math.PI*2;
     const phase=(hash(i,23)+elapsed*(.22+hash(i,29)*.1))%1;
     const radius=(.12+phase*.8)*reach;
     const length=(12+phase*40)*intensity;
     const dx=Math.cos(angle),dy=Math.sin(angle);
-    speedContext.strokeStyle=`rgba(255,255,255,${intensity*(.045+phase*.13)})`;
+    speedContext.strokeStyle=`rgba(220,236,245,${intensity*(.02+phase*.06)})`;
     speedContext.beginPath();
     speedContext.moveTo(width/2+dx*radius,height/2+dy*radius);
     speedContext.lineTo(width/2+dx*(radius+length),height/2+dy*(radius+length));
     speedContext.stroke();
+  }
+}
+
+let introEffectsDt=0;
+let worldEffectsReady=false;
+
+function renderScene() {
+  renderer.render(scene,camera);
+  if(!firstFrameRendered){
+    firstFrameRendered=true;
+    requestAnimationFrame(()=>document.querySelector('#sceneCurtain').classList.remove('covered'));
   }
 }
 
@@ -2571,25 +2733,37 @@ function animate() {
   const dt=Math.min(clock.getDelta(),.05);
   const elapsed=clock.elapsedTime;
   updateBodies(elapsed,dt);
-  updateAsteroids(dt);
+  introEffectsDt+=dt;
+  // The title scene needs smooth ship and planet motion, but distant debris
+  // and the comet's particle tail can update at 10 Hz until flight begins.
+  if(!worldEffectsReady||!introActive||introEffectsDt>=.1){
+    updateComet(introEffectsDt);
+    updateSaturnRings(elapsed,introEffectsDt);
+    updateAsteroids(introEffectsDt);
+    introEffectsDt=0;
+    worldEffectsReady=true;
+  }
+  if(introActive){
+    updateCamera(dt);
+    renderScene();
+    return;
+  }
   moveShip(dt);
+  clearShipBodyOverlaps();
   updateVoyageProgress();
   updateFlybyLog();
   const thrust=!introActive&&!introDive&&!returningToIntro&&(Boolean(autopilotTarget)||keys.has('KeyW')||keys.has('KeyS'));
   shipAudio.update(velocity.length(),boostAmount,Boolean(previewTarget),thrust);
   updateCamera(dt);
+  updateImpactCamera(dt);
   updateIdleShip(elapsed,dt);
   updateScanner(dt,elapsed);
   drawBoostStreaks(elapsed);
   updateHud(elapsed);
   if(!introActive&&elapsed-lastFlightSave>.5){saveFlightState();lastFlightSave=elapsed;}
-  renderer.render(scene,camera);
+  renderScene();
   capturePhoto();
   captureLogSnapshots();
-  if(!firstFrameRendered){
-    firstFrameRendered=true;
-    requestAnimationFrame(()=>document.querySelector('#sceneCurtain').classList.remove('covered'));
-  }
 }
 
 let firstFrameRendered=false;
@@ -2613,4 +2787,62 @@ setupIntro();
 resize();
 window.addEventListener('resize',resize);
 window.addEventListener('pagehide',saveFlightState);
-animate();
+
+async function prepareIntro() {
+  const screen=document.querySelector('#loadingScreen');
+  const status=document.querySelector('#loadingStatus');
+  const progress=document.querySelector('#loadingProgress');
+  const nextFrame=()=>new Promise(resolve=>requestAnimationFrame(resolve));
+  try{
+    await nextFrame();
+    status.textContent='Loading planetary surfaces…';
+    const photos=Object.values(planetPhotos).map(({file})=>{
+      const photo=new Image();
+      photo.src=`${import.meta.env.BASE_URL}planet-photos/${file}`;
+      return photo.decode().catch(()=>{});
+    });
+    await Promise.all([
+      waitForPlanetTextures((completed,total)=>{progress.value=total?completed/total*65:65;}),
+      ...photos,
+      document.fonts.ready,
+    ]);
+    status.textContent='Preparing planet details…';
+    // Upload every material map before revealing the scene, even maps used
+    // by planets outside the intro camera's view.
+    const textures=new Set();
+    scene.traverse(object=>{
+      const materials=Array.isArray(object.material)?object.material:[object.material];
+      for(const material of materials){
+        if(!material)continue;
+        for(const value of Object.values(material))if(value?.isTexture)textures.add(value);
+      }
+    });
+    let uploaded=0;
+    for(const texture of textures){
+      renderer.initTexture(texture);
+      progress.value=65+(++uploaded/textures.size)*25;
+      await nextFrame();
+    }
+    status.textContent='Preparing the first view…';
+    updateBodies(0,0);
+    updateComet(0);
+    updateSaturnRings(0,0);
+    updateAsteroids(0);
+    await renderer.compileAsync(scene,camera);
+    renderer.render(scene,camera);
+    // Finish the initial GPU uploads while the loading screen is still up.
+    renderer.getContext().finish();
+    progress.value=100;
+    await nextFrame();
+    clock.start();
+    document.querySelector('#introOverlay').inert=false;
+    screen.hidden=true;
+    animate();
+  }catch(error){
+    console.error('Solar system preparation failed',error);
+    status.textContent='Unable to prepare the scene. Refresh to retry.';
+    progress.hidden=true;
+  }
+}
+
+prepareIntro();
