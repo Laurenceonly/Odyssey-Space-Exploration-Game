@@ -2,3 +2,11 @@ node_modules/
 dist/
 .playwright-cli/
 output/playwright/
+.vercel/
+.openai/
+output/deploy-playtest.mjs
+output/odyssey-playtest.tar.gz
+output/playtest-site/
+
+.vercel
+.env*
