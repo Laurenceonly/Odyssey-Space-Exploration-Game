@@ -1,27 +1,27 @@
 # Odyssey — Solar System Explorer
 
-A first-person and third-person space exploration prototype built for the browser with Three.js. Odyssey combines free flight, guided discovery, and an interactive field guide to make exploring the solar system feel like a journey.
+A first-person, browser-based space exploration prototype built with Three.js.
 
-![Saturn and its rings in Odyssey's Exploration mode](docs/images/odyssey-saturn.webp)
+## Run
 
-*Saturn in Exploration mode, with the destination list and Field Guide open.*
+```sh
+npm install
+npm run dev
+```
 
-## Highlights
+Open the local URL printed by Vite and choose a mode on the intro screen. The intro shows the ship flying slowly near Earth before the camera moves into third-person flight. Refreshing during a flight resumes at the ship's last position and heading in the same browser tab. Use **W/S** to fly forward and back, **A/D** to turn left and right, **Q/E** to pitch the nose up and down, and **Shift+W** to boost forward. While holding **S**, A/D and the left/right arrow keys steer in reverse, like backing up a car. Reverse flight stays at normal speed and cancels the boost effect. Boost spools up and winds down, with brighter engine exhaust, subtle speed streaks, and a wider camera view. Q/E rotates the ship without moving it, is limited to 75° above or below level, and slowly returns to level after release. Press W to fly along the current heading. The **arrow keys** provide alternate turn and pitch controls. The ship banks into turns and carries visible navigation, engine, and nose lights. Switch between **First person** and **Third person** cameras with the buttons or **C**. Use the gear button to name your ship and pilot; those names are saved in your browser.
 
-- Explore the Sun, planets, Earth's Moon, and a comet through free flight or autopilot.
-- Choose **Discovery** to scan and reveal 11 destinations, or **Exploration** to browse them freely.
-- Read NASA-sourced facts and credited imagery in each world's Field Guide.
-- Record flybys, scans, and encounters in the Captain's log, with a photo gallery for flight snapshots.
-- Follow optional Voyages and scan landmarks such as Olympus Mons, the Great Red Spot, and the Cassini Division.
-- Customize a ship and pilot, with original music and responsive engine and collision audio.
-- Use reduced motion settings for more immediate camera changes.
+The intro quotes Neil Armstrong's first step on the Moon, using [NASA's published wording](https://www.nasa.gov/history/50-years-ago-one-small-step-one-giant-leap/). Display text uses Oxanium; descriptions use DM Sans.
 
-## Built with
+Click a destination, including Earth's Moon, to glide into a preview and open its info panel while the ship stays in place. Aim the ship's **+ reticle** at a planet to see its name; press **F** to open its info without entering preview, and press **F** again to close it. Choose **Fly to** or press **P** to return to the ship and engage autopilot. The ship turns toward the destination, boosts during the long cruise, steers around nearby bodies, and slows before arriving at a viewing distance. Use a flight key to take manual control, or press the destination button again to cancel the flight. **Return to ship** closes a preview without moving the ship. Reduced motion settings make camera switches immediate.
 
-Three.js, JavaScript, Vite, and browser storage. The 3D scene includes animated planets, Saturn's particle rings, an asteroid belt, ship effects, and a comet. Progress and photos are saved in the browser for each game mode.
+The Destinations panel has a close button and a labeled button to reopen it; its closed state is saved in this browser. The field guide opens when you choose a destination or press **F** while aiming the + reticle at a planet or the Sun. Close it with **F** or its close button. Reaching a planet does not open the guide automatically. **Explore more facts** shows rotation, orbit, atmosphere, notable features, and a link to NASA's full fact sheet for each world and the Sun. The Sun can be previewed from a safe distance but cannot be selected for autopilot. Planetary orbits and the asteroid belt are spaced 3.2 times farther apart to make flights take longer. The space backdrop is nearly black.
 
-## Design notes
+Field guide images in `public/planet-photos/` are NASA spacecraft photos or photo mosaics, credited and linked beside each image. Their source pages are recorded in `src/planet-photos.js`; `scripts/download-planet-photos.ps1` records the downloaded asset URLs. The Sun image is an ultraviolet observation, and the Earth image is a satellite mosaic.
 
-Odyssey favors readable navigation over astronomical scale: planets are enlarged and orbital distances compressed. Its Field Guide uses credited NASA imagery and source links. The three continuous music scores and flight sound effects were created for the project.
+Three original, continuous scores play in the browser: the original Odyssey theme, the cinematic Event Horizon, and the calmer Starlight Drift. Ship settings lets you choose a track or a playlist that rotates through all three; the choice and the 0%–150% music volume are saved in this browser. Track changes crossfade while you fly. Engine sound follows speed and boost, and the music softens during boost so flight cues remain clear. The sound button in the top bar mutes music and effects. The game attempts to start music on load; browsers that restrict autoplay begin playback on the first click or key press.
 
-This is an interactive prototype, not a scientific simulator. Flight progress is local to the browser and does not sync between devices.
+The planets are enlarged relative to the ship so they dominate the flight view. Orbital distances remain compressed for navigation rather than following one astronomical scale.
+The asteroid belt between Mars and Jupiter contains scattered 3D rocks. Small asteroids fracture into drifting fragments when struck; larger ones recoil and spin, and autopilot routes around them. A solid impact slows and deflects the ship.
+While parked, the ship makes tiny attitude corrections with occasional side thruster flashes, and belt asteroids tumble slowly in place. These idle effects stop under reduced motion settings.
+Choose **Discovery** or **Exploration** on the intro screen. Discovery always offers **Resume game** and **New game**. Resume restores the saved ship position and scans; New game clears Discovery progress and starts far beyond the planets, facing the solar system. The ship coasts forward on its own until you press a flight key, which smoothly hands you control. In Discovery mode, worlds stay unknown and locked in Destinations until you scan them; their names and Field Guide facts remain hidden, and autopilot cannot target them. Aim the ship's + reticle at a nearby world and hold **R** to scan it. Completed scans briefly frame the planet, reveal its name and a fact, unlock that world in Destinations, and count toward all 10 discoveries. Press a flight key or Escape to end the reveal early. Scan progress resets if you release R or lose the target; completed discoveries and the selected mode are saved in this browser. Scanning never opens the Field Guide automatically. Exploration mode lets you select, preview, read about, and autopilot to every world without scanning.
