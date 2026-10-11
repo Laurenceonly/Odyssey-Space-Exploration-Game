@@ -39,3 +39,9 @@ The production-preview analytics endpoint was stubbed only during local performa
 Phone-sized checks used a resized Chromium viewport, not a physical phone. Safari, Firefox, touch gestures, photo download/delete, and every possible autopilot route were not covered. Chromium emitted expected audio-autoplay warnings before a user gesture. Early harness attempts were excluded after session interruptions and an omitted frame-duration argument in the test; only completed corrected runs appear above.
 
 Local artifacts are under `output/playwright/` and excluded from Git.
+
+## 2026-10-11 21:31:29 — Hosted verification
+
+GitHub `main` received commit `3e68224` (analytics initialization, Field Guide scrolling, and development documentation). The live site then served the expected `/assets/index-J5_xYZU1.js` production bundle with HTTP 200. Its analytics script loaded with HTTP 200 and SDK version 2.0.1; the hosted page had no page errors.
+
+No page-view POST was observed in Chromium automation. Inspection of Vercel's served script confirmed an early return when `navigator.webdriver` is true or the user agent contains `Headless`. The test did not bypass that filter or manufacture visitor data. SDK deployment and script availability are verified; dashboard ingestion remains unverified because no normal visitor or authenticated dashboard was available in the connected tools. To confirm counts, visit the [live game](https://odyssey-explorer-psi.vercel.app) in a normal browser and check the project's Web Analytics dashboard.

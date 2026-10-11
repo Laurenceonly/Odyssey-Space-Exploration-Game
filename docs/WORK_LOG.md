@@ -35,3 +35,10 @@ Copy this template for future updates and replace the timestamp with the current
 - Validation: 22 regression tests, audio checks, production build, all 11 previews, Moon autopilot, photo capture, flight resume, gentle/heavy collision behavior, and scan persistence passed. Completed corrected browser runs had no page errors.
 - Measured the production preview: 2.565-second cleared-cache loading, 2.340-second warm loading, and approximately 60 fps callback timing in intro, Saturn preview, stationary asteroid-belt, and forward-flight samples. Startup includes an approximately one-second main-thread task requiring targeted profiling before optimization.
 - Details: [validation record](VALIDATION.md) and [performance baseline](PERFORMANCE.md). First-time guidance remains deferred as requested.
+
+## 2026-10-11 21:31:29 — GitHub and hosted verification
+
+- Committed and pushed `3e68224`: README review, dated development records, analytics initialization, and the Field Guide scrolling fix.
+- Verified Vercel served the matching production JavaScript bundle, loaded Analytics SDK 2.0.1 successfully, and produced no page errors.
+- Vercel's served analytics script filters automated/headless browsers. No page-view POST was observed; dashboard ingestion requires a normal visitor check and remains unverified. No bot-filter bypass was used.
+- Refreshed the commit-history snapshot to include this implementation commit. The snapshot's own recording commit appears on the next refresh, as documented in the history.
