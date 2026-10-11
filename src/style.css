@@ -289,6 +289,11 @@ button:focus-visible,.intro-play:focus-visible{outline-color:#ffffff}
 @media(max-width:800px){.info-panel .planet-art{height:150px;min-height:150px}}
 @media(max-width:540px){.destination-panel,.info-panel{bottom:142px;height:310px;max-height:calc(100dvh - 212px)}.info-panel{overflow-y:auto}.info-panel .planet-art{height:110px;min-height:110px}.info-panel .info-main{padding-top:5px}.planet-art-photo{height:calc(100% - 21px)}.planet-photo-credit{bottom:3px;font-size:7px}}
 
+/* Keep guide actions reachable without scrolling the entire flight scene. */
+.info-panel{overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#666 transparent}
+.info-panel .planet-art,.info-panel .info-main{flex-shrink:0}
+@media(min-width:541px) and (max-width:800px){.info-panel{bottom:120px;min-height:0}}
+
 .settings-card select{width:100%;height:44px;padding:0 12px;border:1px solid #606060;background:#101010;color:#f1f1f1;font:500 13px 'Oxanium',sans-serif;outline:0;cursor:pointer}
 .settings-card select:focus-visible{border-color:#fff;box-shadow:0 0 0 2px rgba(255,255,255,.2)}
 .music-now-playing{margin-top:8px;color:#a9a9a9;font:500 10px 'Oxanium',sans-serif}

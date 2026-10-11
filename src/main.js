@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { inject } from '@vercel/analytics';
 import { createShipAudio } from './audio.js';
 import { discovery } from './discovery.js';
 import { planetPhotos } from './planet-photos.js';
@@ -10,6 +11,8 @@ import { orbitalSafeHeight, clearOrbitalSweep, clearBodyOverlap } from './body-c
 import { createAtmosphere } from './atmosphere.js';
 import { applyPlanetSurface, applyEarthNightLights, applyRingShadow, loadPlanetTexture, waitForPlanetTextures } from './planet-materials.js';
 import { landmarks, surfaceLandmarkAt } from './landmarks.js';
+
+if (import.meta.env.PROD) inject({ mode: 'production' });
 
 const canvas = document.querySelector('#universe');
 const speedCanvas = document.querySelector('#speedFx');
