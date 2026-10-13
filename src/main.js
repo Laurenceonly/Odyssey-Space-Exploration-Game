@@ -2459,6 +2459,35 @@ function closeLog() {
 }
 
 function setupControls() {
+  let mouseDrag=null;
+  const canLook=()=>!introActive&&!introDive&&!returningToIntro&&!surfaceEntryPending&&!modalOpen();
+  function stopLooking(){
+    const pointerId=mouseDrag?.id;mouseDrag=null;
+    canvas.classList.remove('looking');
+    if(pointerId!==undefined&&canvas.hasPointerCapture(pointerId))canvas.releasePointerCapture(pointerId);
+  }
+  canvas.addEventListener('pointerdown',event=>{
+    if(event.pointerType==='touch'||event.button!==0||!canLook())return;
+    if(autopilotTarget&&!previewTarget&&!earthSurface?.active)return;
+    mouseDrag={id:event.pointerId,x:event.clientX,y:event.clientY};
+    canvas.setPointerCapture(event.pointerId);
+    canvas.classList.add('looking');canvas.focus({preventScroll:true});event.preventDefault();
+  });
+  canvas.addEventListener('pointermove',event=>{
+    if(!mouseDrag||event.pointerId!==mouseDrag.id)return;
+    if(!canLook()||!(event.buttons&1)){stopLooking();return;}
+    const dx=event.clientX-mouseDrag.x,dy=event.clientY-mouseDrag.y;
+    mouseDrag.x=event.clientX;mouseDrag.y=event.clientY;
+    if(earthSurface?.active)earthSurface.drag(dx,dy);
+    else if(previewTarget)previewOrbitTargetAngle-=dx*.006;
+    else if(!autopilotTarget){
+      discoveryDrift=false;targetYaw-=dx*.006;
+      targetPitch=THREE.MathUtils.clamp(targetPitch-dy*.004,-maxManualPitch,maxManualPitch);
+    }
+    event.preventDefault();
+  });
+  for(const event of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(event,stopLooking);
+  window.addEventListener('blur',stopLooking);
   const prevent=new Set(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space']);
   const manualCodes=new Set(['KeyW','KeyS','KeyA','KeyD','KeyQ','KeyE','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','ShiftLeft','ShiftRight']);
   document.addEventListener('keydown',event=>{

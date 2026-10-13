@@ -84,7 +84,7 @@ Field guide images in `public/planet-photos/` are NASA spacecraft photos or phot
 
 Odyssey currently supports desktop and laptop browsers with a keyboard and mouse. Phones and tablets show a lightweight “Best explored on desktop” notice instead of loading the game, planet assets, or audio. Mobile gameplay is unavailable; the joystick and touch-only actions have been removed. Smaller desktop windows remain supported, and device detection does not use viewport width alone. Touchscreen laptops with a fine pointer can still play.
 
-On Earth, use **WASD** to walk, drag with the mouse to look, **J or Space** to jump, **Shift** to run, **C** to switch camera views, and **E** to board within 8 metres. Camera views are also available through the buttons.
+On Earth, use **WASD** to walk, hold the left mouse button and drag the scene to look, **J or Space** to jump, **Shift** to run, **C** to switch camera views, and **E** to board within 8 metres. Camera views are also available through the buttons.
 
 ## Landing on Earth
 

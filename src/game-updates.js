@@ -4,6 +4,7 @@ export const gameUpdates = [
     "title": "Desktop exploration and a smoother launch",
     "summary": "Odyssey now focuses on desktop play, with a smoother launch and a clearer experience.",
     "notes": [
+      "Fixed: Mouse drag-to-look works on Earth in both camera views. Releasing the mouse stops looking, and menus pause camera input.",
       "Improved: The tab icon is dark in light browser themes and white in dark themes.",
       "Added: Phones and tablets show a desktop-only notice without loading the 3D game.",
       "Removed: Mobile gameplay, the joystick, and touch-only action buttons. Play on a desktop or laptop with a keyboard and mouse.",
