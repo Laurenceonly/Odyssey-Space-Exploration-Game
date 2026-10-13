@@ -27,11 +27,16 @@ class Node {
   stop(){}
 }
 class FakeAudioContext {
+  state='suspended';
+  listeners=new Set();
+  gains=[];
+  addEventListener(name,listener){if(name==='statechange')this.listeners.add(listener);}
+
   currentTime=0;
   sampleRate=8000;
   destination=new Node();
   constructor(){clock=this;}
-  createGain(){return new Node();}
+  createGain(){const node=new Node();this.gains.push(node);return node;}
   createOscillator(){return new Node();}
   createBiquadFilter(){return new Node();}
   createConvolver(){return new Node();}
@@ -39,12 +44,14 @@ class FakeAudioContext {
   createStereoPanner(){return new Node();}
   createBufferSource(){return new Node();}
   createBuffer(channels,length){return {getChannelData:()=>new Float32Array(length)};}
-  resume(){return Promise.resolve();}
+  resume(){this.state='running';for(const listener of this.listeners)listener();return Promise.resolve();}
 }
 globalThis.window={AudioContext:FakeAudioContext};
 
 const audio=createShipAudio();
+assert.equal(audio.isPlaying(),false);
 assert.equal(audio.start(),true);
+assert.equal(audio.isPlaying(),true);
 assert.equal(audio.getMusicSelection(),'playlist');
 assert.equal(audio.getActiveTrackName(),'Odyssey');
 for(let i=0;i<9;i++){clock.currentTime+=11;tick();}
@@ -54,10 +61,20 @@ assert.equal(audio.getActiveTrackName(),'Starlight Drift');
 assert.equal(saved.get('odyssey-music-track'),'starlight');
 assert.equal(createShipAudio().getMusicSelection(),'starlight');
 audio.setMusicVolume(120);
+const musicGain=clock.gains.find(node=>Math.abs(node.gain.value-.66)<1e-8);
+assert.ok(musicGain,'intro volume updates without an animation frame');
+audio.setMusicVolume(0);
+assert.equal(musicGain.gain.value,0);
+assert.equal(audio.isPlaying(),false);
+assert.equal(audio.isRunning(),true,'zero music volume keeps the sound system running');
+audio.setMusicVolume(120);
 audio.update(20,.3);
 audio.asteroidImpact(true,14,.6,.5,.3);
 clock.currentTime+=1;
 audio.asteroidImpact(false,3,3,-.5,.1);
 audio.setEnabled(false);
+assert.equal(audio.isPlaying(),false);
+assert.equal(audio.isRunning(),false);
 audio.setEnabled(true);
+assert.equal(audio.isPlaying(),true);
 console.log('Audio scheduling, playlist rotation, track switching, and saved choice passed.');

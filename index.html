@@ -2,15 +2,15 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="theme-color" content="#000000" />
     <link rel="stylesheet" href="/src/style.css" />
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='15' fill='%23ffffff'/%3E%3Cellipse cx='32' cy='32' rx='29' ry='10' fill='none' stroke='%23ffffff' stroke-width='3' transform='rotate(-25 32 32)'/%3E%3C/svg%3E" />
+    <link rel="icon" type="image/svg+xml" href="%BASE_URL%favicon.svg" />
     <meta name="description" content="A first-person voyage through a stylized solar system." />
     <title>Odyssey — Solar system explorer</title>
   </head>
   <body>
-    <div id="app" class="intro-mode guide-hidden camera-chase">
+    <div id="app" hidden class="intro-mode guide-hidden camera-chase loading-mode">
       <canvas id="universe" tabindex="0" aria-label="Interactive 3D solar system"></canvas>
       <canvas id="speedFx" aria-hidden="true"></canvas>
       <div class="grain" aria-hidden="true"></div>
@@ -32,18 +32,26 @@
               <button id="newGameButton" class="intro-new-game" type="button">New game</button>
             </div>
           </div>
+          <section class="intro-updates" aria-labelledby="introUpdatesTitle">
+            <div class="intro-updates-heading"><h2 id="introUpdatesTitle">What’s new</h2><time id="introUpdateDate"></time></div>
+            <p class="intro-update-title" id="introUpdateTitle"></p>
+            <p class="intro-update-summary" id="introUpdateSummary"></p>
+            <button id="openUpdates" class="updates-trigger" type="button" aria-haspopup="dialog" aria-controls="updatesDialog">Update history</button>
+          </section>
         </div>
       </section>
 
+      <dialog id="updatesDialog" class="updates-dialog" aria-labelledby="updatesTitle">
+        <header class="updates-header"><div><h2 id="updatesTitle">Update history</h2><p>What’s been added to Odyssey</p></div><button id="closeUpdates" type="button" aria-label="Close update history">×</button></header>
+        <div id="updatesEntries" class="updates-entries"></div>
+      </dialog>
       <header class="topbar">
         <div class="brand" aria-label="Odyssey">
           <span class="brand-mark" aria-hidden="true"><span></span></span>
           <span>ODYSSEY<span class="brand-dot">.</span></span>
-          <span class="brand-sub">SOLAR EXPEDITION</span>
         </div>
-        <div class="top-status"><span class="live-dot"></span> <span id="shipNameReadout">ODYSSEY</span> <span class="status-divider"></span> PILOT <span id="pilotNameReadout">EXPLORER</span></div>
-        <button id="soundButton" class="sound-button" type="button" aria-pressed="true" aria-label="Mute sound"><span aria-hidden="true">♫</span><span id="soundLabel">Sound on</span></button>
-        <button id="settingsButton" class="icon-button settings-button" type="button" aria-label="Ship settings">⚙</button>
+        <div id="profileReadout" class="top-status profile-readout"><svg class="profile-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="8.5" r="3"/><path d="M5 19a7 7 0 0 1 14 0"/></svg><span id="pilotNameReadout">Leenard</span></div>
+        <button id="settingsButton" class="icon-button settings-button" type="button" aria-label="Settings"><svg class="settings-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 3-.6 2.3-2 .9L4.2 5.5 2 9.3l1.7 1.6v2.2L2 14.7l2.2 3.8 2.2-.7 2 .9L9 21h6l.6-2.3 2-.9 2.2.7 2.2-3.8-1.7-1.6v-2.2L22 9.3l-2.2-3.8-2.2.7-2-.9L15 3Z"/><circle cx="12" cy="12" r="3"/></svg></button>
         <button id="helpButton" class="icon-button" type="button" aria-label="Show controls">?</button>
       </header>
 
@@ -68,16 +76,12 @@
         <div class="unlock-copy"><span class="unlock-kicker"><span id="unlockKickerText">WORLD DISCOVERED</span> <span id="unlockCount"></span></span><strong id="unlockName"></strong><p id="unlockFact"></p></div>
         <div class="unlock-bar unlock-bar-bottom" aria-hidden="true"></div>
       </div>
-      <div id="previewBanner" class="preview-banner" hidden>
-        <span id="previewName">EARTH / PREVIEW</span>
-        <div class="preview-orbit-controls" role="group" aria-label="Rotate planet view"><button id="previewOrbitLeft" type="button" aria-label="Rotate view left">&lt;</button><span>360° VIEW</span><button id="previewOrbitRight" type="button" aria-label="Rotate view right">&gt;</button></div>
-        <button id="returnToShip" type="button">Return to ship</button>
-      </div>
 
+      <button id="guideToggle" class="panel-toggle guide-toggle" type="button" aria-controls="fieldGuide" aria-expanded="false" hidden>Field Guide</button>
       <aside id="fieldGuide" class="info-panel panel" aria-label="Selected destination">
         <button id="guideClose" class="panel-close" type="button" aria-label="Close planet info">×</button>
         <div class="info-topline"><span>FIELD GUIDE <span class="guide-number" id="guideNumber">03</span></span><span id="planetType">TERRESTRIAL</span></div>
-        <div class="planet-art" id="planetArt"><img id="planetPhoto" class="planet-art-photo" src="./planet-photos/earth.jpg" alt="NASA image of Earth" /><a id="planetPhotoCredit" class="planet-photo-credit" href="https://science.nasa.gov/photojournal/earth/" target="_blank" rel="noopener noreferrer">NASA · satellite mosaic</a></div>
+        <div class="planet-art" id="planetArt"><img id="planetPhoto" class="planet-art-photo" alt="NASA image of Earth" /><a id="planetPhotoCredit" class="planet-photo-credit" href="https://science.nasa.gov/photojournal/earth/" target="_blank" rel="noopener noreferrer">NASA · satellite mosaic</a></div>
         <div class="info-main">
           <div class="info-title-row"><h2 id="planetName">Earth</h2><span id="planetSymbol">♁</span></div>
           <p id="planetDescription">Our pale blue home, wrapped in a thin, living atmosphere.</p>
@@ -86,6 +90,8 @@
             <div><span>DIAMETER</span><strong id="planetDiameter">12,742 km</strong></div>
           </div>
           <button id="autopilotButton" class="travel-button" type="button" aria-pressed="false">Fly to Earth</button>
+          <button id="landingSiteButton" class="landing-site-button" type="button" hidden>Land on Earth</button>
+          <button id="returnToShip" class="return-to-ship-button" type="button" hidden>Return to ship</button>
           <div id="autopilotStatus" class="autopilot-status" role="status" aria-live="polite">Manual flight</div>
           <button id="discoveryToggle" class="discovery-toggle" type="button" aria-controls="discoveryPanel" aria-expanded="false">Explore more facts</button>
           <section id="discoveryPanel" class="discovery-panel" aria-labelledby="discoveryHeading" hidden>
@@ -105,24 +111,25 @@
 
       <div class="flight-hud" aria-hidden="true"><div class="hud-arc"></div><div class="hud-ticks"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div><span class="hud-bearing" id="bearingReadout">N 000°</span><span class="hud-caption" id="bankReadout">FREE FLIGHT</span></div>
 
-      <footer class="bottom-bar"><div class="control-hint"><span class="key-group"><kbd>W</kbd><kbd>S</kbd></span> FLY <span class="hint-separator"></span> <span class="key-group"><kbd>A</kbd><kbd>D</kbd></span> TURN <span class="hint-separator"></span> <span class="key-group"><kbd>Q</kbd><kbd>E</kbd></span> PITCH <span class="hint-separator"></span> <kbd>SHIFT</kbd><kbd>W</kbd> BOOST <span class="hint-separator"></span> <kbd>F</kbd> PLANET INFO <span class="hint-separator"></span> <kbd>R</kbd> SCAN <span class="hint-separator"></span> <kbd>P</kbd> AUTOPILOT</div><div class="camera-switch" role="group" aria-label="Camera view"><button type="button" data-camera="first-person" aria-pressed="false">First person</button><button type="button" data-camera="chase" aria-pressed="true">Third person</button></div><button id="takePhoto" class="photo-trigger" type="button" aria-label="Take photo" aria-keyshortcuts="T" title="Take photo (T)"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 7.5h3l1.7-2h7.6l1.7 2h3v11h-17z"/><circle cx="12" cy="13" r="3.4"/></svg></button></footer>
+      <footer class="bottom-bar"><div class="control-hint"><span class="key-group"><kbd>W</kbd><kbd>S</kbd></span> FLY <span class="hint-separator"></span> <span class="key-group"><kbd>A</kbd><kbd>D</kbd></span> TURN <span class="hint-separator"></span> <span class="key-group"><kbd>Q</kbd><kbd>E</kbd></span> PITCH <span class="hint-separator"></span> <kbd>SHIFT</kbd><kbd>W</kbd> BOOST <span class="hint-separator"></span> <kbd>F</kbd> PLANET INFO <span class="hint-separator"></span> <kbd>R</kbd> SCAN <span class="hint-separator"></span> <kbd>P</kbd> AUTOPILOT</div><button id="surfaceLog" class="surface-log" type="button">Log</button><div class="camera-switch" role="group" aria-label="Camera view"><button type="button" data-camera="first-person" aria-pressed="false">First person</button><button type="button" data-camera="chase" aria-pressed="true">Third person</button></div><button id="takePhoto" class="photo-trigger" type="button" aria-label="Take photo" aria-keyshortcuts="T" title="Take photo (T)"><svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 7.5h3l1.7-2h7.6l1.7 2h3v11h-17z"/><circle cx="12" cy="13" r="3.4"/></svg></button></footer>
       <div id="photoFeedback" class="photo-feedback" role="status" aria-live="polite" hidden></div>
 
-      <div id="helpOverlay" class="help-overlay" hidden><div class="help-card" role="dialog" aria-modal="true" aria-labelledby="helpTitle"><button id="closeHelp" class="help-close" type="button" aria-label="Close controls">×</button><div class="help-kicker">FLIGHT MANUAL / 01</div><h2 id="helpTitle">Your ship is ready.</h2><p>Turn and pitch the ship while stationary, then fly in the direction its nose points.</p><div class="help-grid"><div><kbd>W</kbd><kbd>S</kbd><span>Fly forward and back</span></div><div><kbd>A</kbd><kbd>D</kbd><span>Steer; reversed while backing up</span></div><div><kbd>Q</kbd><kbd>E</kbd><span>Pitch nose up and down</span></div><div><kbd>SHIFT</kbd><kbd>W</kbd><span>Boost forward</span></div><div><kbd>←</kbd><kbd>→</kbd><span>Alternate turn keys</span></div><div><kbd>C</kbd><span>Switch camera view</span></div><div><kbd>F</kbd><span>Aim the + at an object to show or close info</span></div><div><kbd>R</kbd><span>Hold while aiming nearby to scan an object</span></div><div><kbd>P</kbd><span>Autopilot to selected destination</span></div><div><kbd>L</kbd><span>Open captain's log</span></div><div><kbd>T</kbd><span>Take a photo for the gallery</span></div><div><kbd>ESC</kbd><span>Close this guide</span></div></div><button id="startExploring" class="travel-button" type="button">Start exploring <span class="button-arrow">↗</span></button><p class="scale-note">In Discovery, follow the unidentified signal's bearing and pulse to find an object to scan. In Exploration, try a Voyage from the Destinations panel. Planet sizes and distances are compressed for navigation.</p></div></div>
+      <div id="helpOverlay" class="help-overlay" hidden><div class="help-card" role="dialog" aria-modal="true" aria-labelledby="helpTitle"><button id="closeHelp" class="help-close" type="button" aria-label="Close controls">×</button><div class="help-kicker">FLIGHT MANUAL / 01</div><h2 id="helpTitle">Your ship is ready.</h2><p>Use your keyboard to fly, steer, boost, and scan. On Earth, use WASD to walk, drag with the mouse to look, J or Space to jump, Shift to run, and C to switch camera views. Return to your parked ship and press E to board, then take off.</p><div class="help-grid"><div><kbd>W</kbd><kbd>S</kbd><span>Fly forward and back</span></div><div><kbd>A</kbd><kbd>D</kbd><span>Steer; reversed while backing up</span></div><div><kbd>Q</kbd><kbd>E</kbd><span>Pitch nose up and down</span></div><div><kbd>SHIFT</kbd><kbd>W</kbd><span>Boost forward</span></div><div><kbd>←</kbd><kbd>→</kbd><span>Alternate turn keys</span></div><div><kbd>C</kbd><span>Switch camera view</span></div><div><kbd>F</kbd><span>Aim the + at an object to show or close info</span></div><div><kbd>R</kbd><span>Hold while aiming nearby to scan an object</span></div><div><kbd>P</kbd><span>Autopilot to selected destination</span></div><div><kbd>L</kbd><span>Open captain's log</span></div><div><kbd>T</kbd><span>Take a photo for the gallery</span></div><div><kbd>ESC</kbd><span>Close this guide</span></div></div><p class="scale-note">In Discovery, follow the unidentified signal's bearing and pulse to find an object to scan. In Exploration, try a Voyage from the Destinations panel. Planet sizes and distances are compressed for navigation.</p></div></div>
       <div id="logOverlay" class="help-overlay" hidden><section class="log-card" role="dialog" aria-modal="true" aria-labelledby="logTitle"><button id="closeLog" class="help-close" type="button" aria-label="Close captain's log">×</button><div class="log-heading"><div><span class="log-kicker">FLIGHT RECORD</span><h2 id="logTitle">Captain Explorer's Log</h2><p id="logSummary"></p></div><span id="logCount" class="log-count"></span></div><div class="log-tabs" role="tablist" aria-label="Captain's log sections"><button id="logTab" type="button" role="tab" aria-selected="true" aria-controls="logEntries">Flight log</button><button id="photosTab" type="button" role="tab" aria-selected="false" aria-controls="photoEntries">Photo gallery</button></div><div id="logEntries" class="log-entries" role="tabpanel" aria-labelledby="logTab"></div><div id="photoEntries" class="photo-entries" role="tabpanel" aria-labelledby="photosTab" hidden></div></section></div>
       <div id="photoViewer" class="photo-viewer" hidden><section class="photo-viewer-card" role="dialog" aria-modal="true" aria-labelledby="photoViewerTitle"><button id="closePhotoViewer" class="help-close" type="button" aria-label="Close photo">×</button><div class="photo-viewer-heading"><strong id="photoViewerTitle"></strong><span id="photoViewerDate"></span></div><img id="photoViewerImage" alt="Saved space photograph" /><a id="photoViewerDownload" download>Download photo</a></section></div>
       <div id="voyageOverlay" class="help-overlay" hidden><section class="voyage-card" role="dialog" aria-modal="true" aria-labelledby="voyageTitle"><button id="closeVoyages" class="help-close" type="button" aria-label="Close voyages">×</button><span class="log-kicker">FREE EXPLORATION</span><h2 id="voyageTitle">Voyages</h2><p class="voyage-intro">Choose a route through the system. Fly each leg yourself or use autopilot; you can leave the route at any time.</p><div id="voyageRoutes" class="voyage-routes"></div><div id="voyageProgress" class="voyage-progress" hidden><p id="voyageStatus"></p><div id="voyageStops" class="voyage-stops"></div><div class="voyage-actions"><button id="voyageNext" type="button">Fly to next stop</button><button id="voyageEnd" type="button">End voyage</button></div></div></section></div>
       <div id="settingsOverlay" class="help-overlay" hidden>
-        <form id="settingsForm" class="help-card settings-card" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
-          <button id="closeSettings" class="help-close" type="button" aria-label="Close ship settings">×</button>
-          <div class="help-kicker">SHIP REGISTRY / 01</div>
+        <form id="settingsForm" class="help-card settings-card" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+          <button id="closeSettings" class="help-close" type="button" aria-label="Close settings">×</button>
+          <div class="help-kicker">PROFILE SETTINGS</div>
           <h2 id="settingsTitle">Make it yours.</h2>
-          <p>Name your ship and pilot, then choose a soundtrack. These settings are saved in this browser.</p>
-          <label for="shipNameInput">Ship name</label>
-          <input id="shipNameInput" name="shipName" maxlength="20" autocomplete="off" value="Odyssey" />
-          <label for="pilotNameInput">Pilot name</label>
-          <input id="pilotNameInput" name="pilotName" maxlength="20" autocomplete="off" value="Explorer" />
+          <p>Choose your name and soundtrack. These settings are saved in this browser.</p>
+          <label for="shipNameInput" hidden>Ship name</label>
+          <input id="shipNameInput" hidden name="shipName" maxlength="20" autocomplete="off" value="Odyssey" />
+          <label for="pilotNameInput">Your name</label>
+          <input id="pilotNameInput" name="pilotName" maxlength="20" autocomplete="off" value="Leenard" />
           <label class="setting-toggle" for="showControlsInput"><input id="showControlsInput" type="checkbox" checked /><span>Show flight instructions</span></label>
+          <label id="soundToggleLabel" class="setting-toggle" for="soundEnabledInput"><input id="soundEnabledInput" type="checkbox" /><span>Music and sound</span></label>
           <label for="musicTrack">Soundtrack</label>
           <select id="musicTrack" name="musicTrack">
             <option value="playlist">Playlist · all tracks</option>
@@ -134,10 +141,17 @@
           <label for="musicVolume" class="volume-label">Music volume <output id="musicVolumeValue" for="musicVolume">100%</output></label>
           <input id="musicVolume" type="range" min="0" max="150" step="5" value="100" />
           <button class="travel-button" type="submit">Save settings <span class="button-arrow">↗</span></button>
+          <section class="settings-credits" aria-labelledby="creditsTitle"><h3 id="creditsTitle">Credits</h3><p>Planet maps by <a href="https://www.solarsystemscope.com/textures/" target="_blank" rel="noopener noreferrer">Solar System Scope / INOVE</a>, licensed under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a>. Texture files are unchanged; lighting, clouds, night-light masking, and surface relief are applied in the game.</p></section>
           <button id="settingsExitButton" class="settings-exit" type="button">ESC · Exit flight</button>
         </form>
       </div>
       <div id="exitOverlay" class="help-overlay" hidden><div class="help-card exit-card" role="alertdialog" aria-modal="true" aria-labelledby="exitTitle" aria-describedby="exitDescription" tabindex="-1"><div class="help-kicker">FLIGHT CONTROL</div><h2 id="exitTitle">End this flight?</h2><p id="exitDescription">You will return to the intro. You can launch again at any time.</p><div class="exit-actions"><button id="cancelExit" type="button">Keep flying</button><button id="confirmExit" class="travel-button" type="button">Return to intro</button></div></div></div>
+
+      <section id="surfaceHud" class="surface-hud" aria-label="Earth landing and exploration" hidden>
+        <div class="surface-copy"><p id="surfaceStatus" role="status" aria-live="polite"></p><p id="surfaceHint"></p><p id="surfacePilot" hidden></p></div>
+        <div id="earthWelcome" class="earth-welcome" role="status" aria-live="polite"></div><div id="pilotLabel" class="pilot-label" hidden></div>
+        <div class="surface-actions"><button id="surfacePrimary" class="travel-button" type="button">Land here</button><button id="surfaceSecondary" type="button">Back to orbit</button></div>
+      </section>
       <div id="sceneCurtain" class="scene-curtain covered" aria-hidden="true"></div>
       <div id="loadingScreen" class="loading-screen" role="status" aria-live="polite">
         <div class="loading-copy">
@@ -147,7 +161,8 @@
         </div>
       </div>
     </div>
-    <a class="texture-credit" href="https://www.solarsystemscope.com/textures/" target="_blank" rel="noopener noreferrer">Planet maps: Solar System Scope · CC BY 4.0</a>
-    <script type="module" src="/src/main.js"></script>
+    <main id="desktopNotice" class="desktop-notice" hidden aria-labelledby="desktopNoticeTitle"><div class="desktop-notice-copy"><div class="desktop-notice-brand">ODYSSEY.</div><h1 id="desktopNoticeTitle">Best explored on desktop</h1><p>Odyssey currently needs a keyboard and mouse. Open this link on a desktop or laptop to play.</p><p class="desktop-notice-status">Mobile support isn’t available yet.</p></div></main>
+    <noscript><p class="no-script">Enable JavaScript to play Odyssey on a desktop or laptop.</p></noscript>
+    <script type="module" src="/src/entry.js"></script>
   </body>
 </html>

@@ -1,0 +1,5 @@
+import test from 'node:test';import assert from 'node:assert/strict';import{createAutopilotProgress}from'../src/autopilot-progress.js';
+test('a stalled approach requests recovery within twelve active seconds',()=>{const p=createAutopilotProgress(1000);for(let i=0;i<11;i++)assert.equal(p.advance(1,1000),false);assert.equal(p.advance(1,1000),true);});
+test('continual tiny progress cannot extend the active-time deadline',()=>{const p=createAutopilotProgress(100000);for(let i=1;i<120;i++)assert.equal(p.advance(1,100000-i),false);assert.equal(p.advance(1,99880),true);});
+test('paused time does not age an approach and repeated contacts recover',()=>{const p=createAutopilotProgress(100);for(let i=0;i<100;i++)assert.equal(p.advance(0,100),false);p.contact();p.contact();assert.equal(p.advance(0,100),false);p.contact();assert.equal(p.advance(0,100),true);});
+test('invalid distances recover and negative time cannot undo progress',()=>{const p=createAutopilotProgress(100);p.advance(11,100);p.advance(-10,100);assert.equal(p.advance(1,100),true);assert.equal(createAutopilotProgress(100).advance(.1,NaN),true);});

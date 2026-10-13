@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { gameUpdates } from './game-updates.js';
+import { createAutopilotProgress } from './autopilot-progress.js';
 import { inject } from '@vercel/analytics';
 import { createShipAudio } from './audio.js';
 import { discovery } from './discovery.js';
@@ -11,6 +13,7 @@ import { orbitalSafeHeight, clearOrbitalSweep, clearBodyOverlap } from './body-c
 import { createAtmosphere } from './atmosphere.js';
 import { applyPlanetSurface, applyEarthNightLights, applyRingShadow, loadPlanetTexture, waitForPlanetTextures } from './planet-materials.js';
 import { landmarks, surfaceLandmarkAt } from './landmarks.js';
+import { createEarthSurface } from './earth-surface.js';
 
 if (import.meta.env.PROD) inject({ mode: 'production' });
 
@@ -18,7 +21,9 @@ const canvas = document.querySelector('#universe');
 const speedCanvas = document.querySelector('#speedFx');
 const speedContext = speedCanvas.getContext('2d');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.8));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, matchMedia('(pointer: coarse)').matches ? 1.25 : 1.8));
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.12;
@@ -114,6 +119,12 @@ let bank = 0;
 let autopilotTarget = null;
 let autopilotMessage = 'Manual flight';
 let autopilotWaypoint = null;
+let autopilotWaypointExit = null;
+let autopilotLastTargetPosition = null;
+const autopilotTargetVelocity = new THREE.Vector3();
+let autopilotProgress = null;
+let autopilotRecoveryTime = 0;
+let autopilotWaypointAge = 0;
 let lastHudUpdate = 0;
 let lastFlightSave = 0;
 let scanTargetId = null;
@@ -124,7 +135,7 @@ let unlockCinematicTimer = null;
 let unlockHideTimer = null;
 let unlockLens = 0;
 let shipName = 'Odyssey';
-let pilotName = 'Explorer';
+let pilotName = 'Leenard';
 let exitFromSettings = false;
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 const maxManualPitch = THREE.MathUtils.degToRad(75);
@@ -154,6 +165,72 @@ const voyages=[
 ];
 let voyageState=null;
 let moonBody;
+
+
+let earthSurface = null;
+let surfaceEntryPending = false;
+let earthApproachReady=false;
+let earthApproachDistance=0;
+const menuHeldKeys=new Set();
+let settingsReturnFocus=null;
+function modalOpen() {
+  return ['helpOverlay','logOverlay','voyageOverlay','settingsOverlay','exitOverlay','photoViewer'].some(id=>!document.getElementById(id).hidden);
+}
+function canLandOnEarth() {
+  const earth=bodies.find(body=>body.data.id==='earth');
+  return !introActive&&!introDive&&!autopilotTarget&&!isWorldLocked('earth')&&(earthApproachReady||parkedTarget?.data.id==='earth')&&shipPosition.distanceTo(earth.group.position)-earth.data.radius<=25;
+}
+function openEarthSite() {
+  if(introActive||introDive||surfaceEntryPending||earthSurface?.active||isWorldLocked('earth')||modalOpen())return;
+  if(!canLandOnEarth()){
+    selectPlanet('earth');showGuide();
+    if(!autopilotTarget)toggleAutopilot();
+    return;
+  }
+  keys.clear();velocity.set(0,0,0);boostAmount=0;discoveryDrift=false;
+  endUnlockCinematic(true);
+  surfaceEntryPending=true;
+  const curtain=document.getElementById('sceneCurtain');
+  curtain.classList.add('covered');
+  window.setTimeout(()=>{
+    try{
+      if(!earthSurface)earthSurface=createEarthSurface({
+        ship:shipMesh,keys,reducedMotion,
+        getPilotName:()=>pilotName,
+        onEvent:type=>recordLog(type,'earth',{site:'Lakeside clearing',pilot:pilotName}),
+        onExit:departed=>{
+          document.querySelector('.destination-panel').inert=document.querySelector('#app').classList.contains('destinations-hidden');
+          setGuideHidden(guideHidden);
+          if(departed){
+            exitPreview();
+            autopilotMessage='Earth departure complete · manual flight';
+            updateAutopilotUI();
+            requestAnimationFrame(()=>requestAnimationFrame(()=>document.getElementById('sceneCurtain').classList.remove('covered')));
+          }
+          document.querySelectorAll('[data-camera]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.camera===cameraMode)));
+          canvas.focus({preventScroll:true});
+        },
+      });
+      earthSurface.open();
+    }catch(error){
+      console.error('Earth landing could not start',error);
+      photoFeedback('Could not start landing. Try again.');
+    }finally{
+      surfaceEntryPending=false;
+      requestAnimationFrame(()=>requestAnimationFrame(()=>curtain.classList.remove('covered')));
+    }
+  },reducedMotion.matches?80:250);
+}
+function updateEarthLandingUI() {
+  document.querySelector('#landingSiteButton').textContent='Land on Earth';
+  document.querySelector('#landingSiteButton').hidden=selectedId!=='earth'||!canLandOnEarth();
+}
+function setupLandingControls() {
+  document.querySelector('#landingSiteButton').addEventListener('click',openEarthSite);
+  const overlayObserver=new MutationObserver(()=>{if(modalOpen())keys.clear();});
+  for(const id of ['helpOverlay','logOverlay','voyageOverlay','settingsOverlay','exitOverlay','photoViewer'])
+    overlayObserver.observe(document.getElementById(id),{attributes:true,attributeFilter:['hidden']});
+}
 
 function hash(x, y, seed = 0) {
   let n = Math.sin(x * 127.1 + y * 311.7 + seed * 74.7) * 43758.5453;
@@ -748,7 +825,7 @@ function hitAsteroid(rock,contact,dt) {
     }
     if(impactDust.length>160)impactDust.splice(0,impactDust.length-160);
   }
-  if(autopilotTarget)stopAutopilot('Asteroid impact. Manual control restored.');
+  if(autopilotTarget){autopilotWaypoint=null;autopilotWaypointExit=null;autopilotProgress?.contact();}
   return true;
 }
 
@@ -928,6 +1005,35 @@ function lookAtPoint(point) {
   targetPitch=pitch;
 }
 
+function setupUpdates() {
+  const dialog=document.getElementById('updatesDialog');
+  const latest=gameUpdates[0];
+  const dateLabel=date=>new Intl.DateTimeFormat('en',{month:'short',day:'numeric',year:'numeric',timeZone:'UTC'}).format(new Date(date+'T00:00:00Z'));
+  document.getElementById('introUpdateTitle').textContent=latest.title;
+  document.getElementById('introUpdateSummary').textContent=latest.summary;
+  const date=document.getElementById('introUpdateDate');
+  date.dateTime=latest.date;date.textContent=dateLabel(latest.date);
+  const entries=document.getElementById('updatesEntries');
+  for(const update of gameUpdates){
+    const article=document.createElement('article');
+    const time=document.createElement('time');time.dateTime=update.date;time.textContent=dateLabel(update.date);
+    const heading=document.createElement('h3');heading.textContent=update.title;
+    const list=document.createElement('ul');
+    for(const note of update.notes){const item=document.createElement('li');item.textContent=note;list.append(item);}
+    article.append(time,heading,list);entries.append(article);
+  }
+  document.getElementById('openUpdates').addEventListener('click',()=>{dialog.showModal();dialog.scrollTop=0;document.getElementById('closeUpdates').focus();});
+  document.getElementById('closeUpdates').addEventListener('click',()=>dialog.close());
+  dialog.addEventListener('keydown',event=>{
+    if(event.key!=='Tab')return;
+    const controls=[...dialog.querySelectorAll('button:not(:disabled), a[href], input, [tabindex]:not([tabindex="-1"])')].filter(el=>el.getClientRects().length);
+    const first=controls[0],last=controls.at(-1);
+    if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}
+    else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}
+  });
+  dialog.addEventListener('click',event=>{const bounds=dialog.getBoundingClientRect();if(event.target===dialog&&(event.clientX<bounds.left||event.clientX>bounds.right||event.clientY<bounds.top||event.clientY>bounds.bottom))dialog.close();});
+}
+
 function setupStart() {
   const earth=bodies.find(b=>b.data.id==='earth');
   shipPosition.copy(earth.group.position).add(new THREE.Vector3(10,orbitalSafeHeight(moonData.radius),18));
@@ -992,6 +1098,10 @@ function startGame(discoveryStart=false) {
     return;
   }
   discoveryDrift=false;
+  cameraTransition=null;
+  cameraMode='chase';
+  document.querySelector('#app').classList.add('camera-chase');
+  document.querySelectorAll('[data-camera]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.camera==='chase')));
   shipPosition.copy(shipMesh.position);
   // Read the displayed orientation in the flight controller's axis order.
   // XYZ Euler components can turn a gentle intro tilt into a near-180° roll.
@@ -1003,7 +1113,7 @@ function startGame(discoveryStart=false) {
   if(introDive){
     launchTransition={
       startOffset:camera.position.clone().sub(shipPosition),
-      startFocus:introShot(clock.elapsedTime).cameraTarget,
+      startFocus:camera.position.clone().addScaledVector(camera.getWorldDirection(new THREE.Vector3()),camera.position.distanceTo(shipPosition)),
       startFov:camera.fov,
       elapsed:0,
       duration:1.9,
@@ -1023,6 +1133,8 @@ function startGame(discoveryStart=false) {
 
 function returnToIntro() {
   if(returningToIntro)return;
+  if(earthSurface?.active)earthSurface.close();
+
   flybyTracker.clear();
   suppressedFlybyWorlds.clear();
   endUnlockCinematic(true);
@@ -1042,7 +1154,6 @@ function returnToIntro() {
     document.querySelector('#photoViewer').hidden=true;
     document.querySelector('#photoFeedback').hidden=true;
     photoPending=false;
-    document.querySelector('#previewBanner').hidden=true;
     const app=document.querySelector('#app');
     app.classList.remove('destination-preview','autopilot-active','launching');
     app.classList.add('intro-mode','camera-chase');
@@ -1056,11 +1167,15 @@ function returnToIntro() {
     cameraTransition=null;
     launchTransition=null;
     previewTarget=null;
+    document.querySelector('#returnToShip').hidden=true;
     previewOrbitAngle=previewOrbitTargetAngle=0;
     arrivalPreview=false;
     parkedTarget=null;
     autopilotTarget=null;
-    autopilotWaypoint=null;
+    earthApproachReady=false;earthApproachDistance=0;
+    autopilotWaypoint=null;autopilotWaypointExit=null;
+    autopilotProgress=null;
+    autopilotRecoveryTime=0;
     autopilotMessage='Manual flight';
     velocity.set(0,0,0);
     boostAmount=0;
@@ -1091,7 +1206,7 @@ function saveFlightState() {
   try {
     if(sessionStorage.getItem('odyssey-flight-active')!=='yes')return;
     const state=JSON.stringify({
-      position:shipPosition.toArray(),yaw,pitch,cameraMode,selectedId,discoveryDrift,
+      position:shipPosition.toArray(),yaw,pitch,cameraMode,selectedId,discoveryDrift,earthApproachReady,
       autopilotId:autopilotTarget?.data.id??null,
       parkedPreviewId:arrivalPreview?previewTarget?.data.id??null:null,
       parkedOffset:arrivalPreview?parkedOffset.toArray():null,
@@ -1109,6 +1224,7 @@ function restoreFlightState(savedState=null) {
     const state=savedState??JSON.parse(sessionStorage.getItem('odyssey-flight-state')||'null');
     if(!state||!Array.isArray(state.position)||state.position.length!==3||!state.position.every(Number.isFinite)||!Number.isFinite(state.yaw)||!Number.isFinite(state.pitch))return false;
     shipPosition.fromArray(state.position);
+    earthApproachReady=state.earthApproachReady===true;earthApproachDistance=0;
     yaw=targetYaw=state.yaw;
     pitch=targetPitch=THREE.MathUtils.clamp(state.pitch,-maxAutopilotPitch,maxAutopilotPitch);
     bank=0;
@@ -1121,7 +1237,7 @@ function restoreFlightState(savedState=null) {
     if(state.autopilotId&&state.autopilotId!=='sun'&&!isWorldLocked(state.autopilotId)&&destinations.some(planet=>planet.id===state.autopilotId)){
       autopilotTarget=bodies.find(body=>body.data.id===state.autopilotId);
       if(autopilotTarget){
-        autopilotWaypoint=null;
+        autopilotWaypoint=null;autopilotWaypointExit=null;
         autopilotMessage=`Course set for ${autopilotTarget.data.name}`;
         updateAutopilotUI();
       }
@@ -1135,9 +1251,8 @@ function restoreFlightState(savedState=null) {
         parkedOffset.fromArray(state.parkedOffset);
         shipPosition.copy(body.group.position).add(parkedOffset);
         previewTarget=body;
+        document.querySelector('#returnToShip').hidden=false;
         previewOrbitAngle=previewOrbitTargetAngle=Number.isFinite(state.previewOrbitAngle)?state.previewOrbitAngle:0;
-        document.querySelector('#previewName').textContent=`${body.data.name.toUpperCase()} / PREVIEW`;
-        document.querySelector('#previewBanner').hidden=false;
         document.querySelector('#app').classList.add('destination-preview');
       }
     }
@@ -1276,8 +1391,8 @@ function setupDestinationToggle() {
   const button=document.querySelector('#destinationsToggle');
   const close=document.querySelector('#destinationsClose');
   const panel=document.querySelector('.destination-panel');
-  let hidden=false;
-  try{hidden=localStorage.getItem('odyssey-hide-destinations')==='yes';}catch{}
+  let hidden=matchMedia('(max-width:800px)').matches;
+  try{if(!hidden)hidden=localStorage.getItem('odyssey-hide-destinations')==='yes';}catch{}
   function applyHidden() {
     const hadFocus=panel.contains(document.activeElement);
     document.querySelector('#app').classList.toggle('destinations-hidden',hidden);
@@ -1298,11 +1413,14 @@ let guideHidden=true;
 function setGuideHidden(hidden) {
   guideHidden=hidden;
   const panel=document.querySelector('#fieldGuide');
+  const toggle=document.querySelector('#guideToggle');
+  toggle.hidden=!hidden||isWorldLocked(selectedId);
+  toggle.setAttribute('aria-expanded',String(!hidden));
   const hadFocus=panel.contains(document.activeElement);
   document.querySelector('#app').classList.toggle('guide-hidden',hidden);
   panel.inert=hidden;
   panel.setAttribute('aria-hidden',hidden?'true':'false');
-  if(hidden&&hadFocus)document.querySelector('#settingsButton').focus({preventScroll:true});
+  if(hidden&&hadFocus)toggle.focus({preventScroll:true});
 }
 
 function showGuide() {
@@ -1312,6 +1430,7 @@ function showGuide() {
 
 function setupGuideToggle() {
   setGuideHidden(true);
+  document.querySelector('#guideToggle').addEventListener('click',showGuide);
   document.querySelector('#guideClose').addEventListener('click',()=>setGuideHidden(true));
 }
 
@@ -1354,6 +1473,12 @@ function applyCameraTransition(dt) {
   if(t===1){cameraTransition=null;introDive=false;document.querySelector('#app').classList.remove('launching');}
 }
 
+function chaseCameraPosition(){
+  const fit=Math.max(1,.85/camera.aspect);
+  const behind=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));
+  return shipPosition.clone().addScaledVector(behind,8.5*fit).addScaledVector(worldUp,3.2*fit);
+}
+
 function updateCamera(dt,instant=false) {
   // Narrow screens reserve their lower half for the two guide panels.
   // Shift the preview into the open space and fit its full horizontal extent.
@@ -1370,8 +1495,7 @@ function updateCamera(dt,instant=false) {
     const t=transition.elapsed/transition.duration;
     const eased=t*t*(3-2*t);
     const endDirection=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw));
-    const endPosition=shipPosition.clone().addScaledVector(endDirection,-8.5);
-    endPosition.y+=3.2;
+    const endPosition=chaseCameraPosition();
     const startDirection=transition.startOffset.clone().normalize();
     const finalOffset=endPosition.clone().sub(shipPosition);
     const arc=new THREE.Quaternion().setFromUnitVectors(startDirection,finalOffset.clone().normalize());
@@ -1380,6 +1504,9 @@ function updateCamera(dt,instant=false) {
     camera.position.copy(shipPosition).add(startDirection.applyQuaternion(turn).multiplyScalar(distance));
     const endFocus=shipPosition.clone().addScaledVector(endDirection,3);
     camera.lookAt(transition.startFocus.clone().lerp(endFocus,eased));
+    if(!reducedMotion.matches)camera.rotateZ(bank*.13*eased);
+    shipRotation.set(pitch,yaw,bank,'YXZ');
+    shipMesh.position.copy(shipPosition);shipMesh.rotation.copy(shipRotation);
     camera.fov=THREE.MathUtils.lerp(transition.startFov,64,eased);
     camera.updateProjectionMatrix();
     shipMesh.visible=true;
@@ -1445,9 +1572,8 @@ function updateCamera(dt,instant=false) {
     applyCameraTransition(dt);
     return;
   }
-  const targetPosition=shipPosition.clone();
+  const targetPosition=chaseCameraPosition();
   levelDirection.set(-Math.sin(yaw),0,-Math.cos(yaw));
-  targetPosition.addScaledVector(levelDirection,-8.5).y+=3.2;
   if(instant || cameraTransition || camera.position.distanceToSquared(targetPosition)>2500)camera.position.copy(targetPosition);
   else camera.position.lerp(targetPosition,1-Math.exp(-9*dt));
   camera.lookAt(temp.copy(shipPosition).addScaledVector(levelDirection,3));
@@ -1456,6 +1582,7 @@ function updateCamera(dt,instant=false) {
 }
 
 function setCameraMode(mode) {
+  if(earthSurface?.active){earthSurface.setView(mode);return;}
   if(!['first-person','chase'].includes(mode))return;
   exitPreview();
   beginCameraTransition(.95);
@@ -1536,7 +1663,10 @@ function buildPlanetList() {
     button.setAttribute('aria-label',`Select ${planet.name}`);
     button.innerHTML=`<span class="planet-row-name">${planet.name}</span><span class="planet-row-index">${planet.index}</span>`;
     button.prepend(createPlanetIcon(planet));
-    button.addEventListener('click',()=>selectPlanet(planet.id,true));
+    button.addEventListener('click',()=>{
+      selectPlanet(planet.id,true);
+      if(matchMedia('(max-width:800px)').matches)document.querySelector('#destinationsClose').click();
+    });
     list.append(button);
   });
   refreshDiscoveryUI();
@@ -1768,7 +1898,7 @@ function selectPlanet(id,preview=false) {
     setDiscoveryOpen(false);
     document.querySelector('#fieldGuide').scrollTop=0;
   }
-  if(autopilotTarget&&autopilotTarget.data.id!==id)stopAutopilot('Course changed. Manual flight.');
+
   if(selectedId!==id&&!autopilotTarget)autopilotMessage='Manual flight';
   selectedId=id;
   document.querySelector('#discoveryToggle').hidden=false;
@@ -1796,7 +1926,9 @@ function selectPlanet(id,preview=false) {
     credit.href=photo.source;
   }
   updateAutopilotUI();
-  if(preview) {
+  updateEarthLandingUI();
+  if(preview&&autopilotTarget)showGuide();
+  if(preview&&!autopilotTarget) {
     discoveryDrift=false;
     arrivalPreview=false;
     parkedTarget=null;
@@ -1804,14 +1936,15 @@ function selectPlanet(id,preview=false) {
     showGuide();
     beginCameraTransition(1.35);
     previewTarget=id==='sun'?{data:sunData,group:sunMesh}:bodies.find(body=>body.data.id===id);
-    document.querySelector('#previewName').textContent=`${planet.name.toUpperCase()} / PREVIEW`;
-    document.querySelector('#previewBanner').hidden=false;
+    document.querySelector('#returnToShip').hidden=false;
     document.querySelector('#app').classList.add('destination-preview');
     updateCamera(0);
   }
 }
 
 function showArrivalPreview(body) {
+  if(body.data.id==='earth'){earthApproachReady=true;autopilotMessage='Parked near Earth · ready to land';}
+  selectPlanet(body.data.id);
   endUnlockCinematic(true);
   completeVoyageStop(body.data.id);
   suppressedFlybyWorlds.add(body.data.id);
@@ -1826,8 +1959,7 @@ function showArrivalPreview(body) {
   previewOrbitAngle=previewOrbitTargetAngle=0;
   beginCameraTransition(1.35);
   previewTarget=body;
-  document.querySelector('#previewName').textContent=`${body.data.name.toUpperCase()} / PREVIEW`;
-  document.querySelector('#previewBanner').hidden=false;
+  document.querySelector('#returnToShip').hidden=false;
   document.querySelector('#app').classList.add('destination-preview');
   updateCamera(0);
 }
@@ -1841,15 +1973,16 @@ function exitPreview() {
   if(!previewTarget)return;
   beginCameraTransition(1.05);
   previewTarget=null;
+  document.querySelector('#returnToShip').hidden=true;
   previewOrbitAngle=previewOrbitTargetAngle=0;
   arrivalPreview=false;
   parkedTarget=null;
-  document.querySelector('#previewBanner').hidden=true;
   document.querySelector('#app').classList.remove('destination-preview');
   updateCamera(0);
 }
 
 function updateAutopilotUI() {
+  updateEarthLandingUI();
   const button=document.querySelector('#autopilotButton');
   button.hidden=isWorldLocked(selectedId)||(selectedId==='sun'&&!autopilotTarget);
   button.setAttribute('aria-pressed',autopilotTarget?'true':'false');
@@ -1861,29 +1994,44 @@ function updateAutopilotUI() {
 function stopAutopilot(message='Manual flight') {
   if(message.startsWith('Arrived'))shipAudio.cue('arrival');
   autopilotTarget=null;
-  autopilotWaypoint=null;
+  autopilotWaypoint=null;autopilotWaypointExit=null;
+  autopilotProgress=null;
+  autopilotLastTargetPosition=null;autopilotTargetVelocity.set(0,0,0);
+  autopilotRecoveryTime=0;
+  document.getElementById('sceneCurtain').classList.remove('covered');
   autopilotMessage=message;
   updateAutopilotUI();
 }
 
 function toggleAutopilot() {
   shipAudio.start();
-  if(arrivalPreview){exitPreview();return;}
   if(autopilotTarget){stopAutopilot();return;}
   if(selectedId==='sun'||isWorldLocked(selectedId))return;
   exitPreview();
+  parkedTarget=null;arrivalPreview=false;
   autopilotTarget=bodies.find(body=>body.data.id===selectedId);
   if(!autopilotTarget)return;
   discoveryDrift=false;
-  autopilotWaypoint=null;
+  autopilotWaypoint=null;autopilotWaypointExit=null;
+  autopilotProgress=null;
+  autopilotLastTargetPosition=null;autopilotTargetVelocity.set(0,0,0);
+  autopilotRecoveryTime=0;
+  autopilotWaypointAge=0;
+
   autopilotMessage=`Course set for ${autopilotTarget.data.name}`;
   keys.clear();
   updateAutopilotUI();
   shipAudio.cue('engage');
 }
 
+function musicPlaybackLabel(){
+  const name=shipAudio.getActiveTrackName();
+  if(!shipAudio.isEnabled())return `Sound off · ${name}`;
+  return shipAudio.isPlaying()?`Now playing: ${name}`:shipAudio.getMusicVolume()===0?`Music muted · ${name}`:`Selected track: ${name}`;
+}
+
 function setupAudioControls() {
-  const button=document.querySelector('#soundButton');
+  const soundEnabled=document.querySelector('#soundEnabledInput');
   const volume=document.querySelector('#musicVolume');
   const volumeValue=document.querySelector('#musicVolumeValue');
   const track=document.querySelector('#musicTrack');
@@ -1899,28 +2047,31 @@ function setupAudioControls() {
   volumeValue.value=`${shipAudio.getMusicVolume()}%`;
   volume.addEventListener('input',()=>{volumeValue.value=`${shipAudio.setMusicVolume(volume.value)}%`;});
   track.value=shipAudio.getMusicSelection();
-  const refreshTrack=()=>{nowPlaying.textContent=`Now playing: ${shipAudio.getActiveTrackName()}`;};
+  const refreshTrack=()=>{nowPlaying.textContent=musicPlaybackLabel();};
   track.addEventListener('change',()=>{shipAudio.setMusicSelection(track.value);refreshTrack();});
   refreshTrack();
-  function refresh() {
-    const enabled=shipAudio.isEnabled()&&shipAudio.isSupported();
-    button.setAttribute('aria-pressed',enabled?'true':'false');
-    button.setAttribute('aria-label',enabled?'Mute sound':'Enable sound');
-    document.querySelector('#soundLabel').textContent=enabled?'Sound on':'Sound off';
-    button.querySelector('span').textContent=enabled?'♫':'♩';
-    button.disabled=!shipAudio.isSupported();
-  }
-  button.addEventListener('click',()=>{shipAudio.setEnabled(!shipAudio.isEnabled());refresh();});
-  function unlock() {
+  function unlock(event) {
+    if(event?.target?.closest?.('#soundToggleLabel'))return;
     shipAudio.start();
-    document.removeEventListener('pointerdown',unlock);
-    document.removeEventListener('keydown',unlock);
   }
-  document.addEventListener('pointerdown',unlock);
-  document.addEventListener('keydown',unlock);
-  refresh();
+  function refresh() {
+    const supported=shipAudio.isSupported(),enabled=shipAudio.isEnabled()&&supported;
+    const running=shipAudio.isRunning();
+    soundEnabled.checked=enabled;
+    soundEnabled.disabled=!supported;
+    refreshTrack();
+    if(enabled&&!running){
+      document.addEventListener('pointerdown',unlock);
+      document.addEventListener('keydown',unlock);
+    }else{
+      document.removeEventListener('pointerdown',unlock);
+      document.removeEventListener('keydown',unlock);
+    }
+  }
+  soundEnabled.addEventListener('change',()=>{shipAudio.setEnabled(soundEnabled.checked);refresh();});
+  shipAudio.onStateChange(refresh);
   shipAudio.start();
-  document.addEventListener('visibilitychange',()=>{if(!document.hidden)shipAudio.start();});
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden){clock.getDelta();shipAudio.start();}});
 }
 
 function captainLogKey() {
@@ -1962,7 +2113,7 @@ function requestPhoto() {
 function capturePhoto() {
   if(!photoPending)return;
   photoPending=false;
-  const target=previewTarget?.data.id||pointedPlanet()?.object.userData.id||null;
+  const target=earthSurface?.active?'earth':previewTarget?.data.id||pointedPlanet()?.object.userData.id||null;
   const at=Date.now();
   const id=`${at}-${Math.random().toString(36).slice(2,7)}`;
   for(const [width,quality] of [[960,.76],[640,.65]]){
@@ -1987,7 +2138,7 @@ function loadCaptainLog() {
   try {
     const saved=JSON.parse(localStorage.getItem(captainLogKey())||'[]');
     captainLog=Array.isArray(saved)?saved.filter(entry=>
-      entry&&['scan','landmark','flyby','station','impact'].includes(entry.type)&&Number.isFinite(entry.at)&&Math.abs(entry.at)<=8.64e15&&
+      entry&&['scan','landmark','flyby','station','impact','landing','explore','board','takeoff'].includes(entry.type)&&Number.isFinite(entry.at)&&Math.abs(entry.at)<=8.64e15&&
       (entry.worldId===null||destinations.some(world=>world.id===entry.worldId))&&
       (entry.image===undefined||typeof entry.image==='string'&&/^data:image\/(jpeg|webp);base64,/.test(entry.image))
     ).slice(0,maxCaptainLogEntries):[];
@@ -2183,14 +2334,17 @@ function renderCaptainLog() {
     }
     const content=document.createElement('div');
     const meta=document.createElement('div');meta.className='log-entry-meta';
-    const kind=document.createElement('span');kind.textContent=entry.type==='scan'?'DISCOVERY':entry.type==='landmark'?'LANDMARK':entry.type==='flyby'?(entry.passKind==='approach'?'CLOSE APPROACH':'FLYBY'):entry.type==='station'?'STATION KEEPING':'ENCOUNTER';
+    const kind=document.createElement('span');kind.textContent=['landing','explore','board','takeoff'].includes(entry.type)?'SURFACE EXPEDITION':entry.type==='scan'?'DISCOVERY':entry.type==='landmark'?'LANDMARK':entry.type==='flyby'?(entry.passKind==='approach'?'CLOSE APPROACH':'FLYBY'):entry.type==='station'?'STATION KEEPING':'ENCOUNTER';
     const date=document.createElement('time');date.dateTime=new Date(entry.at).toISOString();date.textContent=new Date(entry.at).toLocaleString();
     meta.append(kind,date);
     const heading=document.createElement('h3');
     const detail=document.createElement('p');
     const world=destinations.find(item=>item.id===entry.worldId);
     const name=world&&(gameMode!=='discovery'||scannedBodies.has(world.id)||entry.type==='scan')?world.name:entry.worldId==='comet'?'Unknown object':'Unknown world';
-    if(entry.type==='scan'){
+    if(['landing','explore','board','takeoff'].includes(entry.type)){
+      heading.textContent={landing:'Landed on Earth',explore:'Began exploring Earth',board:'Boarded the spaceship',takeoff:'Took off from Earth'}[entry.type];
+      detail.textContent=(entry.pilot||pilotName)+' · '+(entry.site||'Lakeside clearing')+' · '+({landing:'Touchdown complete.',explore:'Surface walk started.',board:'Returned safely to the ship.',takeoff:'Returned to orbital flight.'}[entry.type]);
+    }else if(entry.type==='scan'){
       heading.textContent=`${name} discovered`;
       detail.textContent=`Scan complete. This ${entry.worldId==='comet'?'object':'world'} is now available in Destinations and the Field Guide.`;
     }else if(entry.type==='landmark'){
@@ -2202,7 +2356,7 @@ function renderCaptainLog() {
       detail.textContent=`Closest approach: ${Math.max(0,Math.round(entry.distance||0))} units above the surface.`;
     }else if(entry.type==='station'){
       heading.textContent=`Holding position near ${name}`;
-      detail.textContent=`Autopilot arrival · ${Math.max(0,Math.round(entry.distance||0))} units above the surface.`;
+      detail.textContent=entry.worldId==='earth'?'Earth approach complete · parked and ready to land.':`Autopilot arrival · ${Math.max(0,Math.round(entry.distance||0))} units above the surface.`;
     }else{
       heading.textContent=entry.source==='ring'?(entry.broken?'Ring particle fractured':'Ring particle impact'):entry.broken?'Asteroid fractured':'Asteroid impact';
       detail.textContent=entry.broken
@@ -2308,6 +2462,13 @@ function setupControls() {
   const prevent=new Set(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space']);
   const manualCodes=new Set(['KeyW','KeyS','KeyA','KeyD','KeyQ','KeyE','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','ShiftLeft','ShiftRight']);
   document.addEventListener('keydown',event=>{
+    if(menuHeldKeys.has(event.code)){event.preventDefault();return;}
+    if(document.getElementById('updatesDialog').open)return;
+    if(surfaceEntryPending)return;
+    if(earthSurface?.active&&!modalOpen()&&event.code==='Escape'){
+      openExit();
+      return;
+    }
     if(event.code==='Escape') {
       if(unlockCinematicActive){endUnlockCinematic(true);return;}
       if(!document.querySelector('#photoViewer').hidden)closePhotoViewer();
@@ -2321,9 +2482,16 @@ function setupControls() {
       return;
     }
     if(introActive)return;
-    if(event.target instanceof HTMLInputElement || !document.querySelector('#helpOverlay').hidden || !document.querySelector('#logOverlay').hidden || !document.querySelector('#voyageOverlay').hidden || !document.querySelector('#settingsOverlay').hidden || !document.querySelector('#exitOverlay').hidden)return;
+    if(event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLTextAreaElement || !document.querySelector('#helpOverlay').hidden || !document.querySelector('#logOverlay').hidden || !document.querySelector('#voyageOverlay').hidden || !document.querySelector('#settingsOverlay').hidden || !document.querySelector('#exitOverlay').hidden)return;
     if(event.code==='KeyL'&&!event.repeat&&!event.ctrlKey&&!event.metaKey&&!event.altKey){openLog();return;}
     if(event.code==='KeyT'&&!event.repeat&&!event.ctrlKey&&!event.metaKey&&!event.altKey){requestPhoto();return;}
+    if(earthSurface?.active){
+      if(event.ctrlKey||event.metaKey||event.altKey)return;
+      if(['KeyW','KeyS','KeyA','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','KeyJ','ShiftLeft','ShiftRight'].includes(event.code)){event.preventDefault();keys.add(event.code);}
+      if(event.code==='KeyE'&&!event.repeat&&earthSurface.mode==='walking')earthSurface.activate();
+      if(event.code==='KeyC'&&!event.repeat)earthSurface.setView(earthSurface.viewMode==='chase'?'first-person':'chase');
+      return;
+    }
     if(unlockCinematicActive&&event.code!=='KeyR')endUnlockCinematic(true);
     if(previewTarget&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&(event.code==='Comma'||event.code==='Period')){
       event.preventDefault();
@@ -2338,6 +2506,7 @@ function setupControls() {
     if(event.code==='KeyP' && !event.repeat){toggleAutopilot();return;}
     if(event.code==='KeyR'&&!event.ctrlKey&&!event.metaKey&&!event.altKey){event.preventDefault();keys.add('KeyR');return;}
     if(event.code==='KeyF' && !event.repeat && !event.ctrlKey && !event.metaKey && !event.altKey){
+      if(previewTarget){setGuideHidden(!guideHidden);return;}
       const hit=pointedPlanet();
       const id=hit?.object.userData.id;
       if(!guideHidden&&(!id||id===selectedId))setGuideHidden(true);
@@ -2350,13 +2519,13 @@ function setupControls() {
     }
     if(discoveryDrift&&manualCodes.has(event.code))discoveryDrift=false;
     if(previewTarget&&manualCodes.has(event.code))exitPreview();
-    if(autopilotTarget&&manualCodes.has(event.code))stopAutopilot('Manual control restored');
+    if(autopilotTarget&&manualCodes.has(event.code)){event.preventDefault();return;}
     else if(autopilotMessage.startsWith('Arrived')&&manualCodes.has(event.code)){autopilotMessage='Manual flight';updateAutopilotUI();}
     keys.add(event.code);
   });
-  document.addEventListener('keyup',event=>keys.delete(event.code));
+  document.addEventListener('keyup',event=>{keys.delete(event.code);menuHeldKeys.delete(event.code);});
   document.querySelector('#app').addEventListener('pointerdown',()=>{if(unlockCinematicActive)endUnlockCinematic(true);});
-  window.addEventListener('blur',()=>keys.clear());
+  window.addEventListener('blur',()=>{keys.clear();menuHeldKeys.clear();});
   document.querySelectorAll('[data-camera]').forEach(button=>button.addEventListener('click',()=>setCameraMode(button.dataset.camera)));
   document.querySelector('#autopilotButton').addEventListener('click',toggleAutopilot);
   document.querySelector('#discoveryToggle').addEventListener('click',()=>{
@@ -2364,10 +2533,9 @@ function setupControls() {
   });
   document.querySelector('#discoveryInspect').addEventListener('click',()=>selectPlanet(selectedId,true));
   document.querySelector('#returnToShip').addEventListener('click',exitPreview);
-  document.querySelector('#previewOrbitLeft').addEventListener('click',()=>rotatePreview(-1));
-  document.querySelector('#previewOrbitRight').addEventListener('click',()=>rotatePreview(1));
   document.querySelector('#helpButton').addEventListener('click',openHelp);
   document.querySelector('#logButton').addEventListener('click',openLog);
+  document.querySelector('#surfaceLog').addEventListener('click',openLog);
   document.querySelector('#logPanelButton').addEventListener('click',openLog);
   document.querySelector('#takePhoto').addEventListener('click',requestPhoto);
   document.querySelector('#logTab').addEventListener('click',()=>setLogTab('log'));
@@ -2377,7 +2545,6 @@ function setupControls() {
   document.querySelector('#closeLog').addEventListener('click',closeLog);
   document.querySelector('#logOverlay').addEventListener('click',event=>{if(event.target.id==='logOverlay')closeLog();});
   document.querySelector('#closeHelp').addEventListener('click',closeHelp);
-  document.querySelector('#startExploring').addEventListener('click',closeHelp);
   document.querySelector('#helpOverlay').addEventListener('click',event=>{if(event.target.id==='helpOverlay')closeHelp();});
   document.querySelector('#settingsButton').addEventListener('click',openSettings);
   document.querySelector('#closeSettings').addEventListener('click',closeSettings);
@@ -2389,7 +2556,7 @@ function setupControls() {
   document.querySelector('#settingsForm').addEventListener('submit',event=>{
     event.preventDefault();
     shipName=document.querySelector('#shipNameInput').value.trim().slice(0,20)||'Odyssey';
-    pilotName=document.querySelector('#pilotNameInput').value.trim().slice(0,20)||'Explorer';
+    pilotName=document.querySelector('#pilotNameInput').value.trim().slice(0,20)||'Leenard';
     updateNameReadout();
     try{localStorage.setItem('odyssey-names',JSON.stringify({shipName,pilotName}));}catch{}
     closeSettings();
@@ -2427,7 +2594,6 @@ function closeHelp(restoreFocus=true) {
 }
 
 function updateNameReadout() {
-  document.querySelector('#shipNameReadout').textContent=shipName;
   document.querySelector('#pilotNameReadout').textContent=pilotName;
   document.querySelector('#logTitle').textContent=`Captain ${pilotName}'s Log`;
   document.querySelector('#shipNameInput').value=shipName;
@@ -2438,37 +2604,83 @@ function loadNames() {
   try {
     const saved=JSON.parse(localStorage.getItem('odyssey-names')||'{}');
     if(typeof saved.shipName==='string')shipName=saved.shipName.trim().slice(0,20)||'Odyssey';
-    if(typeof saved.pilotName==='string')pilotName=saved.pilotName.trim().slice(0,20)||'Explorer';
+    if(typeof saved.pilotName==='string')pilotName=saved.pilotName.trim().slice(0,20)||'Leenard';
   } catch {}
   updateNameReadout();
 }
 
 function openSettings() {
+  if(introActive||document.querySelector('#app').classList.contains('loading-mode'))return;
+  settingsReturnFocus=document.activeElement?.matches?.('#settingsButton')?document.activeElement:document.querySelector('#settingsButton');
   closeHelp(false);
+  document.querySelector('#settingsExitButton').hidden=introActive;
+  for(const code of keys)menuHeldKeys.add(code);
   keys.clear();
   updateNameReadout();
   document.querySelector('#settingsOverlay').hidden=false;
-  document.querySelector('#shipNameInput').focus();
+  document.querySelector('#settingsForm').focus({preventScroll:true});
 }
 
 function closeSettings(restoreFocus=true) {
   if(document.querySelector('#settingsOverlay').hidden)return;
   document.querySelector('#settingsOverlay').hidden=true;
-  if(restoreFocus)document.querySelector('#settingsButton').focus({preventScroll:true});
+  if(restoreFocus)settingsReturnFocus?.focus({preventScroll:true});
 }
 
-function autopilotGuidance() {
+function autopilotGuidance(dt,activeTime=dt) {
   const body=autopilotTarget;
   const target=body.group.position;
+  if(autopilotLastTargetPosition&&dt>0){
+    autopilotTargetVelocity.copy(target).sub(autopilotLastTargetPosition).divideScalar(dt);
+    autopilotTargetVelocity.clampLength(0,40);
+  }else autopilotTargetVelocity.set(0,0,0);
+  autopilotLastTargetPosition??=target.clone();
+  autopilotLastTargetPosition.copy(target);
   const surfaceDistance=shipPosition.distanceTo(target)-body.data.radius;
   const viewingDistance=body.data.id==='saturn'?body.data.radius*1.5:Math.max(10.5,body.data.radius*.45);
+  autopilotProgress??=createAutopilotProgress(Math.max(0,surfaceDistance-viewingDistance));
+  if(autopilotRecoveryTime>0||autopilotProgress.advance(activeTime,Math.max(0,surfaceDistance-viewingDistance))){
+    const startingRecovery=autopilotRecoveryTime===0;
+    autopilotRecoveryTime+=activeTime;
+    velocity.set(0,0,0);
+    if(startingRecovery){
+      autopilotMessage='Reacquiring a safe arrival approach';
+      updateAutopilotUI();
+      document.getElementById('sceneCurtain').classList.add('covered');
+    }
+    if(autopilotRecoveryTime>=.35){
+      const solids=[{position:sunMesh.position,radius:sunRadius+3},
+        ...bodies.filter(other=>other!==body).map(other=>({position:other.group.position,radius:other.data.radius+3})),
+        ...asteroidObstacles.filter(rock=>rock.alive)];
+      let parking=null;
+      for(let scale=1;scale<=4&&!parking;scale++){
+        const radius=(body.data.radius+viewingDistance)*scale;
+        for(let i=0;i<48;i++){
+          const y=1-2*i/48,angle=i*2.399963229728653;
+          const offset=new THREE.Vector3(Math.cos(angle)*Math.sqrt(1-y*y),y,Math.sin(angle)*Math.sqrt(1-y*y)).multiplyScalar(radius);
+          const candidate=target.clone().add(offset);
+          if(solids.every(o=>candidate.distanceTo(o.position)>o.radius+2)){parking=candidate;break;}
+        }
+      }
+      parking??=new THREE.Vector3(target.x,Math.max(target.y+body.data.radius+viewingDistance,...solids.map(o=>o.position.y+o.radius+20)),target.z);
+      shipPosition.copy(parking);
+      stopAutopilot(`Arrived near ${body.data.name}`);
+      showArrivalPreview(body);
+      cameraTransition=null;
+      updateCamera(0,true);
+    }
+    return null;
+  }
   if(surfaceDistance<=viewingDistance+.5) {
     velocity.set(0,0,0);
     stopAutopilot(`Arrived near ${body.data.name}`);
     showArrivalPreview(body);
     return null;
   }
-  if(autopilotWaypoint&&shipPosition.distanceTo(autopilotWaypoint)<4)autopilotWaypoint=null;
+  autopilotWaypointAge+=dt;
+  if(autopilotWaypoint&&(shipPosition.distanceTo(autopilotWaypoint)<4||autopilotWaypointAge>10)){
+    autopilotWaypoint=autopilotWaypointExit;autopilotWaypointExit=null;autopilotWaypointAge=0;
+  }
   if(!autopilotWaypoint) {
     const route=target.clone().sub(shipPosition);
     const routeLength=route.length();
@@ -2490,10 +2702,15 @@ function autopilotGuidance() {
       lateral.normalize();
       if(lateral.dot(shipPosition.clone().sub(blocking.position))<0)lateral.negate();
       autopilotWaypoint=blocking.position.clone().addScaledVector(lateral,blocking.radius+11).addScaledVector(forward,-blocking.radius-5);
+      autopilotWaypointExit=blocking.position.clone().addScaledVector(lateral,blocking.radius+11).addScaledVector(forward,blocking.radius+8);
       autopilotWaypoint.y=Math.max(shipPosition.y,7);
+      autopilotWaypointExit.y=autopilotWaypoint.y;
+      autopilotWaypointAge=0;
     }
   }
-  const aim=autopilotWaypoint||target;
+  const remainingDistance=Math.max(0,surfaceDistance-viewingDistance);
+  const leadTime=Math.min(4,remainingDistance/48);
+  const aim=autopilotWaypoint||target.clone().addScaledVector(autopilotTargetVelocity,leadTime);
   const toward=aim.clone().sub(shipPosition).normalize();
   const horizontalDistance=Math.hypot(aim.x-shipPosition.x,aim.z-shipPosition.z);
   const verticalDistance=Math.abs(aim.y-shipPosition.y);
@@ -2503,15 +2720,16 @@ function autopilotGuidance() {
   }else targetYaw=yaw;
   targetPitch=THREE.MathUtils.clamp(Math.atan2(aim.y-shipPosition.y,horizontalDistance),-maxAutopilotPitch,maxAutopilotPitch);
   const remaining=autopilotWaypoint?shipPosition.distanceTo(autopilotWaypoint):surfaceDistance-viewingDistance;
-  const speed=THREE.MathUtils.clamp(remaining*.65,0,48);
-  return {toward,speed};
+  const speed=THREE.MathUtils.clamp(remaining*.65,.8,48);
+  return {toward,speed,targetVelocity:autopilotWaypoint?null:autopilotTargetVelocity};
 }
 
-function moveShip(dt) {
+function moveShip(dt,activeTime=dt) {
+  if(document.hidden){velocity.set(0,0,0);return;}
   if(returningToIntro){velocity.set(0,0,0);boostAmount=0;return;}
   if(introDive){velocity.set(0,0,0);boostAmount=0;return;}
   if(introActive){velocity.set(0,0,0);boostAmount=0;return;}
-  if(parkedTarget){
+  if(parkedTarget&&!autopilotTarget){
     shipPosition.copy(parkedTarget.group.position).add(parkedOffset);
     velocity.set(0,0,0);
     boostAmount=THREE.MathUtils.damp(boostAmount,0,5,dt);
@@ -2521,7 +2739,8 @@ function moveShip(dt) {
     return;
   }
   if(!document.querySelector('#helpOverlay').hidden || !document.querySelector('#logOverlay').hidden || !document.querySelector('#voyageOverlay').hidden || !document.querySelector('#settingsOverlay').hidden || !document.querySelector('#exitOverlay').hidden){velocity.multiplyScalar(Math.exp(-6*dt));bank*=Math.exp(-7*dt);boostAmount=THREE.MathUtils.damp(boostAmount,0,5,dt);return;}
-  const guidance=autopilotTarget?autopilotGuidance():null;
+  const guidance=autopilotTarget?autopilotGuidance(dt,activeTime):null;
+  if(parkedTarget||autopilotRecoveryTime>0)return;
   if(!autopilotTarget) {
     const reverseSteering=keys.has('KeyS')&&!keys.has('KeyW')?-1:1;
     if(keys.has('KeyA')||keys.has('ArrowLeft'))targetYaw+=dt*1.35*reverseSteering;
@@ -2551,7 +2770,8 @@ function moveShip(dt) {
   desiredVelocity.set(0,0,0);
   if(autopilotTarget&&guidance) {
     const alignment=direction.dot(guidance.toward);
-    desiredVelocity.copy(direction).multiplyScalar(guidance.speed*THREE.MathUtils.clamp((alignment-.7)/.3,0,1));
+    desiredVelocity.copy(guidance.toward).multiplyScalar(guidance.speed*THREE.MathUtils.clamp((alignment-.7)/.3,.25,1));
+    if(guidance.targetVelocity)desiredVelocity.add(guidance.targetVelocity).clampLength(0,60);
     const boostTarget=THREE.MathUtils.clamp((desiredVelocity.length()-10)/38,0,1);
     boostAmount=THREE.MathUtils.damp(boostAmount,boostTarget,3.2,dt);
   } else if(discoveryDrift) {
@@ -2573,7 +2793,7 @@ function moveShip(dt) {
   if(solidBodies.some(o=>next.distanceToSquared(o.position)<o.radius*o.radius)){
     velocity.set(0,0,0);
     discoveryDrift=false;
-    if(autopilotTarget)stopAutopilot('Course blocked. Manual control restored.');
+    if(autopilotTarget){autopilotWaypoint=null;autopilotWaypointExit=null;autopilotProgress?.contact();}
     return;
   }
   const contacts=[];
@@ -2587,6 +2807,13 @@ function moveShip(dt) {
   }
   contacts.sort((a,b)=>a.contact.fraction-b.contact.fraction);
   for(const {rock,contact} of contacts)if(hitAsteroid(rock,contact,dt))return;
+  const earth=bodies.find(body=>body.data.id==='earth');
+  const earthDistance=next.distanceTo(earth.group.position)-earth.data.radius;
+  if(earthDistance>40){earthApproachReady=false;earthApproachDistance=0;}
+  else if(!autopilotTarget&&!discoveryDrift&&!previewTarget&&earthDistance<=25&&(keys.has('KeyW')||keys.has('KeyS'))){
+    earthApproachDistance+=shipPosition.distanceTo(next);
+    if(earthApproachDistance>=4)earthApproachReady=true;
+  }
   shipPosition.copy(next);
 }
 
@@ -2600,7 +2827,7 @@ function clearShipBodyOverlaps() {
     discoveryDrift=false;
     parkedTarget=null;
     arrivalPreview=false;
-    if(autopilotTarget)stopAutopilot('Moving body contact. Manual control restored.');
+    if(autopilotTarget){autopilotWaypoint=null;autopilotWaypointExit=null;autopilotProgress?.contact();}
   }
 }
 
@@ -2622,15 +2849,16 @@ function updateBodies(elapsed,dt) {
 function updateHud(elapsed) {
   if(elapsed-lastHudUpdate<.08)return;
   lastHudUpdate=elapsed;
-  if(!document.querySelector('#settingsOverlay').hidden)document.querySelector('#musicNowPlaying').textContent=`Now playing: ${shipAudio.getActiveTrackName()}`;
+  updateEarthLandingUI();
+  if(!document.querySelector('#settingsOverlay').hidden)document.querySelector('#musicNowPlaying').textContent=musicPlaybackLabel();
   const nearest=bodies.reduce((best,body)=>{
     const distance=Math.max(0,shipPosition.distanceTo(body.group.position)-body.data.radius);
     return distance<best.distance?{body,distance}:best;
   },{body:null,distance:Infinity});
   document.querySelector('#speedReadout').textContent=Math.round(velocity.length()).toString();
   document.querySelector('#nearestReadout').textContent=isWorldLocked(nearest.body.data.id)?'Unknown':nearest.body.data.name;
-  document.querySelector('#distanceReadout').textContent=`${Math.round(nearest.distance)} units away`;
-  if(autopilotTarget)document.querySelector('#autopilotStatus').textContent=`Flying to ${autopilotTarget.data.name} · ${Math.max(0,Math.round(shipPosition.distanceTo(autopilotTarget.group.position)-autopilotTarget.data.radius))} units`;
+  document.querySelector('#distanceReadout').textContent=parkedTarget?`Parked near ${parkedTarget.data.name}`:`${Math.round(nearest.distance)} units away`;
+  if(autopilotTarget)document.querySelector('#autopilotStatus').textContent=autopilotRecoveryTime>0?autopilotMessage:modalOpen()?`Paused · close the menu to continue to ${autopilotTarget.data.name}`:`Flying to ${autopilotTarget.data.name} · ${Math.max(0,Math.round(shipPosition.distanceTo(autopilotTarget.group.position)-autopilotTarget.data.radius))} units`;
   let degrees=((THREE.MathUtils.radToDeg(yaw)%360)+360)%360;
   document.querySelector('#bearingReadout').textContent=`N ${String(Math.round(degrees)).padStart(3,'0')}°`;
   const bankDegrees=Math.round(Math.abs(THREE.MathUtils.radToDeg(bank)));
@@ -2690,9 +2918,10 @@ function updateSignal() {
 }
 
 function resize() {
-  const width=window.innerWidth,height=window.innerHeight;
+  const width=document.querySelector('#app').clientWidth,height=document.querySelector('#app').clientHeight;
   renderer.setSize(width,height,false);
-  const pixelRatio=Math.min(window.devicePixelRatio||1,1.8);
+  const pixelRatio=Math.min(window.devicePixelRatio||1,matchMedia('(pointer: coarse)').matches?1.25:1.8);
+  renderer.setPixelRatio(pixelRatio);
   speedCanvas.width=Math.round(width*pixelRatio);
   speedCanvas.height=Math.round(height*pixelRatio);
   speedContext.setTransform(pixelRatio,0,0,pixelRatio,0,0);
@@ -2733,8 +2962,18 @@ function renderScene() {
 
 function animate() {
   requestAnimationFrame(animate);
-  const dt=Math.min(clock.getDelta(),.05);
+  const frameDelta=clock.getDelta();
+  const dt=Math.min(frameDelta,.05);
   const elapsed=clock.elapsedTime;
+  if(earthSurface?.active){
+    earthSurface.update(dt,modalOpen()||document.hidden);
+    speedContext.clearRect(0,0,speedCanvas.width,speedCanvas.height);
+    shipAudio.update(0,0,true,false);
+    renderer.render(earthSurface.scene,earthSurface.camera);
+    capturePhoto();
+    captureLogSnapshots();
+    return;
+  }
   updateBodies(elapsed,dt);
   introEffectsDt+=dt;
   // The title scene needs smooth ship and planet motion, but distant debris
@@ -2751,7 +2990,7 @@ function animate() {
     renderScene();
     return;
   }
-  moveShip(dt);
+  moveShip(dt,frameDelta);
   clearShipBodyOverlaps();
   updateVoyageProgress();
   updateFlybyLog();
@@ -2778,6 +3017,7 @@ buildPlanetList();
 selectPlanet('earth');
 loadNames();
 setupControls();
+setupLandingControls();
 setupAudioControls();
 setupDestinationToggle();
 setupGuideToggle();
@@ -2787,6 +3027,7 @@ setupVoyages();
 // guide in free exploration while keeping unscanned worlds masked in Discovery.
 selectPlanet(selectedId);
 setupIntro();
+setupUpdates();
 resize();
 window.addEventListener('resize',resize);
 window.addEventListener('pagehide',saveFlightState);
@@ -2840,6 +3081,7 @@ async function prepareIntro() {
     clock.start();
     document.querySelector('#introOverlay').inert=false;
     screen.hidden=true;
+    document.querySelector('#app').classList.remove('loading-mode');
     animate();
   }catch(error){
     console.error('Solar system preparation failed',error);

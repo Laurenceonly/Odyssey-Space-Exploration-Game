@@ -29,6 +29,10 @@ const scores={
 export function createShipAudio() {
   const AudioContextClass=window.AudioContext||window.webkitAudioContext;
   let context;
+  const stateListeners=new Set();
+  const isRunning=()=>Boolean(enabled&&context?.state==='running');
+  const isPlaying=()=>isRunning()&&musicVolume>0;
+  function notifyState(){for(const listener of stateListeners)listener();}
   let master;
   let engineGain;
   let engineFilter;
@@ -191,6 +195,7 @@ export function createShipAudio() {
     if(!enabled||!AudioContextClass)return false;
     if(!context) {
       try{context=new AudioContextClass();}catch{return false;}
+      context.addEventListener('statechange',notifyState);
       master=context.createGain();master.gain.value=0;
       const limiter=context.createDynamicsCompressor();
       limiter.threshold.value=-13;limiter.knee.value=18;limiter.ratio.value=4;
@@ -247,7 +252,7 @@ export function createShipAudio() {
       scheduleMusic();
       musicTimer=setInterval(scheduleMusic,750);
     }
-    Promise.resolve(context.resume()).catch(()=>{});
+    Promise.resolve(context.resume()).then(notifyState).catch(notifyState);
     scheduleMusic();
     master.gain.setTargetAtTime(.75,context.currentTime,.08);
     return true;
@@ -258,6 +263,7 @@ export function createShipAudio() {
     try{localStorage.setItem('odyssey-sound',enabled?'on':'off');}catch{}
     if(enabled)start();
     else if(context)master.gain.setTargetAtTime(0,context.currentTime,.04);
+    notifyState();
     return enabled;
   }
 
@@ -266,6 +272,8 @@ export function createShipAudio() {
     musicVolume=Number.isFinite(value)?Math.min(1.5,Math.max(0,value/100)):1;
     try{localStorage.setItem('odyssey-music-volume',String(Math.round(musicVolume*100)));}catch{}
     if(enabled&&!context)start();
+    if(context&&musicBus)musicBus.gain.setTargetAtTime(.55*musicVolume,context.currentTime,.08);
+    notifyState();
     return Math.round(musicVolume*100);
   }
 
@@ -396,5 +404,5 @@ export function createShipAudio() {
     setTimeout(()=>panner.disconnect(),1000);
   }
 
-  return {start,setEnabled,setMusicVolume,getMusicVolume:()=>Math.round(musicVolume*100),setMusicSelection,getMusicSelection:()=>musicSelection,getActiveTrackName:()=>musicTracks.find(track=>track.id===activeTrackId)?.name.split(' · ')[0]||'Odyssey',update,signalPulse,cue,asteroidImpact,isEnabled:()=>enabled,isSupported:()=>Boolean(AudioContextClass)};
+  return {start,isRunning,isPlaying,onStateChange(listener){stateListeners.add(listener);listener();return()=>stateListeners.delete(listener);},setEnabled,setMusicVolume,getMusicVolume:()=>Math.round(musicVolume*100),setMusicSelection,getMusicSelection:()=>musicSelection,getActiveTrackName:()=>musicTracks.find(track=>track.id===activeTrackId)?.name.split(' · ')[0]||'Odyssey',update,signalPulse,cue,asteroidImpact,isEnabled:()=>enabled,isSupported:()=>Boolean(AudioContextClass)};
 }
