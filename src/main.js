@@ -15,6 +15,7 @@ import { applyPlanetSurface, applyEarthNightLights, applyRingShadow, loadPlanetT
 import { landmarks, surfaceLandmarkAt } from './landmarks.js';
 import { createEarthSurface } from './earth-surface.js';
 import { flightScale } from './flight-scale.js';
+import { followChaseCamera } from './camera-follow.js';
 
 if (import.meta.env.PROD) inject({ mode: 'production' });
 
@@ -70,6 +71,9 @@ let impactFeedbackText='';
 let boostAmount = 0;
 let idleMotion = 0;
 let cameraMode = 'chase';
+const cameraShipAnchor=new THREE.Vector3();
+const cameraShipShift=new THREE.Vector3();
+let cameraAnchorReady=false;
 let previewTarget = null;
 let previewOrbitAngle = 0;
 let previewOrbitTargetAngle = 0;
@@ -461,9 +465,17 @@ function makeSaturnRings(parent,radius) {
 }
 
 const saturnShardDummy=new THREE.Object3D();
+const saturnWorldInverse=new THREE.Matrix4();
+let saturnEffectsDt=0;
+let saturnEffectsReady=false;
 function updateSaturnRings(elapsed,dt) {
   if(!saturnRingPlane)return;
+  saturnEffectsDt+=dt;
+  const detailed=previewTarget?.data.id==='saturn'||shipPosition.distanceToSquared(saturnRingPlane.parent.position)<120**2;
+  if(saturnEffectsReady&&!detailed&&saturnEffectsDt<.1)return;
+  dt=saturnEffectsDt;saturnEffectsDt=0;saturnEffectsReady=true;
   saturnRingPlane.updateWorldMatrix(true,false);
+  saturnWorldInverse.copy(saturnRingPlane.matrixWorld).invert();
   saturnRingDust.rotation.z=elapsed*.004;
   const distance=shipPosition.distanceTo(saturnRingPlane.parent.position);
   const solidity=THREE.MathUtils.clamp((distance-105)/140,0,1);
@@ -479,14 +491,14 @@ function updateSaturnRings(elapsed,dt) {
     shard.previousPosition??=new THREE.Vector3();
     shard.previousPosition.copy(shard.position);
     shard.position.copy(saturnShardDummy.position);
-    saturnRingPlane.localToWorld(shard.position);
+    shard.position.applyMatrix4(saturnRingPlane.matrixWorld);
     shard.driftOffset.addScaledVector(shard.driftVelocity,dt);
     shard.position.add(shard.driftOffset);
     if(shard.initialized&&dt>0)shard.velocity.copy(shard.position).sub(shard.previousPosition).divideScalar(dt);
     else shard.previousPosition.copy(shard.position);
     shard.initialized=true;
     saturnShardDummy.position.copy(shard.position);
-    saturnRingPlane.worldToLocal(saturnShardDummy.position);
+    saturnShardDummy.position.applyMatrix4(saturnWorldInverse);
     saturnShardDummy.updateMatrix();
     saturnShardMesh.setMatrixAt(index,saturnShardDummy.matrix);
   });
@@ -983,6 +995,9 @@ function createSolarSystem() {
   updateComet(0);
 }
 
+let cometTailDt=0;
+let cometTailReady=false;
+const cometOrbitalVelocity=new THREE.Vector3();
 function updateComet(dt) {
   if(!cometBody)return;
   cometElapsed+=dt;
@@ -991,8 +1006,12 @@ function updateComet(dt) {
   cometBody.mesh.rotation.y+=dt*.16;
   cometComa.material.opacity=.5+orbit.activity*.3;
   cometComa.scale.setScalar(21+orbit.activity*22);
+  cometTailDt+=dt;
+  const detailed=previewTarget?.data.id==='comet'||shipPosition.distanceToSquared(cometBody.group.position)<400**2;
+  if(cometTailReady&&!detailed&&cometTailDt<.1)return;
+  cometTailDt=0;cometTailReady=true;
   const earlier=cometPosition(cometElapsed-.1),later=cometPosition(cometElapsed+.1);
-  const orbitalVelocity=new THREE.Vector3(later.x-earlier.x,later.y-earlier.y,later.z-earlier.z);
+  const orbitalVelocity=cometOrbitalVelocity.set(later.x-earlier.x,later.y-earlier.y,later.z-earlier.z);
   const shape=writeCometTail(cometTailPositions,cometTailColors,reducedMotion.matches?0:cometElapsed,orbit.activity,cometBody.group.position,orbitalVelocity);
   cometTail.material.opacity=shape.opacity;
   cometTail.geometry.attributes.position.needsUpdate=true;
@@ -1483,6 +1502,10 @@ function chaseCameraPosition(){
 }
 
 function updateCamera(dt,instant=false) {
+  if(cameraAnchorReady)cameraShipShift.copy(shipPosition).sub(cameraShipAnchor);
+  else cameraShipShift.set(0,0,0);
+  cameraShipAnchor.copy(shipPosition);
+  cameraAnchorReady=true;
   // Narrow screens reserve their lower half for the two guide panels.
   // Shift the preview into the open space and fit its full horizontal extent.
   const narrowPreview=Boolean(previewTarget)&&camera.aspect<.75;
@@ -1491,7 +1514,7 @@ function updateCamera(dt,instant=false) {
       camera.setViewOffset(window.innerWidth,window.innerHeight,0,window.innerHeight*.21,window.innerWidth,window.innerHeight);
     }
   }else if(camera.view?.enabled)camera.clearViewOffset();
-  if(introActive){updateIntroFlight();return;}
+  if(introActive){cameraAnchorReady=false;updateIntroFlight();return;}
   if(launchTransition){
     const transition=launchTransition;
     transition.elapsed=Math.min(transition.duration,transition.elapsed+dt);
@@ -1578,7 +1601,7 @@ function updateCamera(dt,instant=false) {
   const targetPosition=chaseCameraPosition();
   levelDirection.set(-Math.sin(yaw),0,-Math.cos(yaw));
   if(instant || cameraTransition || camera.position.distanceToSquared(targetPosition)>2500)camera.position.copy(targetPosition);
-  else camera.position.lerp(targetPosition,1-Math.exp(-9*dt));
+  else followChaseCamera(camera.position,targetPosition,cameraShipShift,dt,flightScale.cameraResponse);
   camera.lookAt(temp.copy(shipPosition).addScaledVector(levelDirection,flightScale.chaseFocus));
   if(!reducedMotion.matches)camera.rotateZ(bank*.13);
   applyCameraTransition(dt);
@@ -1775,6 +1798,11 @@ function updateScanner(dt,elapsed) {
     !document.querySelector('#settingsOverlay').hidden||
     !document.querySelector('#exitOverlay').hidden;
   if(blocked){feedback.hidden=true;scanSeconds=0;scanTargetId=null;return;}
+  // Reticle labels update in the HUD; full surface raycasts are needed here
+  // only while the player actually scans.
+  if(!keys.has('KeyR')){
+    scanSeconds=0;scanTargetId=null;feedback.hidden=elapsed>=scanResultUntil;return;
+  }
   const worldHit=pointedPlanet();
   const aimed=pointedLandmark(worldHit);
   if(keys.has('KeyR')&&aimed&&!scannedLandmarks.has(aimed.landmark.id)){
@@ -2172,21 +2200,35 @@ function recordLog(type,worldId,details) {
   if(!document.querySelector('#logOverlay').hidden)renderCaptainLog();
 }
 
+let logSnapshotEncoding=false;
 function captureLogSnapshots() {
-  if(!pendingLogSnapshots.length)return;
+  if(!pendingLogSnapshots.length||logSnapshotEncoding)return;
   const ids=new Set(pendingLogSnapshots);
+  const snapshotLog=captainLog,snapshotMode=gameMode;
   pendingLogSnapshots=[];
+  logSnapshotEncoding=true;
   try {
     const thumbnail=document.createElement('canvas');
     thumbnail.width=320;thumbnail.height=180;
     thumbnail.getContext('2d').drawImage(canvas,0,0,thumbnail.width,thumbnail.height);
-    const image=thumbnail.toDataURL('image/jpeg',.62);
-    captainLog.forEach(entry=>{if(ids.has(entry.id))entry.image=image;});
-    let images=0;
-    for(const entry of captainLog)if(entry.image&&++images>32)delete entry.image;
-    saveCaptainLog();
-    if(!document.querySelector('#logOverlay').hidden)renderCaptainLog();
-  } catch {}
+    // JPEG encoding runs asynchronously instead of blocking the flight frame.
+    thumbnail.toBlob(blob=>{
+      if(!blob){logSnapshotEncoding=false;return;}
+      const reader=new FileReader();
+      reader.onload=()=>{
+        logSnapshotEncoding=false;
+        // A mode switch or New game must not attach an old flight photo.
+        if(snapshotLog!==captainLog||snapshotMode!==gameMode)return;
+        captainLog.forEach(entry=>{if(ids.has(entry.id))entry.image=reader.result;});
+        let images=0;
+        for(const entry of captainLog)if(entry.image&&++images>32)delete entry.image;
+        saveCaptainLog();
+        if(!document.querySelector('#logOverlay').hidden)renderCaptainLog();
+      };
+      reader.onerror=reader.onabort=()=>{logSnapshotEncoding=false;};
+      reader.readAsDataURL(blob);
+    },'image/jpeg',.62);
+  } catch {logSnapshotEncoding=false;}
 }
 
 function updateFlybyLog() {

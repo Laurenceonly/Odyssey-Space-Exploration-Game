@@ -40,7 +40,7 @@ Example learning activities included jumping in different gravity, investigating
 
 - Add a walkable ship interior: the creator approved exploring your own ship.
 - Watching planets through ship windows is a particularly important, explicitly welcomed idea.
-- Preserve the existing first-person and third-person views and their usability when adding interiors or changing scale.
+- Preserve the existing first-person viewpoint and third-person on-screen ship size, position, angle, and field of view when adding interiors or changing scale. The creator explicitly reaffirmed desktop fit and the same POV as before; improve planetary scale without shrinking the ship on screen.
 - Improve planet-to-ship scale: the spaceship currently feels too large during exploration; planets should feel vast and more realistic.
 - Exact radii, proportions, orbital distances, ship dimensions, and travel times remain undecided. Do not assume full astronomical scale is required.
 
@@ -137,4 +137,4 @@ No deadline, final feature order, hosting provider, payment platform, or player 
 
 ## Staged delivery
 
-See [Update roadmap](UPDATE_ROADMAP.md) for the proposed sequence of small, independently reviewable updates. No gameplay changes have been made.
+See [Update roadmap](UPDATE_ROADMAP.md) for the sequence of small, independently reviewable updates. Update 1 is implemented locally; subsequent features remain planned.

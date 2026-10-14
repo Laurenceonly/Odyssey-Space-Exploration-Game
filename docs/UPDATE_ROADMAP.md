@@ -2,7 +2,7 @@
 
 Created: 2026-10-14 (Asia/Manila).
 
-Source: [Design direction](DESIGN_DIRECTION.md). This is a proposed delivery sequence, not a promise of dates or authorization to implement all updates immediately. No gameplay code has changed. Update names are working labels.
+Source: [Design direction](DESIGN_DIRECTION.md). This is a proposed delivery sequence, not a promise of dates or authorization to implement all updates immediately. Update 1 has been implemented locally; later updates remain planned. Update names are working labels.
 
 ## Delivery rule
 
@@ -10,7 +10,7 @@ Finish one small playable update, verify it, and gather feedback before beginnin
 
 ## Update 1 — A Sense of Scale
 
-Status: implemented and validated locally on 2026-10-14. Orbital hull reduced from 1.05 to 0.21; chase offsets halved, matching lighting and collision clearance. First-person view, saved world coordinates, travel distances, and Earth surface proportions retained. Browser flight/landing checks and 45 regression tests passed. Further visual tuning can follow creator feedback.
+Status: implemented and validated locally on 2026-10-14. Orbital hull reduced from 1.05 to 0.21; camera rig scaled proportionally to preserve the original on-screen ship framing, with matching lighting and collision clearance. First-person view, saved world coordinates, travel distances, and Earth surface proportions retained. Browser flight/landing and desktop POV checks passed, with 47 regression tests and steadier camera tracking. Distant effects and log-photo encoding were optimized following a reported flight stumble. Further visual tuning can follow creator feedback.
 
 Outcome: planets feel vast relative to the ship while current first-person and third-person flight remain comfortable.
 

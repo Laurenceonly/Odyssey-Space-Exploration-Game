@@ -1,12 +1,15 @@
 export const gameUpdates = [
   {
     "date": "2026-10-14",
-    "title": "A greater sense of scale",
-    "summary": "A smaller spaceship and closer chase camera make the worlds feel larger as you explore.",
+    "title": "Larger-feeling worlds and steadier flight",
+    "summary": "Worlds feel larger around your ship, with familiar views and smoother camera tracking.",
     "notes": [
-      "Improved: The spaceship is five times smaller in space, with a closer third-person camera that keeps it visible against the planets.",
+      "Improved: Planets feel larger relative to the spaceship while third-person flight retains the original ship framing and field of view.",
       "Improved: Ship lighting and collision clearance match its smaller size, allowing closer approaches to worlds and debris.",
-      "Improved: First-person flight, saved positions, travel distances, and the full-sized ship on Earth remain available."
+      "Improved: First-person flight retains its original viewpoint. Saved positions, travel distances, and the full-sized ship on Earth are preserved.",
+      "Fixed: Third-person camera tracking stays steady when frame timing varies, avoiding catch-up jumps during flight.",
+      "Improved: Flight does less background work on distant effects while keeping nearby comet and ring motion detailed.",
+      "Improved: Captain’s log photos encode without pausing flight for JPEG compression."
     ]
   },
   {

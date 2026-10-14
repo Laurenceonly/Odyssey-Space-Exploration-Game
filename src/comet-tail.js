@@ -18,6 +18,19 @@ function seed(index,salt) {
   return value-Math.floor(value);
 }
 
+// Particle seeds and cross-section angles are constant across every frame.
+const phases=new Float64Array(cometTailCount);
+const spreads=new Float64Array(cometTailCount);
+const lateralDirections=new Float64Array(cometTailCount);
+const verticalDirections=new Float64Array(cometTailCount);
+for(let i=0;i<cometTailCount;i++){
+  phases[i]=seed(i,57);
+  spreads[i]=Math.sqrt(seed(i,59));
+  const angle=seed(i,58)*Math.PI*2;
+  lateralDirections[i]=Math.cos(angle);
+  verticalDirections[i]=Math.sin(angle);
+}
+
 export function writeCometTail(positions,colors,seconds,activity,center,orbitalVelocity=null) {
   const shape=cometTailShape(activity);
   outward.copy(center).normalize();
@@ -33,13 +46,12 @@ export function writeCometTail(positions,colors,seconds,activity,center,orbitalV
   trailing.normalize().negate();
   for(let i=0;i<cometTailCount;i++){
     const ion=i>=800;
-    const phase=((seed(i,57)+seconds*(ion ? .11 : .075))%1+1)%1;
+    const phase=((phases[i]+seconds*(ion ? .11 : .075))%1+1)%1;
     const distance=3+phase*shape.length*(ion?1.15:1);
-    const spread=(.5+phase*shape.width)*(ion ? .2 : 1)*Math.sqrt(seed(i,59));
-    const angle=seed(i,58)*Math.PI*2;
+    const spread=(.5+phase*shape.width)*(ion ? .2 : 1)*spreads[i];
     const bend=ion?0:phase*phase*shape.length*.2;
-    const lateral=Math.cos(angle)*spread;
-    const vertical=Math.sin(angle)*spread;
+    const lateral=lateralDirections[i]*spread;
+    const vertical=verticalDirections[i]*spread;
     const offset=i*3;
     positions[offset]=outward.x*distance+across.x*lateral+above.x*vertical+trailing.x*bend;
     positions[offset+1]=outward.y*distance+across.y*lateral+above.y*vertical+trailing.y*bend;
