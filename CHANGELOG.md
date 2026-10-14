@@ -12,6 +12,119 @@ node scripts/update-commit-history.mjs
 
 The snapshot includes commits present when the command runs. A commit that adds this snapshot will appear on the next refresh.
 
+## 2026-10-14 14:08:34 — 4289b03
+
+[View commit](https://github.com/Laurenceonly/Odyssey-Space-Exploration-Game/commit/4289b03057674d99c1de80fb35e10ec430fd11d1)
+
+- feat: improve planet-to-ship scale and preserve flight views
+
+<details>
+<summary>Files changed (A = added, M = modified, D = deleted)</summary>
+
+```text
+M	README.md
+M	docs/UPDATE_ROADMAP.md
+M	docs/WORK_LOG.md
+M	src/body-clearance.js
+M	src/earth-surface.js
+A	src/flight-scale.js
+M	src/game-updates.js
+M	src/main.js
+M	tests/body-clearance.test.js
+```
+
+</details>
+
+## 2026-10-14 14:08:33 — 17019f4
+
+[View commit](https://github.com/Laurenceonly/Odyssey-Space-Exploration-Game/commit/17019f43cc2381d4ca7f524b6d14fd6e5c935e92)
+
+- docs: record Odyssey design direction and staged updates
+
+<details>
+<summary>Files changed (A = added, M = modified, D = deleted)</summary>
+
+```text
+A	docs/DESIGN_DIRECTION.md
+A	docs/UPDATE_ROADMAP.md
+```
+
+</details>
+
+## 2026-10-14 06:04:44 — 235b2f0
+
+[View commit](https://github.com/Laurenceonly/Odyssey-Space-Exploration-Game/commit/235b2f0ee70591fede45ee361608088eb55c928b)
+
+- fixed bug on mouse control to look around
+
+<details>
+<summary>Files changed (A = added, M = modified, D = deleted)</summary>
+
+```text
+M	README.md
+M	docs/WORK_LOG.md
+M	src/game-updates.js
+M	src/main.js
+M	src/style.css
+```
+
+</details>
+
+## 2026-10-14 05:29:55 — 13d1fd6
+
+[View commit](https://github.com/Laurenceonly/Odyssey-Space-Exploration-Game/commit/13d1fd63903ca4bf5e5c4d0506fc339f4cbb2b33)
+
+- Desktop-only gameplay; mobile gets a lightweight notice.
+- Earth landing, astronaut movement, boarding, and takeoff.
+- Smarter autopilot and smoother Play transition.
+- Cleaner UI, sound in Settings, and Credits moved out of the game view.
+- Tab icon adapts to light/dark browse
+
+<details>
+<summary>Files changed (A = added, M = modified, D = deleted)</summary>
+
+```text
+M	README.md
+M	docs/WORK_LOG.md
+M	index.html
+A	public/favicon.svg
+M	scripts/check-audio.mjs
+A	src/astronaut.js
+M	src/audio.js
+A	src/autopilot-progress.js
+A	src/device-support.js
+A	src/earth-physics.js
+A	src/earth-surface.js
+A	src/entry.js
+A	src/game-updates.js
+A	src/landing-gear.js
+M	src/main.js
+M	src/style.css
+A	tests/astronaut.test.js
+A	tests/autopilot-progress.test.js
+A	tests/device-support.test.js
+A	tests/earth-physics.test.js
+```
+
+</details>
+
+## 2026-10-11 21:31:55 — f52911e
+
+[View commit](https://github.com/Laurenceonly/Odyssey-Space-Exploration-Game/commit/f52911ea4c92fc8b9501c8410cada0c14774f745)
+
+- Record deployment verification and refresh commit history
+
+<details>
+<summary>Files changed (A = added, M = modified, D = deleted)</summary>
+
+```text
+M	CHANGELOG.md
+M	docs/VALIDATION.md
+M	docs/WORK_LOG.md
+```
+
+</details>
+
 ## 2026-10-11 21:28:14 — 3e68224
 
 [View commit](https://github.com/Laurenceonly/Odyssey-Space-Exploration-Game/commit/3e68224be9ff5bc05c9087ef797bc4ab95d6d466)
