@@ -12,6 +12,45 @@ node scripts/update-commit-history.mjs
 
 The snapshot includes commits present when the command runs. A commit that adds this snapshot will appear on the next refresh.
 
+## 2026-10-14 15:28:02 — 4f46ae7
+
+[View commit](https://github.com/Laurenceonly/Odyssey-Space-Exploration-Game/commit/4f46ae75016fe30bd962ac5ccfdb48d336c3b156)
+
+- fix: preserve desktop POV and smooth flight camera tracking
+
+<details>
+<summary>Files changed (A = added, M = modified, D = deleted)</summary>
+
+```text
+M	README.md
+M	docs/DESIGN_DIRECTION.md
+M	docs/UPDATE_ROADMAP.md
+M	docs/WORK_LOG.md
+A	src/camera-follow.js
+M	src/comet-tail.js
+M	src/flight-scale.js
+M	src/game-updates.js
+M	src/main.js
+A	tests/camera-follow.test.js
+```
+
+</details>
+
+## 2026-10-14 14:08:48 — f135814
+
+[View commit](https://github.com/Laurenceonly/Odyssey-Space-Exploration-Game/commit/f1358148c670a2e799414e25037bd990589c4b5d)
+
+- docs: refresh history after scale update
+
+<details>
+<summary>Files changed (A = added, M = modified, D = deleted)</summary>
+
+```text
+M	CHANGELOG.md
+```
+
+</details>
+
 ## 2026-10-14 14:08:34 — 4289b03
 
 [View commit](https://github.com/Laurenceonly/Odyssey-Space-Exploration-Game/commit/4289b03057674d99c1de80fb35e10ec430fd11d1)
