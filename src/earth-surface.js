@@ -169,6 +169,9 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
   const landedShip=ship.clone(true);
   landedShip.name='earth-ship';
   landedShip.rotation.set(0,0,0);landedShip.scale.setScalar(1.8);
+  // Surface metres keep the original astronaut-sized hull and lighting.
+  const hullLight=landedShip.getObjectByName('ship-hull-light');
+  if(hullLight){hullLight.intensity=18;hullLight.distance=9;}
   landedShip.visible=false;
   landedShip.traverse(o=>{if(o.isMesh)o.castShadow=o.receiveShadow=true;});
   scene.add(landedShip);

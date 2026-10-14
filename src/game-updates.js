@@ -1,6 +1,16 @@
 export const gameUpdates = [
   {
     "date": "2026-10-14",
+    "title": "A greater sense of scale",
+    "summary": "A smaller spaceship and closer chase camera make the worlds feel larger as you explore.",
+    "notes": [
+      "Improved: The spaceship is five times smaller in space, with a closer third-person camera that keeps it visible against the planets.",
+      "Improved: Ship lighting and collision clearance match its smaller size, allowing closer approaches to worlds and debris.",
+      "Improved: First-person flight, saved positions, travel distances, and the full-sized ship on Earth remain available."
+    ]
+  },
+  {
+    "date": "2026-10-14",
     "title": "Desktop exploration and a smoother launch",
     "summary": "Odyssey now focuses on desktop play, with a smoother launch and a clearer experience.",
     "notes": [

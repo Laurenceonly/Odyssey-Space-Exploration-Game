@@ -5,10 +5,10 @@ export function orbitalSafeHeight(bodyRadius,shipRadius=1.4,margin=2.6) {
 
 // Saved flights may still sit in the old launch position. Clear the whole
 // orbital sweep before the Moon reaches them, rather than waiting for impact.
-export function clearOrbitalSweep(position,center,orbitRadius,bodyRadius) {
+export function clearOrbitalSweep(position,center,orbitRadius,bodyRadius,shipRadius=1.4) {
   const radialDistance=Math.hypot(position.x-center.x,position.z-center.z);
   const height=position.y-center.y;
-  const safeHeight=orbitalSafeHeight(bodyRadius);
+  const safeHeight=orbitalSafeHeight(bodyRadius,shipRadius);
   if(Math.hypot(radialDistance-orbitRadius,height)>=safeHeight)return false;
   position.y=center.y+(height<0?-safeHeight:safeHeight);
   return true;

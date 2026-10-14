@@ -253,3 +253,14 @@ Copy this template for future updates and replace the timestamp with the current
 - Updated the newest Fixed note and clarified left-button dragging in README.
 - Validation: all 43 regression tests and production build passed. Actual mouse-event Earth browser checks passed third-person and first-person camera changes, release stopping input, and menu guarding with no page errors. Evidence: output/playwright/earth-mouse-look/validation.log. Startup preparation was bypassed in the harness.
 - Git: uncommitted and not deployed.
+
+
+## 2026-10-14 14:07:38 — Update 1: A Sense of Scale
+
+- Recorded the agreed game direction and staged roadmap; future ship interiors, planetary landings, gathering/building, co-op, profiles, and cosmetics remain separate milestones.
+- Reduced orbital ship scale from 1.05 to 0.21 and halved chase offsets/focus, making worlds larger relative to a readable ship. Kept existing planet radii, orbit distances, flight speeds, first-person camera, and saved coordinates. This is a stylized scale improvement, not true astronomical scale.
+- Centralized flight scale/clearance values, resized rock/ring/planet collision padding and Moon launch/restore clearance, and adjusted orbital point-light intensity/reach. Earth retains its original 1.8-scale ship, hull lighting, and landing gear. Added regression coverage for the new launch clearance and safe legacy saves.
+- Updated player-facing notes and README.
+- Validation: all 45 regression tests passed; targeted clearance tests passed after binding coverage to actual flight settings; audio checks and production build passed; diff whitespace checks passed. Build retains the existing large-bundle warning.
+- Browser: real startup/Play and camera controls passed. Instrumented deterministic checks passed forward/reverse flight, saved position restoration, autopilot arrivals at all ten navigable destinations, Moon discovery scan, first/third-person hull visibility, and Earth landing/walking/boarding/takeoff with correct supports and surface lighting. Launch start/end pose/FOV continuity passed at 1440×900, 390×844, and 844×390, plus reduced motion. No page errors. Timing checks step simulation functions and do not measure physical-device frame performance. Evidence: output/playwright/scale-update/. Visually reviewed Earth chase and landed views.
+- Git: prepared for separate planning and Update 1 commits, followed by commit-history refresh. No push or deployment requested.

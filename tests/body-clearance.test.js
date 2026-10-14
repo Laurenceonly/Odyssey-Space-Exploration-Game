@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Vector3} from 'three';
 import {orbitalSafeHeight,clearOrbitalSweep,clearBodyOverlap} from '../src/body-clearance.js';
+import {flightScale} from '../src/flight-scale.js';
 
 test('an old Earth launch save is clear of every future Moon phase on restore',()=>{
   const earth=new Vector3(100,0,20),ship=earth.clone().add(new Vector3(10,4,18));
@@ -56,4 +57,28 @@ test('an exact-center overlap gets a finite exit position',()=>{
   clearBodyOverlap(position,new Vector3(),center,6.4);
   assert.ok(position.toArray().every(Number.isFinite));
   assert.ok(position.distanceTo(center)>6.4);
+});
+
+
+test('smaller orbital ship launches clear of the Moon at every phase',()=>{
+  const shipRadius=flightScale.clearance,moonRadius=5;
+  const height=orbitalSafeHeight(moonRadius,shipRadius),flightRadius=Math.hypot(10,18);
+  for(let step=0;step<=720;step++){
+    const angle=step*Math.PI/360;
+    const ship=new Vector3(flightRadius,height-.35,0);
+    const moon=new Vector3(Math.cos(angle)*25,0,Math.sin(angle)*25);
+    assert.ok(ship.distanceTo(moon)>moonRadius+shipRadius+2);
+  }
+});
+
+test('orbit recovery uses the supplied ship size and preserves a safe old save',()=>{
+  const shipRadius=flightScale.clearance;
+  const center=new Vector3(100,0,20);
+  const oldSave=center.clone().add(new Vector3(10,orbitalSafeHeight(5),18));
+  const before=oldSave.toArray();
+  assert.equal(clearOrbitalSweep(oldSave,center,25,5,shipRadius),false);
+  assert.deepEqual(oldSave.toArray(),before);
+  const unsafe=center.clone().add(new Vector3(25,-1,0));
+  assert.equal(clearOrbitalSweep(unsafe,center,25,5,shipRadius),true);
+  assert.equal(unsafe.y,center.y-orbitalSafeHeight(5,shipRadius));
 });

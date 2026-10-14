@@ -10,6 +10,8 @@ Finish one small playable update, verify it, and gather feedback before beginnin
 
 ## Update 1 — A Sense of Scale
 
+Status: implemented and validated locally on 2026-10-14. Orbital hull reduced from 1.05 to 0.21; chase offsets halved, matching lighting and collision clearance. First-person view, saved world coordinates, travel distances, and Earth surface proportions retained. Browser flight/landing checks and 45 regression tests passed. Further visual tuning can follow creator feedback.
+
 Outcome: planets feel vast relative to the ship while current first-person and third-person flight remain comfortable.
 
 Scope:
@@ -135,4 +137,4 @@ These are a backlog, not mandatory prerequisites for launch. Add one useful vehi
 
 ## Next action
 
-Begin only Update 1 when implementation is requested: inspect current ship/planet/camera relationships, propose and apply a scale approach that preserves existing POVs, and validate flight and Earth landing. The roadmap itself does not change the game.
+Update 1 is implemented locally. The next planned milestone is Update 2: a compact parked ship cabin with a planet window. Keep that work separate from this completed scale update.

@@ -14,6 +14,7 @@ import { createAtmosphere } from './atmosphere.js';
 import { applyPlanetSurface, applyEarthNightLights, applyRingShadow, loadPlanetTexture, waitForPlanetTextures } from './planet-materials.js';
 import { landmarks, surfaceLandmarkAt } from './landmarks.js';
 import { createEarthSurface } from './earth-surface.js';
+import { flightScale } from './flight-scale.js';
 
 if (import.meta.env.PROD) inject({ mode: 'production' });
 
@@ -455,7 +456,7 @@ function makeSaturnRings(parent,radius) {
   saturnRingPlane.add(saturnShardMesh);
   for(let i=0;i<260;i++){
     const band=hash(i,211)<.57?[inner,gapInner]:[gapOuter,outer];
-    saturnShards.push({id:10000+i,origin:'ring',angle:hash(i,212)*Math.PI*2,orbitRadius:THREE.MathUtils.lerp(band[0],band[1],hash(i,213)),height:(hash(i,214)-.5)*.7,size:.2+hash(i,215)*.95,radius:1.7+hash(i,215)*.95,position:new THREE.Vector3(),velocity:new THREE.Vector3(),driftVelocity:new THREE.Vector3(),driftOffset:new THREE.Vector3(),spin:new THREE.Vector3(),alive:true});
+    saturnShards.push({id:10000+i,origin:'ring',angle:hash(i,212)*Math.PI*2,orbitRadius:THREE.MathUtils.lerp(band[0],band[1],hash(i,213)),height:(hash(i,214)-.5)*.7,size:.2+hash(i,215)*.95,radius:.2+hash(i,215)*.95+flightScale.clearance,position:new THREE.Vector3(),velocity:new THREE.Vector3(),driftVelocity:new THREE.Vector3(),driftOffset:new THREE.Vector3(),spin:new THREE.Vector3(),alive:true});
   }
 }
 
@@ -612,7 +613,9 @@ function createShip() {
     const nosePanel=new THREE.Mesh(deckPanel([[side*.12,-2.34],[side*.27,-1.94],[side*.38,-1.14],[side*.24,-1.28]],.19),deckMaterial);
     shipMesh.add(nosePanel);
   }
-  const hullLight=new THREE.PointLight(0xa3e9e8,18,9,2);
+  // Light intensity and reach do not inherit the group’s visual scale.
+  const hullLight=new THREE.PointLight(0xa3e9e8,18*flightScale.ship**2,9*flightScale.ship,2);
+  hullLight.name='ship-hull-light';
   hullLight.position.set(0,.95,-.55);shipMesh.add(hullLight);
   for(const side of [-1,1]) {
     const headlamp=new THREE.Mesh(new THREE.SphereGeometry(.1,12,8),new THREE.MeshBasicMaterial({color:0xe1fbf3}));
@@ -620,7 +623,7 @@ function createShip() {
     const lampGlow=makeGlow('216,255,243',1.1,.6);
     lampGlow.position.copy(headlamp.position);shipMesh.add(lampGlow);
   }
-  shipMesh.scale.setScalar(1.05);
+  shipMesh.scale.setScalar(flightScale.ship);
   scene.add(shipMesh);
 }
 
@@ -686,7 +689,7 @@ function createAsteroidBelt() {
         scale:dummy.scale.clone(),
         spin:new THREE.Vector3((hash(index,61)-.5)*.09,(hash(index,62)-.5)*.12,(hash(index,63)-.5)*.08),
         velocity:new THREE.Vector3(),
-        radius:Math.max(dummy.scale.x,dummy.scale.y,dummy.scale.z)*1.16+1.5,
+        radius:Math.max(dummy.scale.x,dummy.scale.y,dummy.scale.z)*1.16+flightScale.clearance,
         size,
         alive:true,
       };
@@ -1036,7 +1039,7 @@ function setupUpdates() {
 
 function setupStart() {
   const earth=bodies.find(b=>b.data.id==='earth');
-  shipPosition.copy(earth.group.position).add(new THREE.Vector3(10,orbitalSafeHeight(moonData.radius),18));
+  shipPosition.copy(earth.group.position).add(new THREE.Vector3(10,orbitalSafeHeight(moonData.radius,flightScale.clearance),18));
   lookAtPoint(earth.group.position);
   updateCamera(0,true);
   camera.fov=52;
@@ -1046,7 +1049,7 @@ function setupStart() {
 function introShot(elapsed) {
   const earth=bodies.find(body=>body.data.id==='earth').group.position;
   const angle=introOrbitAngle+elapsed*.055;
-  const shipPosition=new THREE.Vector3(earth.x+Math.cos(angle)*introOrbitRadius,earth.y+orbitalSafeHeight(moonData.radius)+Math.sin(elapsed*.35)*.35,earth.z+Math.sin(angle)*introOrbitRadius);
+  const shipPosition=new THREE.Vector3(earth.x+Math.cos(angle)*introOrbitRadius,earth.y+orbitalSafeHeight(moonData.radius,flightScale.clearance)+Math.sin(elapsed*.35)*.35,earth.z+Math.sin(angle)*introOrbitRadius);
   const shipQuaternion=new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.sin(elapsed*.32)*.025,Math.PI-angle,Math.sin(elapsed*.48)*.04,'YXZ'));
   const cameraPosition=earth.clone().add(new THREE.Vector3(22+Math.sin(elapsed*.14)*1.5,13+Math.sin(elapsed*.2)*.6,38+Math.cos(elapsed*.14)*1.5));
   const cameraTarget=earth.clone().lerp(shipPosition,.64);
@@ -1258,7 +1261,7 @@ function restoreFlightState(savedState=null) {
     }
     if(gameMode==='exploration'&&!autopilotTarget&&!parkedTarget){
       const earth=bodies.find(body=>body.data.id==='earth');
-      clearOrbitalSweep(shipPosition,earth.group.position,moonOrbitRadius,moonData.radius);
+      clearOrbitalSweep(shipPosition,earth.group.position,moonOrbitRadius,moonData.radius,flightScale.clearance);
     }
     if(state.discoveryOpen)setDiscoveryOpen(true);
     if(state.guideOpen)showGuide();
@@ -1476,7 +1479,7 @@ function applyCameraTransition(dt) {
 function chaseCameraPosition(){
   const fit=Math.max(1,.85/camera.aspect);
   const behind=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));
-  return shipPosition.clone().addScaledVector(behind,8.5*fit).addScaledVector(worldUp,3.2*fit);
+  return shipPosition.clone().addScaledVector(behind,flightScale.chaseDistance*fit).addScaledVector(worldUp,flightScale.chaseHeight*fit);
 }
 
 function updateCamera(dt,instant=false) {
@@ -1502,7 +1505,7 @@ function updateCamera(dt,instant=false) {
     const turn=new THREE.Quaternion().identity().slerp(arc,eased);
     const distance=THREE.MathUtils.lerp(transition.startOffset.length(),finalOffset.length(),eased);
     camera.position.copy(shipPosition).add(startDirection.applyQuaternion(turn).multiplyScalar(distance));
-    const endFocus=shipPosition.clone().addScaledVector(endDirection,3);
+    const endFocus=shipPosition.clone().addScaledVector(endDirection,flightScale.chaseFocus);
     camera.lookAt(transition.startFocus.clone().lerp(endFocus,eased));
     if(!reducedMotion.matches)camera.rotateZ(bank*.13*eased);
     shipRotation.set(pitch,yaw,bank,'YXZ');
@@ -1536,7 +1539,7 @@ function updateCamera(dt,instant=false) {
   shipMesh.rotation.copy(shipRotation);
   const cameraDistance=camera.position.distanceTo(shipPosition);
   for(const guide of orbitGuides)guide.visible=!previewTarget;
-  shipMesh.visible=!previewTarget&&(cameraTransition?cameraDistance>5:cameraMode!=='first-person');
+  shipMesh.visible=!previewTarget&&(cameraTransition?cameraDistance>flightScale.transitionVisibilityDistance:cameraMode!=='first-person');
   if(previewTarget) {
     const center=previewTarget.group.position;
     const radius=previewTarget.data.radius;
@@ -1576,7 +1579,7 @@ function updateCamera(dt,instant=false) {
   levelDirection.set(-Math.sin(yaw),0,-Math.cos(yaw));
   if(instant || cameraTransition || camera.position.distanceToSquared(targetPosition)>2500)camera.position.copy(targetPosition);
   else camera.position.lerp(targetPosition,1-Math.exp(-9*dt));
-  camera.lookAt(temp.copy(shipPosition).addScaledVector(levelDirection,3));
+  camera.lookAt(temp.copy(shipPosition).addScaledVector(levelDirection,flightScale.chaseFocus));
   if(!reducedMotion.matches)camera.rotateZ(bank*.13);
   applyCameraTransition(dt);
 }
@@ -2716,7 +2719,7 @@ function autopilotGuidance(dt,activeTime=dt) {
     const forward=route.clone().normalize();
     let blocking=null;
     let nearestAlong=Infinity;
-    for(const obstacle of [{position:new THREE.Vector3(),radius:sunRadius+2},...bodies.filter(other=>other!==body).map(other=>({position:other.group.position,radius:other.data.radius+1.4})),...asteroidObstacles.filter(rock=>rock.alive)]) {
+    for(const obstacle of [{position:new THREE.Vector3(),radius:sunRadius+2},...bodies.filter(other=>other!==body).map(other=>({position:other.group.position,radius:other.data.radius+flightScale.clearance})),...asteroidObstacles.filter(rock=>rock.alive)]) {
       if(obstacle.alive===false)continue;
       const along=obstacle.position.clone().sub(shipPosition).dot(forward);
       if(along<0||along>routeLength||along>=nearestAlong)continue;
@@ -2818,7 +2821,7 @@ function moveShip(dt,activeTime=dt) {
   }
   velocity.lerp(desiredVelocity,1-Math.exp(-4.6*dt));
   const next=shipPosition.clone().addScaledVector(velocity,dt);
-  const solidBodies=[{position:new THREE.Vector3(),radius:sunRadius+2},...bodies.map(b=>({position:b.group.position,radius:b.data.radius+1.4}))];
+  const solidBodies=[{position:new THREE.Vector3(),radius:sunRadius+2},...bodies.map(b=>({position:b.group.position,radius:b.data.radius+flightScale.clearance}))];
   if(solidBodies.some(o=>next.distanceToSquared(o.position)<o.radius*o.radius)){
     velocity.set(0,0,0);
     discoveryDrift=false;
@@ -2850,7 +2853,7 @@ function clearShipBodyOverlaps() {
   if(introActive||introDive||returningToIntro)return;
   let cleared=clearBodyOverlap(shipPosition,velocity,sunMesh.position,sunRadius+2);
   for(const body of bodies){
-    if(clearBodyOverlap(shipPosition,velocity,body.group.position,body.data.radius+1.4))cleared=true;
+    if(clearBodyOverlap(shipPosition,velocity,body.group.position,body.data.radius+flightScale.clearance))cleared=true;
   }
   if(cleared){
     discoveryDrift=false;
