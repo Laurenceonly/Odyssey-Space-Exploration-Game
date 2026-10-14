@@ -1,30 +1,5 @@
-export const musicTracks = [
-  {id:'playlist',name:'Playlist · all tracks'},
-  {id:'odyssey',name:'Odyssey · original'},
-  {id:'horizon',name:'Event Horizon · cinematic'},
-  {id:'starlight',name:'Starlight Drift · ambient'},
-];
-
-const scores={
-  odyssey:{interval:8.5,duration:11.4,kind:'original',progression:[
-    {bass:73.42,pad:[146.83,174.61,220,329.63],melody:[659.25,587.33]},
-    {bass:58.27,pad:[116.54,174.61,220,293.66],melody:[587.33,523.25]},
-    {bass:87.31,pad:[130.81,174.61,196,329.63],melody:[698.46,659.25]},
-    {bass:65.41,pad:[130.81,196,261.63,293.66],melody:[587.33,783.99]},
-  ]},
-  horizon:{interval:10.5,duration:13.2,kind:'cinematic',progression:[
-    {bass:65.41,pad:[130.81,155.56,196,233.08],melody:[392,466.16,523.25]},
-    {bass:51.91,pad:[103.83,155.56,196,261.63],melody:[392,349.23,311.13]},
-    {bass:77.78,pad:[155.56,196,233.08,311.13],melody:[466.16,523.25,622.25]},
-    {bass:58.27,pad:[116.54,174.61,233.08,293.66],melody:[349.23,466.16,587.33]},
-  ]},
-  starlight:{interval:7.8,duration:10.1,kind:'ambient',progression:[
-    {bass:65.41,pad:[130.81,164.81,196,293.66],melody:[587.33,659.25,783.99]},
-    {bass:82.41,pad:[164.81,196,246.94,329.63],melody:[659.25,783.99,987.77]},
-    {bass:55,pad:[110,164.81,220,293.66],melody:[587.33,493.88,659.25]},
-    {bass:73.42,pad:[146.83,185,220,329.63],melody:[659.25,739.99,880]},
-  ]},
-};
+import { musicTracks, musicScores as scores, playlistTrackIds, writeMusicChord, renderMusicTrack } from './music-scores.js';
+export { musicTracks };
 
 export function createShipAudio() {
   const AudioContextClass=window.AudioContext||window.webkitAudioContext;
@@ -53,6 +28,34 @@ export function createShipAudio() {
   let scoreBus;
   let continuousLow;
   let continuousHigh;
+  let musicSource = null;
+  let musicStartedAt = 0;
+  let previousTrackId = 'odyssey';
+  let reportedTrackId = 'odyssey';
+  let nextTrackTime = Infinity;
+  let trackGeneration = 0;
+  let pendingTrackId = null;
+  let trackRequest = 0;
+  const renderedLoops = new Map();
+  const OfflineContextClass = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+  const audibleTrackId = () => musicSource && context.currentTime < musicStartedAt ? previousTrackId : activeTrackId;
+  function refreshTrackState() {
+    const id = audibleTrackId();
+    if (id !== reportedTrackId) { reportedTrackId = id; notifyState(); }
+  }
+  function requestLoop(id) {
+    if (!OfflineContextClass) return Promise.resolve(null);
+    const cached = renderedLoops.get(id);
+    if (cached) return cached.promise;
+    const entry = { buffer: null, promise: null };
+    entry.promise = renderMusicTrack(id, OfflineContextClass).then(buffer => {
+      entry.buffer = buffer;
+      scheduleMusic();
+      return buffer;
+    }).catch(() => null);
+    renderedLoops.set(id, entry);
+    return entry.promise;
+  }
   let musicTimer;
   let nextChordTime=0;
   let chordIndex=0;
@@ -72,122 +75,82 @@ export function createShipAudio() {
   }catch{}
   if(musicSelection!=='playlist')activeTrackId=musicSelection;
 
-  function playMusicNote(frequency,at,duration,peak,type='triangle',attack=1.7) {
-    const voice=context.createOscillator();voice.type=type;
-    voice.detune.value=Math.sin(frequency)*4;
-    voice.frequency.setValueAtTime(frequency,at);
-    const level=context.createGain();
-    level.gain.setValueAtTime(.0001,at);
-    level.gain.exponentialRampToValueAtTime(peak,at+attack);
-    level.gain.setValueAtTime(peak,at+duration-2.8);
-    level.gain.exponentialRampToValueAtTime(.0001,at+duration);
-    voice.connect(level);level.connect(scoreBus);
-    voice.start(at);voice.stop(at+duration+.05);
-    voice.onended=()=>{voice.disconnect();level.disconnect();};
-  }
-
-  function playBell(frequency,at,peak=.034) {
-    const bell=context.createOscillator();bell.type='sine';
-    bell.frequency.setValueAtTime(frequency,at);
-    const level=context.createGain();
-    level.gain.setValueAtTime(.0001,at);
-    level.gain.exponentialRampToValueAtTime(peak,at+.025);
-    level.gain.exponentialRampToValueAtTime(.0001,at+2.7);
-    bell.connect(level);level.connect(scoreBus);
-    bell.start(at);bell.stop(at+2.75);
-    bell.onended=()=>{bell.disconnect();level.disconnect();};
-  }
-
-  function playPulse(frequency,at) {
-    const pulse=context.createOscillator();pulse.type='sine';
-    pulse.frequency.setValueAtTime(frequency*1.7,at);
-    pulse.frequency.exponentialRampToValueAtTime(frequency,at+.7);
-    const level=context.createGain();
-    level.gain.setValueAtTime(.0001,at);
-    level.gain.exponentialRampToValueAtTime(.055,at+.04);
-    level.gain.exponentialRampToValueAtTime(.0001,at+1.4);
-    pulse.connect(level);level.connect(scoreBus);
-    pulse.start(at);pulse.stop(at+1.45);
-    pulse.onended=()=>{pulse.disconnect();level.disconnect();};
-  }
-
-  function activateTrack(id,at=context.currentTime+.05) {
-    const previousBus=scoreBus;
-    const previousDrones=[continuousLow,continuousHigh].filter(Boolean);
-    const switchTime=Math.max(at,context.currentTime+.02);
-    if(previousBus){
-      if(previousBus.gain.cancelAndHoldAtTime)previousBus.gain.cancelAndHoldAtTime(switchTime);
-      else {
-        previousBus.gain.cancelScheduledValues(switchTime);
-        previousBus.gain.setValueAtTime(previousBus.gain.value,switchTime);
+  function activateTrack(id, at = context.currentTime + .05, buffer = renderedLoops.get(id)?.buffer) {
+    const previousBus = scoreBus;
+    const previousDrones = [continuousLow, continuousHigh].filter(Boolean);
+    const previousSource = musicSource;
+    const switchTime = Math.max(at, context.currentTime + .02);
+    previousTrackId = audibleTrackId();
+    if (previousBus) {
+      if (previousBus.gain.cancelAndHoldAtTime) previousBus.gain.cancelAndHoldAtTime(switchTime);
+      else { previousBus.gain.cancelScheduledValues(switchTime); previousBus.gain.setValueAtTime(previousBus.gain.value, switchTime); }
+      previousBus.gain.linearRampToValueAtTime(.0001, switchTime + 1.2);
+      // Cleanup follows the audio clock, including suspended/background tabs.
+      if (previousSource) {
+        previousSource.onended = () => { previousSource.disconnect(); previousBus.disconnect(); };
+        previousSource.stop(switchTime + 1.3);
+      } else if (previousDrones.length) {
+        previousDrones[0].onended = () => previousBus.disconnect();
+        previousDrones.forEach(drone => drone.stop(switchTime + 1.3));
       }
-      previousBus.gain.linearRampToValueAtTime(.0001,switchTime+1.2);
-      previousDrones.forEach(drone=>drone.stop(switchTime+1.3));
-      setTimeout(()=>previousBus.disconnect(),16000);
     }
-    activeTrackId=id;
-    chordIndex=0;
-    nextChordTime=switchTime;
-    const first=scores[id].progression[0];
-    scoreBus=context.createGain();
-    scoreBus.gain.setValueAtTime(.0001,switchTime);
-    scoreBus.gain.linearRampToValueAtTime(1,switchTime+1.2);
-    scoreBus.connect(musicBus);
-    continuousLow=context.createOscillator();continuousLow.type='sine';continuousLow.frequency.value=first.pad[0];
-    const lowBed=context.createGain();lowBed.gain.value=id==='horizon'?.028:.018;
-    continuousLow.connect(lowBed);lowBed.connect(scoreBus);continuousLow.start(switchTime);
-    continuousHigh=context.createOscillator();continuousHigh.type='triangle';continuousHigh.frequency.value=first.pad[2];
-    const highBed=context.createGain();highBed.gain.value=id==='starlight'?.012:.008;
-    continuousHigh.connect(highBed);highBed.connect(scoreBus);continuousHigh.start(switchTime);
+    activeTrackId = id; chordIndex = 0; nextChordTime = switchTime;
+    musicStartedAt = switchTime; musicSource = null; continuousLow = continuousHigh = null;
+    const generation = ++trackGeneration;
+    scoreBus = context.createGain(); scoreBus.gain.setValueAtTime(.0001, switchTime);
+    scoreBus.gain.linearRampToValueAtTime(1, switchTime + 1.2); scoreBus.connect(musicBus);
+    if (buffer) {
+      musicSource = context.createBufferSource(); musicSource.buffer = buffer; musicSource.loop = true;
+      musicSource.connect(scoreBus); musicSource.start(switchTime);
+      nextTrackTime = switchTime + scores[id].interval * 8;
+    } else {
+      const first = scores[id].progression[0];
+      continuousLow = context.createOscillator(); continuousLow.type = 'sine'; continuousLow.frequency.value = first.pad[0];
+      const lowBed = context.createGain(); lowBed.gain.value = id === 'horizon' ? .028 : .018;
+      continuousLow.connect(lowBed); lowBed.connect(scoreBus); continuousLow.start(switchTime);
+      continuousHigh = context.createOscillator(); continuousHigh.type = 'triangle'; continuousHigh.frequency.value = first.pad[2];
+      const highBed = context.createGain(); highBed.gain.value = id === 'starlight' ? .012 : .008;
+      continuousHigh.connect(highBed); highBed.connect(scoreBus); continuousHigh.start(switchTime);
+      requestLoop(id).then(loop => {
+        if (loop && enabled && generation === trackGeneration && activeTrackId === id && !musicSource) {
+          activateTrack(id, context.currentTime + .04, loop); scheduleMusic();
+        }
+      });
+    }
+    if (musicSelection === 'playlist') requestLoop(playlistTrackIds[(playlistTrackIds.indexOf(id) + 1) % playlistTrackIds.length]);
+    notifyState();
   }
 
   function scheduleChord(at) {
-    const score=scores[activeTrackId];
-    const chord=score.progression[chordIndex%score.progression.length];
-    continuousLow.frequency.setTargetAtTime(chord.pad[0],at,2.1);
-    continuousHigh.frequency.setTargetAtTime(chord.pad[2],at,2.1);
-    if(score.kind==='original'){
-      chord.pad.forEach((frequency,index)=>{
-        playMusicNote(frequency,at+index*.08,score.duration,.046,'triangle',1.7);
-        playMusicNote(frequency*2.003,at+index*.08,score.duration,.014,'sine',2.2);
-      });
-      playMusicNote(chord.bass,at,score.duration,.068,'sine',.85);
-      playBell(chord.melody[0],at+3.1);
-      playBell(chord.melody[1],at+6.5,.026);
-      playBell(chord.bass*4,at+1.2,.011);
-      playPulse(chord.bass,at+.4);
-      playPulse(chord.bass,at+4.65);
-    }else if(score.kind==='cinematic'){
-      chord.pad.forEach((frequency,index)=>{
-        playMusicNote(frequency,at+index*.16,score.duration,.053,'triangle',3.6);
-        playMusicNote(frequency*2,at+index*.16,score.duration,.011,'sine',4.2);
-      });
-      playMusicNote(chord.bass,at,score.duration,.095,'sine',2.3);
-      chord.melody.forEach((frequency,index)=>playBell(frequency,at+3.5+index*2.6,.027));
-      playPulse(chord.bass,at+.3);
-      playPulse(chord.bass,at+5.6);
-    }else{
-      chord.pad.forEach((frequency,index)=>{
-        playMusicNote(frequency,at+index*.35,score.duration,.029,'sine',2.4);
-        playMusicNote(frequency*2,at+index*.35,score.duration,.009,'triangle',3);
-      });
-      playMusicNote(chord.bass,at,score.duration,.045,'sine',1.8);
-      chord.melody.forEach((frequency,index)=>playBell(frequency,at+1.7+index*2.15,.018));
-    }
-    chordIndex++;
+    const score = scores[activeTrackId], chord = score.progression[chordIndex % score.progression.length];
+    continuousLow.frequency.setTargetAtTime(chord.pad[0], at, 2.1);
+    continuousHigh.frequency.setTargetAtTime(chord.pad[2], at, 2.1);
+    writeMusicChord(context, scoreBus, score, chordIndex, at); chordIndex++;
   }
 
   function scheduleMusic() {
-    if(!context||!enabled)return;
-    const now=context.currentTime;
-    if(nextChordTime<now-1)nextChordTime=now+.08;
-    while(nextChordTime<now+2){
-      if(musicSelection==='playlist'&&chordIndex>=8){
-        const ids=['odyssey','horizon','starlight'];
-        activateTrack(ids[(ids.indexOf(activeTrackId)+1)%ids.length],nextChordTime);
+    if (!context || !enabled || context.state !== 'running') return;
+    const now = context.currentTime;
+    refreshTrackState();
+    const ready = renderedLoops.get(activeTrackId)?.buffer;
+    if (ready && !musicSource) { activateTrack(activeTrackId, now + .04, ready); return; }
+    if (musicSource) {
+      if(pendingTrackId)return;
+      if (musicSelection === 'playlist' && now >= nextTrackTime - 2) {
+        const nextId = playlistTrackIds[(playlistTrackIds.indexOf(activeTrackId) + 1) % playlistTrackIds.length];
+        const nextBuffer = renderedLoops.get(nextId)?.buffer;
+        if (nextBuffer) activateTrack(nextId, Math.max(nextTrackTime, now + .04), nextBuffer);
+        else requestLoop(nextId);
       }
-      scheduleChord(nextChordTime);
-      nextChordTime+=scores[activeTrackId].interval;
+      return;
+    }
+    // Fallback for browsers without offline rendering; the native loop path
+    // above never relies on a timer to keep the current track audible.
+    if (nextChordTime < now - 1) nextChordTime = now + .08;
+    while (nextChordTime < now + 4) {
+      if (musicSelection === 'playlist' && chordIndex >= 8) activateTrack(playlistTrackIds[(playlistTrackIds.indexOf(activeTrackId) + 1) % playlistTrackIds.length], nextChordTime);
+      if(musicSource)return;
+      scheduleChord(nextChordTime); nextChordTime += scores[activeTrackId].interval;
     }
   }
 
@@ -195,7 +158,7 @@ export function createShipAudio() {
     if(!enabled||!AudioContextClass)return false;
     if(!context) {
       try{context=new AudioContextClass();}catch{return false;}
-      context.addEventListener('statechange',notifyState);
+      context.addEventListener('statechange',()=>{scheduleMusic();notifyState();});
       master=context.createGain();master.gain.value=0;
       const limiter=context.createDynamicsCompressor();
       limiter.threshold.value=-13;limiter.knee.value=18;limiter.ratio.value=4;
@@ -252,7 +215,7 @@ export function createShipAudio() {
       scheduleMusic();
       musicTimer=setInterval(scheduleMusic,750);
     }
-    Promise.resolve(context.resume()).then(notifyState).catch(notifyState);
+    if(context.state!=='running')Promise.resolve(context.resume()).then(()=>{scheduleMusic();notifyState();}).catch(notifyState);
     scheduleMusic();
     master.gain.setTargetAtTime(.75,context.currentTime,.08);
     return true;
@@ -277,24 +240,35 @@ export function createShipAudio() {
     return Math.round(musicVolume*100);
   }
 
+  function changeTrack(id) {
+    const request=++trackRequest;
+    pendingTrackId=null;
+    // Keep the existing loop audible while a newly selected score prepares.
+    if(context&&musicSource&&OfflineContextClass&&!renderedLoops.get(id)?.buffer){
+      pendingTrackId=id;notifyState();
+      requestLoop(id).then(buffer=>{
+        if(request!==trackRequest||pendingTrackId!==id)return;
+        pendingTrackId=null;
+        activateTrack(id,context.currentTime+.04,buffer||undefined);
+        scheduleMusic();notifyState();
+      });
+    }else if(context){activateTrack(id);scheduleMusic();}
+    else{activeTrackId=id;if(enabled)start();}
+  }
+
   function setMusicSelection(id) {
     if(!musicTracks.some(track=>track.id===id))return musicSelection;
     if(id===musicSelection)return musicSelection;
     musicSelection=id;
     try{localStorage.setItem('odyssey-music-track',id);}catch{}
     const nextId=id==='playlist'?'odyssey':id;
-    if(context){
-      activateTrack(nextId);
-      scheduleMusic();
-    }else{
-      activeTrackId=nextId;
-      if(enabled)start();
-    }
+    changeTrack(nextId);
     return musicSelection;
   }
 
   function update(speed,boost,preview=false,thrust=false) {
     if(!context||!enabled)return;
+    scheduleMusic();
     const now=context.currentTime;
     const power=Math.min(speed/43,1);
     const drive=preview?0:thrust?1:.24;
@@ -404,5 +378,5 @@ export function createShipAudio() {
     setTimeout(()=>panner.disconnect(),1000);
   }
 
-  return {start,isRunning,isPlaying,onStateChange(listener){stateListeners.add(listener);listener();return()=>stateListeners.delete(listener);},setEnabled,setMusicVolume,getMusicVolume:()=>Math.round(musicVolume*100),setMusicSelection,getMusicSelection:()=>musicSelection,getActiveTrackName:()=>musicTracks.find(track=>track.id===activeTrackId)?.name.split(' · ')[0]||'Odyssey',update,signalPulse,cue,asteroidImpact,isEnabled:()=>enabled,isSupported:()=>Boolean(AudioContextClass)};
+  return {start,isRunning,isPlaying,onStateChange(listener){stateListeners.add(listener);listener();return()=>stateListeners.delete(listener);},setEnabled,setMusicVolume,getMusicVolume:()=>Math.round(musicVolume*100),setMusicSelection,nextTrack(){const id=playlistTrackIds[(playlistTrackIds.indexOf(pendingTrackId||activeTrackId)+1)%playlistTrackIds.length];if(musicSelection==='playlist'){changeTrack(id);return id;}return setMusicSelection(id);},getPendingTrackName:()=>musicTracks.find(track=>track.id===pendingTrackId)?.name.split(' · ')[0]||null,getMusicSelection:()=>musicSelection,getActiveTrackName:()=>musicTracks.find(track=>track.id===audibleTrackId())?.name.split(' · ')[0]||'Odyssey',update,signalPulse,cue,asteroidImpact,isEnabled:()=>enabled,isSupported:()=>Boolean(AudioContextClass)};
 }

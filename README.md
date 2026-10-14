@@ -15,6 +15,7 @@ A desktop browser space exploration prototype built with Three.js, with first-pe
 - Follow optional Voyages and scan landmarks such as Olympus Mons, the Great Red Spot, and the Cassini Division.
 - Name your pilot and choose original music, with responsive engine and collision audio.
 - Use reduced motion settings for more immediate camera changes.
+- Walk inside your ship anywhere in space and watch live exterior views through its windows.
 
 The intro includes **What’s new** and an **Update history** panel with dated gameplay additions. The history scrolls within its dialog and closes with its button or Escape.
 
@@ -86,6 +87,16 @@ Odyssey currently supports desktop and laptop browsers with a keyboard and mouse
 
 On Earth, use **WASD** to walk, hold the left mouse button and drag the scene to look, **J or Space** to jump, **Shift** to run, **C** to switch camera views, and **E** to board within 8 metres. Camera views are also available through the buttons.
 
+## Inside your ship
+
+During manual flight anywhere in space, or after an autopilot arrival, choose **Walk inside** beside the **First person / Third person** view controls, or press **I**. Entry stops the ship and holds its position while you explore. Active autopilot, remote previews, and Earth surface exploration do not enable interior entry. The ship interior uses the same shaded monochrome controls as flight and Earth, with a charcoal cabin, seating, equipment lockers, and an open doorway into a separate cockpit.
+
+Use **WASD** to walk and strafe, **Shift** to walk faster, and hold the left mouse button and drag to look. The **arrow keys** also look around. Walk through the doorway, around the pilot seat, and up to the cockpit’s navigation consoles. Walking into the cockpit keeps you inside; you can look around and walk back to the cabin. Walls, furniture, the chair, and consoles block movement.
+
+The side observation window and cockpit windshield render the actual exterior from your ship. In free space they retain the ship’s orientation; near a parked world they frame that destination. Their views change as you move and as the exterior simulation continues. This remains a stylized metre-scale interior connected to compressed orbital coordinates.
+
+Press **E near the pilot seat** to take flight controls. Choose **Flight view** or press **Escape** from anywhere to return to your original first/third-person flight choice. The ship remains stopped in free space, or parked near its destination, until you resume flight. **T** saves a photo labeled with the parked destination when one exists, and **L** opens Captain’s log. Settings and other menus pause walking. Refreshing returns to your saved flight position instead of restoring an interior walking position. Existing flight and Discovery saves remain supported. Moving-ship interiors, Earth-ground cabin access, and multiplayer cabin visits are later work.
+
 ## Landing on Earth
 
 Choose **Exploration** for quick access, then open **Destinations → Earth** and choose **Fly to Earth**. Autopilot approaches and parks near Earth; **Land on Earth** then becomes available in the Field Guide. You can also approach Earth by flying manually. Landing requires an actual approach or parked arrival within 25 surface units; selecting Earth’s preview alone does not enable landing. In **Discovery**, scan Earth first. There is no separate ground-preview screen.
@@ -100,7 +111,7 @@ The site is a locally generated, stylized landscape; the globe retains its exist
 
 Open **Settings** from the gear menu during play to turn **Music and sound** on or off. The intro and header have no music icons. The checkbox reflects the saved preference, which persists across refresh; browser autoplay restrictions may require a click or key press before enabled audio starts. Muting affects music and flight effects. Music volume remains independent and is preserved when toggling sound.
 
-Three original, continuous scores play in the browser: the original Odyssey theme, the cinematic Event Horizon, and the calmer Starlight Drift. Settings lets you choose a track or a playlist that rotates through all three; the choice and the 0%–150% music volume are saved in this browser. Track changes crossfade while you fly. Engine sound follows speed and boost, and the music softens during boost so flight cues remain clear. The Music and sound checkbox in Settings mutes music and effects. The game attempts to start music on load; browsers that restrict autoplay begin playback on the first click or key press.
+Five original scores play in the browser: Odyssey, Event Horizon, Starlight Drift, Solar Sails with a 120 BPM synth rhythm and bass line, and Blue Hour with sparse piano and chimes. Settings lets you choose a track, use Next track, or play a playlist that rotates through all five; the choice and the 0%–150% music volume are saved in this browser. Prepared tracks play as continuous native audio loops, keeping music running through delays in game updates. Track changes crossfade while you fly, and the current score continues while a new track prepares. Engine sound follows speed and boost, and the music softens during boost so flight cues remain clear. The Music and sound checkbox in Settings mutes music and effects. The game attempts to start music on load; browsers that restrict autoplay begin playback on the first click or key press.
 
 The orbital ship and chase camera rig are scaled together to one fifth of their original size. Third-person flight retains the original projected ship framing and field of view while nearby worlds feel larger; first-person flight retains its original viewpoint. Collision clearance and onboard lighting follow the smaller orbital hull; the separate Earth surface scene keeps its astronaut-sized ship. The chase camera travels with the ship before easing turns, keeping its framing steady through uneven frame timing. Distant comet-tail and Saturn-ring effects update less frequently; nearby visits and previews retain detailed motion. Captain’s log thumbnails use asynchronous JPEG encoding. Orbital distances remain compressed for navigation rather than following one astronomical scale.
 The rendered worlds use local 2K equirectangular maps from [Solar System Scope](https://www.solarsystemscope.com/textures/), licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Credits also ship in `public/planet-textures/ATTRIBUTION.md` and appear in the Credits section of Settings. These NASA-data-based visualization maps include adjusted colors and reconstructed gaps. Earth has a separate cloud layer and night lights masked to its dark hemisphere. Thin atmospheric rims follow the Sun, Saturn casts a shadow onto its rings, and bare rock has restrained surface relief. Sunlight direction is consistent; brightness is balanced for the compressed game distances. Procedural surfaces remain available if a map cannot load.
@@ -124,3 +135,7 @@ The **Captain's log** button below Destinations, or the **L** key, opens a recor
 Press **T** or the camera icon to save the current 3D view. Open Captain's log with **L**, then choose **Photo gallery**. Select a thumbnail to view it large; you can also download or delete your shots. The gallery holds up to 24 photos per mode in this browser. Photos aimed at unscanned objects keep their names hidden in Discovery. Starting a new Discovery game clears its gallery; Exploration photos stay saved.
 
 The flight manual uses larger text and key labels, scrolls in smaller desktop windows, and closes with its × button or Escape. The browser tab icon adapts to the browser’s light/dark color scheme.
+
+Cockpit screens and labeled keys open navigation, photos, the log, sound settings, and flight views. Aim at a control and click or press E; drag to look around. Buttons throughout the game use subtle color, border, and brightness feedback without shifting position. Interior windows render the live exterior at canvas resolution, keeping close-up views sharp within the renderer’s resolution limits.
+
+Startup and refresh use a minimal loading screen: the ODYSSEY wordmark filling from dim gray to white, with quiet status text beneath. Progress follows actual scene preparation; failures show refresh instructions.

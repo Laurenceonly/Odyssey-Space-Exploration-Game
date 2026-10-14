@@ -2,7 +2,7 @@
 
 Created: 2026-10-14 (Asia/Manila).
 
-Source: [Design direction](DESIGN_DIRECTION.md). This is a proposed delivery sequence, not a promise of dates or authorization to implement all updates immediately. Update 1 has been implemented locally; later updates remain planned. Update names are working labels.
+Source: [Design direction](DESIGN_DIRECTION.md). This is a proposed delivery sequence, not a promise of dates or authorization to implement all updates immediately. Updates 1 and 2 have been implemented; later updates remain planned. Update 2 remains local until committed and published. Update names are working labels.
 
 ## Delivery rule
 
@@ -23,13 +23,15 @@ Done when: manual flight and automated approaches work at representative destina
 
 ## Update 2 — A Window to Space
 
+Status: implemented locally on 2026-10-14. A compact cabin connects through an open doorway to a walkable cockpit with a pilot seat and consoles. Shared monochrome controls provide Walk inside beside the flight views (I), and E near the seat takes controls. The side window and cockpit windshield render the live exterior with walking parallax. Bounded movement, looking, photos, and reliable flight-view return are supported. Entry works during manual flight anywhere in space, stopping the ship while you walk, as well as after a parked arrival. Refresh returns to saved flight while retaining the camera choice. Earth and Saturn browser checks passed; final validation is recorded in the work log. Not yet committed or published.
+
 Depends on: Update 1 establishes the scale and camera approach.
 
 Outcome: enter a small ship cabin while safely parked and watch the actual nearby planet through a window.
 
 Scope:
-- One compact walkable cabin with a window and a clear return-to-cockpit interaction.
-- First version available only while safely parked; retain existing flight POV controls.
+- One compact walkable cabin connected to a cockpit, with live windows and a clear take-flight-controls interaction.
+- Available during manual flight by stopping and holding position, or while parked near a destination; retain existing flight POV controls.
 - Frame the live exterior scene so the window provides a satisfying planet view.
 
 Done when: entering/exiting is reliable, movement stays inside the cabin, and the window view remains convincing at Earth and another destination. Preserve current space first/third-person views and settings. Friends aboard moving ships, labs, and extensive customization are deferred.
@@ -137,4 +139,4 @@ These are a backlog, not mandatory prerequisites for launch. Add one useful vehi
 
 ## Next action
 
-Update 1 is implemented locally. The next planned milestone is Update 2: a compact parked ship cabin with a planet window. Keep that work separate from this completed scale update.
+Update 2 is implemented locally. Review the parked cabin in play, then commit and publish it separately from Update 1. The next development milestone is Update 3: one complete solo Moon landing expedition.

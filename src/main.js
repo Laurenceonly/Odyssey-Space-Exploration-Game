@@ -1,8 +1,9 @@
+import { setLoadingProgress, setLoadingFailure } from './loading-screen.js';
 import * as THREE from 'three';
 import { gameUpdates } from './game-updates.js';
 import { createAutopilotProgress } from './autopilot-progress.js';
 import { inject } from '@vercel/analytics';
-import { createShipAudio } from './audio.js';
+import { createShipAudio, musicTracks } from './audio.js';
 import { discovery } from './discovery.js';
 import { planetPhotos } from './planet-photos.js';
 import { createFlybyTracker } from './flyby-tracker.js';
@@ -16,6 +17,7 @@ import { landmarks, surfaceLandmarkAt } from './landmarks.js';
 import { createEarthSurface } from './earth-surface.js';
 import { flightScale } from './flight-scale.js';
 import { followChaseCamera } from './camera-follow.js';
+import { createShipCabin } from './ship-cabin.js';
 
 if (import.meta.env.PROD) inject({ mode: 'production' });
 
@@ -172,6 +174,11 @@ let voyageState=null;
 let moonBody;
 
 
+let resetMouseLook = () => {};
+let shipCabin = null;
+let cabinActive = false;
+const cabinHoldPosition = new THREE.Vector3();
+const cabinOrientation = new THREE.Quaternion();
 let earthSurface = null;
 let surfaceEntryPending = false;
 let earthApproachReady=false;
@@ -181,12 +188,84 @@ let settingsReturnFocus=null;
 function modalOpen() {
   return ['helpOverlay','logOverlay','voyageOverlay','settingsOverlay','exitOverlay','photoViewer'].some(id=>!document.getElementById(id).hidden);
 }
+function canEnterCabin() {
+  return !cabinActive && !introActive && !introDive && !returningToIntro &&
+    !autopilotTarget && (!previewTarget || arrivalPreview) && !surfaceEntryPending && !earthSurface?.active && !modalOpen() &&
+    (!parkedTarget || shipPosition.distanceTo(parkedTarget.group.position) > parkedTarget.data.radius + flightScale.clearance);
+}
+function updateCabinUI() {
+  document.getElementById('enterCabin').hidden = !canEnterCabin();
+  if (!cabinActive) return;
+  const status = document.getElementById('cabinStatus');
+  const text = parkedTarget ? 'Parked near ' + parkedTarget.data.name : 'Holding position in space';
+  if (status.textContent !== text) status.textContent = text;
+  const control=shipCabin.pointedControl;
+  document.getElementById('cabinDoorHint').hidden = !shipCabin.nearCockpit||Boolean(control);
+  document.getElementById('cabinControlHint').hidden = !control;
+  if(control)document.getElementById('cabinControlLabel').textContent=control.label;
+  canvas.classList.toggle('over-control',Boolean(control));
+  document.getElementById('cabinRoom').textContent = shipCabin.inCockpit ? 'Cockpit' : 'Cabin';
+}
+function openShipCabin() {
+  if (!canEnterCabin()) return;
+  if (!shipCabin) shipCabin = createShipCabin({ keys, onControl:activateCabinControl });
+  endUnlockCinematic(true);
+  for(const code of keys)menuHeldKeys.add(code);
+  keys.clear(); resetMouseLook(); velocity.set(0, 0, 0); boostAmount = 0; discoveryDrift = false;
+  previewTarget = null; arrivalPreview = false; cameraTransition = null;
+  previewOrbitAngle = previewOrbitTargetAngle = 0;
+  document.getElementById('returnToShip').hidden = true;
+  cabinHoldPosition.copy(shipPosition); cabinOrientation.copy(shipMesh.quaternion);
+  cabinActive = true; shipCabin.reset();
+  const app = document.getElementById('app');
+  app.classList.remove('destination-preview'); app.classList.add('cabin-mode');
+  document.getElementById('cabinHud').hidden = false;
+  document.getElementById('leaveCabin').hidden = false;
+  document.getElementById('fieldGuide').inert = true;
+  document.querySelector('.destination-panel').inert = true;
+  document.querySelectorAll('.panel-toggle, .camera-switch').forEach(control => control.inert = true);
+  canvas.setAttribute('aria-label', 'Ship interior. WASD to walk, drag or arrow keys to look. Walk through the doorway into the cockpit. Escape returns to flight.');
+  updateCabinUI(); saveFlightState(); canvas.focus({ preventScroll: true });
+}
+function activateCabinControl(action) {
+  if(!cabinActive||modalOpen())return;
+  for(const code of keys)menuHeldKeys.add(code);
+  keys.clear();resetMouseLook();
+  if(action==='destinations'){
+    closeShipCabin();
+    if(document.getElementById('app').classList.contains('destinations-hidden'))document.getElementById('destinationsToggle').click();
+    selectPlanet(parkedTarget?.data.id || selectedId);showGuide();
+
+  }else if(action==='log')openLog();
+  else if(action==='photo')requestPhoto();
+  else if(action==='sound'){shipAudio.setEnabled(!shipAudio.isEnabled());photoFeedback(shipAudio.isEnabled()?'Sound on':'Sound off');}
+  else if(action==='next-track'){const id=shipAudio.nextTrack();photoFeedback('Soundtrack · '+musicTracks.find(track=>track.id===id).name.split(' · ')[0]);}
+  else if(action==='volume-down'||action==='volume-up'){const volume=shipAudio.setMusicVolume(shipAudio.getMusicVolume()+(action==='volume-up'?10:-10));photoFeedback('Music volume · '+volume+'%');}
+  else if(action==='settings')openSettings();
+  else if(action==='take-controls')closeShipCabin();
+  else if(action==='camera-first'||action==='camera-chase'){closeShipCabin();setCameraMode(action==='camera-first'?'first-person':'chase');}
+}
+function closeShipCabin() {
+  if (!cabinActive) return;
+  cabinActive = false;
+  for(const code of keys)menuHeldKeys.add(code);
+  keys.clear(); resetMouseLook(); canvas.classList.remove('over-control');
+  document.getElementById('cabinHud').hidden = true;
+  document.getElementById('leaveCabin').hidden = true;
+  document.getElementById('app').classList.remove('cabin-mode');
+  document.querySelector('.destination-panel').inert = document.getElementById('app').classList.contains('destinations-hidden');
+  document.querySelectorAll('.panel-toggle, .camera-switch').forEach(control => control.inert = false);
+  setGuideHidden(guideHidden);
+  canvas.setAttribute('aria-label', 'Interactive 3D solar system');
+  cameraTransition = null; cameraAnchorReady = false; updateCamera(0, true);
+  updateCabinUI(); saveFlightState(); canvas.focus({ preventScroll: true });
+}
 function canLandOnEarth() {
   const earth=bodies.find(body=>body.data.id==='earth');
   return !introActive&&!introDive&&!autopilotTarget&&!isWorldLocked('earth')&&(earthApproachReady||parkedTarget?.data.id==='earth')&&shipPosition.distanceTo(earth.group.position)-earth.data.radius<=25;
 }
 function openEarthSite() {
-  if(introActive||introDive||surfaceEntryPending||earthSurface?.active||isWorldLocked('earth')||modalOpen())return;
+  if(cabinActive||introActive||introDive||surfaceEntryPending||earthSurface?.active||isWorldLocked('earth')||modalOpen())return;
   if(!canLandOnEarth()){
     selectPlanet('earth');showGuide();
     if(!autopilotTarget)toggleAutopilot();
@@ -231,6 +310,8 @@ function updateEarthLandingUI() {
   document.querySelector('#landingSiteButton').hidden=selectedId!=='earth'||!canLandOnEarth();
 }
 function setupLandingControls() {
+  document.getElementById('enterCabin').addEventListener('click', openShipCabin);
+  document.getElementById('leaveCabin').addEventListener('click', closeShipCabin);
   document.querySelector('#landingSiteButton').addEventListener('click',openEarthSite);
   const overlayObserver=new MutationObserver(()=>{if(modalOpen())keys.clear();});
   for(const id of ['helpOverlay','logOverlay','voyageOverlay','settingsOverlay','exitOverlay','photoViewer'])
@@ -1155,6 +1236,7 @@ function startGame(discoveryStart=false) {
 
 function returnToIntro() {
   if(returningToIntro)return;
+  if(cabinActive)closeShipCabin();
   if(earthSurface?.active)earthSurface.close();
 
   flybyTracker.clear();
@@ -1231,7 +1313,8 @@ function saveFlightState() {
       position:shipPosition.toArray(),yaw,pitch,cameraMode,selectedId,discoveryDrift,earthApproachReady,
       autopilotId:autopilotTarget?.data.id??null,
       parkedPreviewId:arrivalPreview?previewTarget?.data.id??null:null,
-      parkedOffset:arrivalPreview?parkedOffset.toArray():null,
+      parkedId:parkedTarget?.data.id??null,
+      parkedOffset:parkedTarget?parkedOffset.toArray():null,
       previewOrbitAngle:arrivalPreview?previewOrbitTargetAngle:0,
       discoveryOpen:!document.querySelector('#discoveryPanel').hidden,
       guideOpen:!guideHidden,
@@ -1264,18 +1347,20 @@ function restoreFlightState(savedState=null) {
         updateAutopilotUI();
       }
     }
-    if(state.parkedPreviewId&&Array.isArray(state.parkedOffset)&&state.parkedOffset.length===3&&state.parkedOffset.every(Number.isFinite)){
-      const body=bodies.find(item=>item.data.id===state.parkedPreviewId);
+    if((state.parkedId||state.parkedPreviewId)&&!autopilotTarget&&Array.isArray(state.parkedOffset)&&state.parkedOffset.length===3&&state.parkedOffset.every(Number.isFinite)){
+      const body=bodies.find(item=>item.data.id===(state.parkedId||state.parkedPreviewId));
       if(body&&!isWorldLocked(body.data.id)){
-        arrivalPreview=true;
+        arrivalPreview=state.parkedPreviewId===body.data.id;
         parkedTarget=body;
         suppressedFlybyWorlds.add(body.data.id);
         parkedOffset.fromArray(state.parkedOffset);
         shipPosition.copy(body.group.position).add(parkedOffset);
-        previewTarget=body;
-        document.querySelector('#returnToShip').hidden=false;
+        clearBodyOverlap(shipPosition,velocity,body.group.position,body.data.radius+flightScale.clearance);
+        parkedOffset.copy(shipPosition).sub(body.group.position);
+        previewTarget=arrivalPreview?body:null;
+        document.querySelector('#returnToShip').hidden=!arrivalPreview;
         previewOrbitAngle=previewOrbitTargetAngle=Number.isFinite(state.previewOrbitAngle)?state.previewOrbitAngle:0;
-        document.querySelector('#app').classList.add('destination-preview');
+        document.querySelector('#app').classList.toggle('destination-preview',arrivalPreview);
       }
     }
     if(gameMode==='exploration'&&!autopilotTarget&&!parkedTarget){
@@ -1608,6 +1693,7 @@ function updateCamera(dt,instant=false) {
 }
 
 function setCameraMode(mode) {
+  if(cabinActive)return;
   if(earthSurface?.active){earthSurface.setView(mode);return;}
   if(!['first-person','chase'].includes(mode))return;
   exitPreview();
@@ -1923,6 +2009,7 @@ function setDiscoveryOpen(open) {
 }
 
 function selectPlanet(id,preview=false) {
+  if(cabinActive)return;
   const planet=destinations.find(p=>p.id===id);
   if(!planet||isWorldLocked(id))return;
   if(selectedId!==id){
@@ -2001,6 +2088,7 @@ function rotatePreview(direction) {
 }
 
 function exitPreview() {
+  if(cabinActive)return;
   if(!previewTarget)return;
   beginCameraTransition(1.05);
   previewTarget=null;
@@ -2035,6 +2123,7 @@ function stopAutopilot(message='Manual flight') {
 }
 
 function toggleAutopilot() {
+  if(cabinActive)return;
   shipAudio.start();
   if(autopilotTarget){stopAutopilot();return;}
   if(selectedId==='sun'||isWorldLocked(selectedId))return;
@@ -2058,6 +2147,7 @@ function toggleAutopilot() {
 function musicPlaybackLabel(){
   const name=shipAudio.getActiveTrackName();
   if(!shipAudio.isEnabled())return `Sound off · ${name}`;
+  const pending=shipAudio.getPendingTrackName();if(pending)return `Changing to: ${pending}`;
   return shipAudio.isPlaying()?`Now playing: ${name}`:shipAudio.getMusicVolume()===0?`Music muted · ${name}`:`Selected track: ${name}`;
 }
 
@@ -2066,6 +2156,7 @@ function setupAudioControls() {
   const volume=document.querySelector('#musicVolume');
   const volumeValue=document.querySelector('#musicVolumeValue');
   const track=document.querySelector('#musicTrack');
+  track.replaceChildren(...musicTracks.map(item=>{const option=document.createElement('option');option.value=item.id;option.textContent=item.name;return option;}));
   const nowPlaying=document.querySelector('#musicNowPlaying');
   const showControls=document.querySelector('#showControlsInput');
   try{showControls.checked=localStorage.getItem('odyssey-show-controls')!=='no';}catch{}
@@ -2080,6 +2171,7 @@ function setupAudioControls() {
   track.value=shipAudio.getMusicSelection();
   const refreshTrack=()=>{nowPlaying.textContent=musicPlaybackLabel();};
   track.addEventListener('change',()=>{shipAudio.setMusicSelection(track.value);refreshTrack();});
+  document.getElementById('nextMusicTrack').addEventListener('click',()=>{shipAudio.nextTrack();track.value=shipAudio.getMusicSelection();refreshTrack();});
   refreshTrack();
   function unlock(event) {
     if(event?.target?.closest?.('#soundToggleLabel'))return;
@@ -2091,6 +2183,7 @@ function setupAudioControls() {
     soundEnabled.checked=enabled;
     soundEnabled.disabled=!supported;
     refreshTrack();
+    track.value=shipAudio.getMusicSelection();volume.value=String(shipAudio.getMusicVolume());volumeValue.textContent=volume.value+'%';
     if(enabled&&!running){
       document.addEventListener('pointerdown',unlock);
       document.addEventListener('keydown',unlock);
@@ -2144,7 +2237,7 @@ function requestPhoto() {
 function capturePhoto() {
   if(!photoPending)return;
   photoPending=false;
-  const target=earthSurface?.active?'earth':previewTarget?.data.id||pointedPlanet()?.object.userData.id||null;
+  const target=earthSurface?.active?'earth':cabinActive?(parkedTarget?.data.id??null):previewTarget?.data.id||pointedPlanet()?.object.userData.id||null;
   const at=Date.now();
   const id=`${at}-${Math.random().toString(36).slice(2,7)}`;
   for(const [width,quality] of [[960,.76],[640,.65]]){
@@ -2342,6 +2435,7 @@ function setupVoyages() {
     const id=route?.stops[voyageState.index];
     if(!id)return;
     closeVoyages();
+    if(cabinActive)closeShipCabin();
     exitPreview();
     if(autopilotTarget)stopAutopilot('Route changed');
     selectPlanet(id);
@@ -2505,15 +2599,18 @@ function closeLog() {
 
 function setupControls() {
   let mouseDrag=null;
+  let lookDistance=0;
   const canLook=()=>!introActive&&!introDive&&!returningToIntro&&!surfaceEntryPending&&!modalOpen();
   function stopLooking(){
     const pointerId=mouseDrag?.id;mouseDrag=null;
     canvas.classList.remove('looking');
     if(pointerId!==undefined&&canvas.hasPointerCapture(pointerId))canvas.releasePointerCapture(pointerId);
   }
+  resetMouseLook=stopLooking;
   canvas.addEventListener('pointerdown',event=>{
     if(event.pointerType==='touch'||event.button!==0||!canLook())return;
     if(autopilotTarget&&!previewTarget&&!earthSurface?.active)return;
+    lookDistance=0;
     mouseDrag={id:event.pointerId,x:event.clientX,y:event.clientY};
     canvas.setPointerCapture(event.pointerId);
     canvas.classList.add('looking');canvas.focus({preventScroll:true});event.preventDefault();
@@ -2522,14 +2619,20 @@ function setupControls() {
     if(!mouseDrag||event.pointerId!==mouseDrag.id)return;
     if(!canLook()||!(event.buttons&1)){stopLooking();return;}
     const dx=event.clientX-mouseDrag.x,dy=event.clientY-mouseDrag.y;
+    lookDistance+=Math.hypot(dx,dy);
     mouseDrag.x=event.clientX;mouseDrag.y=event.clientY;
-    if(earthSurface?.active)earthSurface.drag(dx,dy);
+    if(cabinActive)shipCabin.drag(dx,dy);
+    else if(earthSurface?.active)earthSurface.drag(dx,dy);
     else if(previewTarget)previewOrbitTargetAngle-=dx*.006;
     else if(!autopilotTarget){
       discoveryDrift=false;targetYaw-=dx*.006;
       targetPitch=THREE.MathUtils.clamp(targetPitch-dy*.004,-maxManualPitch,maxManualPitch);
     }
     event.preventDefault();
+  });
+  canvas.addEventListener('click',event=>{
+    if(!cabinActive||modalOpen()||event.button!==0||lookDistance>5)return;
+    shipCabin.point(event.clientX,event.clientY,canvas.getBoundingClientRect());shipCabin.activatePointedControl();
   });
   for(const event of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(event,stopLooking);
   window.addEventListener('blur',stopLooking);
@@ -2551,14 +2654,23 @@ function setupControls() {
       else if(!document.querySelector('#voyageOverlay').hidden)closeVoyages();
       else if(!document.querySelector('#helpOverlay').hidden)closeHelp();
       else if(!document.querySelector('#settingsOverlay').hidden)closeSettings();
+      else if(cabinActive){menuHeldKeys.add('Escape');closeShipCabin();}
       else if(previewTarget)exitPreview();
       else if(!introActive)openExit();
       return;
     }
     if(introActive)return;
     if(event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLTextAreaElement || !document.querySelector('#helpOverlay').hidden || !document.querySelector('#logOverlay').hidden || !document.querySelector('#voyageOverlay').hidden || !document.querySelector('#settingsOverlay').hidden || !document.querySelector('#exitOverlay').hidden)return;
+    if(cabinActive&&modalOpen())return;
+    if(event.code==='KeyI'&&!event.repeat&&!event.ctrlKey&&!event.metaKey&&!event.altKey){event.preventDefault();openShipCabin();return;}
     if(event.code==='KeyL'&&!event.repeat&&!event.ctrlKey&&!event.metaKey&&!event.altKey){openLog();return;}
     if(event.code==='KeyT'&&!event.repeat&&!event.ctrlKey&&!event.metaKey&&!event.altKey){requestPhoto();return;}
+    if(cabinActive){
+      if(event.ctrlKey||event.metaKey||event.altKey)return;
+      if(['KeyW','KeyS','KeyA','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','ShiftLeft','ShiftRight'].includes(event.code)){event.preventDefault();keys.add(event.code);}
+      if(event.code==='KeyE'&&!event.repeat){event.preventDefault();menuHeldKeys.add('KeyE');if(!shipCabin.activatePointedControl()&&shipCabin.nearCockpit)closeShipCabin();}
+      return;
+    }
     if(earthSurface?.active){
       if(event.ctrlKey||event.metaKey||event.altKey)return;
       if(['KeyW','KeyS','KeyA','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','KeyJ','ShiftLeft','ShiftRight'].includes(event.code)){event.preventDefault();keys.add(event.code);}
@@ -2803,6 +2915,9 @@ function moveShip(dt,activeTime=dt) {
   if(returningToIntro){velocity.set(0,0,0);boostAmount=0;return;}
   if(introDive){velocity.set(0,0,0);boostAmount=0;return;}
   if(introActive){velocity.set(0,0,0);boostAmount=0;return;}
+  if(parkedTarget&&!autopilotTarget&&!modalOpen()&&['KeyW','KeyS','KeyA','KeyD','KeyQ','KeyE','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].some(code=>keys.has(code))){
+    parkedTarget=null; arrivalPreview=false;
+  }
   if(parkedTarget&&!autopilotTarget){
     shipPosition.copy(parkedTarget.group.position).add(parkedOffset);
     velocity.set(0,0,0);
@@ -2924,6 +3039,7 @@ function updateHud(elapsed) {
   if(elapsed-lastHudUpdate<.08)return;
   lastHudUpdate=elapsed;
   updateEarthLandingUI();
+  updateCabinUI();
   if(!document.querySelector('#settingsOverlay').hidden)document.querySelector('#musicNowPlaying').textContent=musicPlaybackLabel();
   const nearest=bodies.reduce((best,body)=>{
     const distance=Math.max(0,shipPosition.distanceTo(body.group.position)-body.data.radius);
@@ -3049,6 +3165,28 @@ function animate() {
     return;
   }
   updateBodies(elapsed,dt);
+  if(cabinActive){
+    introEffectsDt+=dt;
+    if(introEffectsDt>=.1){updateComet(introEffectsDt);updateSaturnRings(elapsed,introEffectsDt);introEffectsDt=0;}
+    const cabinTarget=parkedTarget;
+    if(cabinTarget)shipPosition.copy(cabinTarget.group.position).add(parkedOffset);
+    else shipPosition.copy(cabinHoldPosition);
+    clearShipBodyOverlaps();
+    parkedTarget=cabinTarget;
+    if(cabinTarget)parkedOffset.copy(shipPosition).sub(cabinTarget.group.position);
+    else cabinHoldPosition.copy(shipPosition);
+    shipMesh.position.copy(shipPosition);
+    shipCabin.update(dt,modalOpen()||document.hidden);
+    updateCabinUI();
+    speedContext.clearRect(0,0,speedCanvas.width,speedCanvas.height);
+    shipAudio.update(0,0,true,false);
+    if(!document.hidden){
+      shipCabin.render(renderer,scene,shipMesh,shipPosition,parkedTarget?.group.position??null,parkedTarget?.data.radius??0,cabinOrientation);
+      capturePhoto();captureLogSnapshots();
+    }
+    if(elapsed-lastFlightSave>.5){saveFlightState();lastFlightSave=elapsed;}
+    return;
+  }
   introEffectsDt+=dt;
   // The title scene needs smooth ship and planet motion, but distant debris
   // and the comet's particle tail can update at 10 Hz until flight begins.
@@ -3109,7 +3247,6 @@ window.addEventListener('pagehide',saveFlightState);
 async function prepareIntro() {
   const screen=document.querySelector('#loadingScreen');
   const status=document.querySelector('#loadingStatus');
-  const progress=document.querySelector('#loadingProgress');
   const nextFrame=()=>new Promise(resolve=>requestAnimationFrame(resolve));
   try{
     await nextFrame();
@@ -3120,11 +3257,12 @@ async function prepareIntro() {
       return photo.decode().catch(()=>{});
     });
     await Promise.all([
-      waitForPlanetTextures((completed,total)=>{progress.value=total?completed/total*65:65;}),
+      waitForPlanetTextures((completed,total)=>{setLoadingProgress(total?completed/total*65:65,0);}),
       ...photos,
       document.fonts.ready,
     ]);
     status.textContent='Preparing planet details…';
+    setLoadingProgress(65,1);
     // Upload every material map before revealing the scene, even maps used
     // by planets outside the intro camera's view.
     const textures=new Set();
@@ -3138,10 +3276,11 @@ async function prepareIntro() {
     let uploaded=0;
     for(const texture of textures){
       renderer.initTexture(texture);
-      progress.value=65+(++uploaded/textures.size)*25;
+      setLoadingProgress(65+(++uploaded/textures.size)*25,1);
       await nextFrame();
     }
     status.textContent='Preparing the first view…';
+    setLoadingProgress(90,2);
     updateBodies(0,0);
     updateComet(0);
     updateSaturnRings(0,0);
@@ -3150,7 +3289,7 @@ async function prepareIntro() {
     renderer.render(scene,camera);
     // Finish the initial GPU uploads while the loading screen is still up.
     renderer.getContext().finish();
-    progress.value=100;
+    setLoadingProgress(100,2);
     await nextFrame();
     clock.start();
     document.querySelector('#introOverlay').inert=false;
@@ -3159,8 +3298,7 @@ async function prepareIntro() {
     animate();
   }catch(error){
     console.error('Solar system preparation failed',error);
-    status.textContent='Unable to prepare the scene. Refresh to retry.';
-    progress.hidden=true;
+    setLoadingFailure('Unable to prepare the scene. Refresh to retry.');
   }
 }
 

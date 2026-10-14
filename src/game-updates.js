@@ -1,5 +1,42 @@
 export const gameUpdates = [
   {
+    date: '2026-10-14',
+    title: 'Quiet loading, distinct music',
+    summary: 'A minimal loading screen and two distinctly different soundtrack arrangements.',
+    notes: [
+      'Improved: Startup and refresh reveal the Odyssey wordmark from gray to white as the scene prepares, with quiet status text and clear recovery instructions.',
+      'Added: Enter your cabin anywhere in space during manual flight. The ship stops and holds position while you explore.',
+      'Improved: Solar Sails has a rhythmic synth arrangement with drums, bass, and arpeggios.',
+      'Improved: Blue Hour uses sparse piano and chimes, with space between phrases instead of sustained pads.'
+    ]
+  },
+  {
+    date: '2026-10-14',
+    title: 'Sharper views and smoother controls',
+    summary: 'Subtle button feedback, interactive cockpit controls, and two new original scores.',
+    notes: [
+      'Improved: Buttons across the intro, flight, menus, and Earth respond to hover without moving.',
+      'Added: Use cockpit screens and keys for navigation, photos, the log, music, and flight views. Click or press E while aiming at a control.',
+      'Fixed: Cabin windows keep their live exterior view sharp when you approach the glass.',
+      'Fixed: Voyages stays hidden while inside the ship, including after refresh.',
+      'Added: Solar Sails and Blue Hour join the soundtrack, with a Next track button in Settings.',
+      'Fixed: Prepared music loops continue through delayed game updates, and the current track plays while another prepares.'
+    ]
+  },
+  {
+    date: '2026-10-14',
+    title: 'A window to space',
+    summary: 'Walk through your parked ship’s cabin and cockpit, with live views of nearby worlds.',
+    notes: [
+      'Added: Walk through a compact cabin into a separate cockpit with a pilot seat, navigation consoles, and equipment lockers.',
+      'Added: The side observation window and cockpit windshield show the live exterior from your parked ship, with views that change as you walk.',
+      'Added: Choose Walk inside beside the camera views or press I during manual flight or while parked. The ship stops while you explore. Use WASD to walk and mouse dragging or arrow keys to look.',
+      'Improved: Walk freely into and out of the cockpit. Press E near the pilot seat to take controls, or use Flight view or Escape to return to your original flight camera while remaining parked.',
+      'Improved: The ship interior and buttons follow Odyssey’s charcoal shading, monochrome text, and shared control style.',
+      'Added: Take cabin photos with T and open Captain’s log with L. Refreshing returns you safely to the parked cockpit.'
+    ]
+  },
+  {
     "date": "2026-10-14",
     "title": "Larger-feeling worlds and steadier flight",
     "summary": "Worlds feel larger around your ship, with familiar views and smoother camera tracking.",

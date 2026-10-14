@@ -137,4 +137,4 @@ No deadline, final feature order, hosting provider, payment platform, or player 
 
 ## Staged delivery
 
-See [Update roadmap](UPDATE_ROADMAP.md) for the sequence of small, independently reviewable updates. Update 1 is implemented locally; subsequent features remain planned.
+See [Update roadmap](UPDATE_ROADMAP.md) for the sequence of small, independently reviewable updates. Updates 1 and 2 are implemented; Update 2 is local pending review and publication. Subsequent features remain planned.
