@@ -1,5 +1,28 @@
 export const gameUpdates = [
   {
+    "date": "2026-10-15",
+    "title": "A place on every world",
+    "summary": "Explore all eight planets and the Moon, swim on Earth, climb rocks, and resume your visit after refresh.",
+    "notes": [
+      "Added: Land on Mercury, Venus, the Moon, Mars, Jupiter, Saturn, Uranus, and Neptune alongside Earth, with a distinct landscape and landmark at every destination.",
+      "Added: Each visit supports walking, a NASA-linked observation, photos, boarding, and takeoff. Observations save separately for Discovery and Exploration; a new Discovery game clears that voyage’s observations.",
+      "Added: Storm terraces on Jupiter, ringlit ice fields on Saturn, a tilted frost canyon on Uranus, and wind-carved ridges on Neptune. These are imagined landscapes; real giant planets have no walkable ground.",
+      "Improved: Rocky worlds have different gravity and environmental character. Discovery panels distinguish real science from fictional giant-planet terrain and Venus’s protective technology.",
+      "Improved: Landing requires an actual nearby approach or autopilot arrival. Remote previews cannot grant landing, and Saturn supports its wider ring-safe parking distance.",
+      "Added: Wade and swim in Earth’s lake, use Shift for a stronger stroke and Space or J for a water kick, with paddling and a waterline ripple.",
+      "Improved: Jump onto reachable rocks and landmark surfaces, stand on their visible tops, walk off edges, and pass beneath raised arches.",
+      "Fixed: Curved rock edges no longer trap the astronaut. Brief jump taps are remembered until the next movement frame.",
+      "Improved: Forward elbow bends, opposing arm swing, and smoother transitions between walking, jumping, and swimming.",
+      "Added: Refresh in the same tab restores your visited world, surface or cabin position, camera view, and looking direction, including on rocks and in water. Existing discoveries, logs, photos, and flight saves remain supported.",
+      "Added: Find ship below Return to ship shows direction and distance and turns your view toward the ship without moving the astronaut. Repeated camera rotations use the shortest turn back.",
+      "Improved: Larger survey flags mark every landmark. Earth’s fallen wood rests on the terrain and a subtle soil path replaces the small trail pegs removed from all worlds.",
+      "Improved: Planet previews fit the space beside the guide panels and HUD. Saturn and Uranus have closer default views with their rings visible.",
+      "Added: A credited NASA photo of comet NEOWISE in the Field Guide, shown as a real comet example.",
+      "Improved: Concise landing guidance, consistent Field Guide action text, centered cabin controls, and aligned cockpit keys. Buttons use clear action labels while keyboard shortcuts continue to work.",
+      "Removed: The flight key strip and its Settings toggle, plus cabin walking instructions, interaction prompts, shortcut badges, and console instruction captions. The control reference remains available."
+    ]
+  },
+  {
     date: '2026-10-14',
     title: 'Quiet loading, distinct music',
     summary: 'A minimal loading screen and two distinctly different soundtrack arrangements.',

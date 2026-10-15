@@ -351,3 +351,90 @@ Copy this template for future updates and replace the timestamp with the current
 - Gameplay: 23 browser checks passed, including real movement/look/release, menu pause, photo/log, all ten deterministic autopilot arrivals, real Earth arrival, parked refresh, free-space entry/holding/walking/photos/return/refresh, remote-preview and autopilot guards, and Earth landing/disembarking/boarding/takeoff. No game page errors. Some accelerated test-navigation and wrong-control test attempts needed correcting; successful checks used real arrival/refresh and the actual Take off control.
 - Frame pacing on this machine: headless Chrome, Intel Graphics Direct3D11, 1440×900 at DPR 1; cabin ~41 FPS, close cockpit window ~43 FPS, parked orbital flight ~37 FPS, manual flight ~35 FPS. Interior samples had no >50ms frames or long JS tasks; orbital/manual samples had occasional 117–167ms frame gaps. CPU profile predominantly showed rendering work/idle, so no claim of universal 60 FPS or zero lag. Startup preparation has long tasks behind the loader. Evidence: output/playwright/release-cabin/results.json.
 - Validation: all 62 tests, audio scheduling/playlist/saved-choice checks, production build, and whitespace checks passed. Existing ~679kB Vite chunk warning remains. README, controls help, roadmap, and player notes updated. Local and uncommitted on main; no push or deployment.
+
+## 2026-10-15 19:13:11 — Distinct landable worlds
+
+- Implemented one contained exploration zone at every planet and the Moon. Preserved Earth’s lake/woodland; added Mercury’s impact rim and prominent Sun, Venus’s basalt columns, the Moon’s crater basin/reflector/Earth view, and Mars’s dry channel/layered outcrop.
+- Final agreed fiction: Jupiter has storm terraces and a cyclone, Saturn ringlit ice fields and a crystal grove, Uranus a tilted cyan frost canyon, and Neptune wind-carved ridges and an arch. These are walkable imagined landscapes, not stations or landing platforms. Real science remains separate from fictional giant-planet terrain, gravity and sky arrangements. NASA-linked observations and scientific sources are in docs/PLANET_VISITS.md.
+- Generalized the existing landing lifecycle, approach clearance, photos, logs, boarding and departure across all nine visits. Remote previews alone never grant access. Manual approaches and Saturn’s wider parked arrival remain supported. Observations persist per existing game mode independently of capped log entries; new Discovery clears its observation set. Refresh resumes orbital flight.
+- Added individual landforms, landmark meshes, named investigation actions, terrain shapes, lighting, haze, gravity, and environmental motion. Reduced motion freezes decorative effects. Added solid landmark obstacles, clear trail corridors, and disposal when switching environments; orbital hull resources remain shared and intact.
+- Removed the flight key strip and its Settings visibility toggle as requested; keyboard controls remain. Fixed brief jump-key taps being missed between movement frames. Updated in-game notes, help, README, design direction and staged roadmap.
+- Validation: 69 regression tests passed; audio scheduling/playlist/saved-choice checks passed; production build and whitespace checks passed. Existing Vite large-chunk warning remains (main bundle approximately 701.5 kB before gzip).
+- Browser: all nine actual rendered environments passed landing, walking to their landmark, observation, correctly labeled photo, boarding and departure. Nine observations, nine photos and nine discovery log entries survived refresh, with zero recorded page/console errors. Arrival positions were supplied deterministically by a browser-only harness; this is not a fresh real-time autopilot benchmark.
+- Additional browser checks passed real keyboard walking, a brief-tap lunar jump, first/third-person switching, settings pause, active-visit refresh, cabin return, removal of the flight guide/toggle, and no control overflow at 800×700. Reviewed wide and narrow captures in two bounded visual rounds; corrected repeated horizon silhouettes, brought Jupiter’s storm into view, differentiated ice/rock geometry, and strengthened overlay text shadows. Evidence: output/playwright/planet-visits/full-playthrough.txt, edge-checks.txt, and screenshots. Earlier failed test attempts included an incorrect test-pilot return heading, a full isolated test gallery, and a branch placed on Earth’s trail; corrected before the passing runs. No physical-device performance claim.
+- Git: local and uncommitted; no push or deployment. Next: creator playtest of these zones, then deeper destination activities based on feedback.
+
+## 2026-10-15 19:46:35 — Field Guide, landing guidance, and cabin alignment
+
+- Matched Return to ship to the neighboring 12px Field Guide actions.
+- Reorganized landing copy into a location heading, current status, concise objective, two compact control lines, and a short context note. Full science/fiction context remains in the discovery panel. Guidance aligns at 36px on wide desktops and 24px on narrow desktops; fixed an inherited narrow-screen rule that hid walking guidance.
+- Centered the cabin Log / Flight view / Photo row with equal 44px heights and consistent spacing. Distributed each cockpit key row across the same display width.
+- Following the latest request, removed cabin walking instructions, E interaction prompts, the Escape badge, and instructional captions on cockpit screens. Button labels and all keyboard/control behavior remain available.
+- Validation: production build and whitespace checks passed; browser checks at 1440×900 and 800×700 confirmed matching Return/Fly font sizes, bounded landing text, visible compact walking guidance, equal button baselines/heights, centered cabin actions, and no remaining interior instruction elements. No page errors. Two bounded visual review rounds completed. Existing Vite chunk-size warning remains. Evidence: output/playwright/alignment-refinement/.
+- Updated in-game notes and README. Local and uncommitted; no push or deployment.
+
+
+## 2026-10-15 20:31:31 — Water traversal, solid rock surfaces, and consistent previews
+
+- Replaced Earth’s shore barrier with shallow-water wading and buoyant deep-water swimming. Shift increases stroke speed, Space/J gives a water kick, and the astronaut paddles with a small waterline ripple. The suit’s head remains above the lake and movement can return to dry land.
+- Added transformed triangle-based collision/support for rocks across all worlds, volcanic columns, canyon walls, and local landmarks. Reachable tops support the astronaut; stepping off falls to terrain; raised arches allow overhead clearance. Very tall formations still require enough jump height. Existing tree and ship collision remains solid.
+- Compared the previews and corrected uneven apparent scale caused by fixed camera offsets. Destinations fit a common envelope inside the largest space left by the guides and HUD, with full ring extent allowed for Saturn/Uranus; flight restores the normal camera projection. Reviewed all nine previews at 1440×900 and 800×700 in two bounded visual rounds.
+- Documented every map’s shared 104m playable radius / 208m diameter / approximately 3.4ha area, separate from the 440m rendered ground plane. Updated README, planet overview, and in-game notes. Giant landscapes remain explicitly fictional.
+- Validation: all 75 unit tests pass, including lake entry/exit, jumping onto rock tops, falling from edges, overhead clearance, and frame-rate consistency. Browser-only deterministic pose checks verified buoyancy, dry-land return, and actual mesh support on all nine worlds, with no page errors. The complete nine-world landing/discovery/photo/boarding/departure/persistence regression also passed; arrivals were supplied by the browser harness, not a new autopilot benchmark. Browser evidence/scripts: output/playwright/water-rocks/ and output/playwright/planet-visits/. Production build and whitespace checks pass; existing Vite chunk-size warning remains.
+- Local and uncommitted; no push or deployment.
+
+
+## 2026-10-15 20:55:08 — Rock exits, natural arm motion, larger flags, and refresh resume
+
+- Reproduced the reported trap on transformed curved rock geometry: all 16 exit directions failed at 30/60/120fps. The trailing capsule margin was hitting the higher surface behind the astronaut on descent. Padding now blocks approaching movement while allowing outward clearance; a safe downhill escape also handles an already overlapping astronaut. The new regression passes all 48 direction/frame-rate cases; ordinary side collisions and high-rock blocking remain tested.
+- Corrected elbow hinge signs to bend forward in the suit’s -Z facing direction. Arms oppose the leg stride, swimming uses forward paddles, and torso lean, shoulder spread, elbow flexion and water/land leg poses blend smoothly. Preserve swimming pose when paused. Named arm joints/gloves support directional and continuity assertions.
+- Enlarged every landmark survey flag from 0.55 × 0.24m to 1.5 × 0.85m and the pole from 2.4m to 3.8m.
+- Extended same-tab session saves to the surface world, mode, position, camera choice/look, facing, and landing/departure progress; restored rock support is reacquired from mesh geometry. Cabin position/look also resumes. Reload does not duplicate explore/landing logs. The short-lived surface/cabin resume data stays in sessionStorage; persistent Discovery flight saves retain their existing orbital format. Added first-frame curtain reveal for restored interior/surface rendering.
+- Validation: 79 unit tests pass, including new curved-rock, embedded escape, elbow-direction and smooth-transition checks. Browser tests passed same-tab reload on Earth terrain, on a rock, swimming, Moon terrain, and in the cabin, with preserved positions/views and no duplicate logs. Checked real-world rock geometry in 16 directions; real keyboard walking, swimming side views, larger flags and restored cabin captures were reviewed. A fresh browser context carrying the same persistent saves starts at the intro. Full nine-world landing, discovery, photo, return, takeoff and save regression passes with no page errors. Arrivals and selected poses were set by a browser-only harness. Evidence/scripts: output/playwright/movement-fixes/.
+- Updated README, planet visit documentation, roadmap and in-game notes. Production build and whitespace checks pass; existing Vite chunk-size warning remains. Local and uncommitted; no push or deployment.
+
+
+## 2026-10-15 22:03:31 — Ship wayfinding, larger flags, grounded wood, and concise controls
+
+- Added persistent ship bearing/distance during surface exploration, plus an in-view ship label. Find ship turns the current view toward the ship without moving the astronaut, including from water and first person. Following the user’s placement correction, Find ship sits directly below Return to ship in a matched-width vertical pair. Surface controls stay hidden inside the cabin.
+- Enlarged all landmark flags again to 2.4 × 1.35m on 5m poles. Inspected Earth’s awkward branch: its tilted cylinder floated at one end. Replaced it with a terrain-aligned fallen log/twig and a flatter moss patch; both endpoints meet the terrain. Added a geometry regression for ground contact.
+- Audited static, dynamic, tooltip and interior button words. Removed combined shortcut captions (Close · Esc, ESC · Exit flight, Investigate · F), retained functional keyboard shortcuts, shortened surface actions (Explore / Board ship / Return to ship), and simplified Save, facts and preview labels. Cancel autopilot now names the actual action. Hide the redundant observation button while its discovery panel is open; Find ship can dismiss the panel and face the ship. No science facts were changed.
+- Explained the small pale Earth ground pegs to the user: they are trail markers from the ship to the woodland observation, not random ground clutter. Their appearance was not changed because the user asked what they are.
+- Validation: 80 unit tests pass, including both-end terrain contact for the new fallen wood. Browser checks passed ship direction/distance from multiple far locations and the lake, accurate first-person aim, no astronaut teleport, locator absence in cabin, and matching Return/Find widths with 8px vertical spacing at 1440×900 and 800×700. Button checks confirm one Close label, no visible keyboard/action combinations, hidden duplicate observation action, working Close/Escape, Exit flight and Save. All nine complete visit/discovery/photo/return/boarding/takeoff routes pass without page errors. Two bounded copy/visual passes completed. Evidence: output/playwright/ship-wayfinding/. An early visit run was interrupted by a development hot reload; reran from an explicitly closed surface fixture after assets settled.
+- README, planet documentation and in-game notes updated. Production build and whitespace checks pass; existing Vite chunk-size warning remains. Local and uncommitted; no push or deployment.
+
+
+## 2026-10-15 22:15:21 — Remove artificial trail pegs
+
+- Removed the six pale cylindrical route pegs from the shared landmark builder on every world after the user found them random-looking. Large landmark flags and the ship locator remain.
+- Earth now blends muted soil tones into the ground along the woodland route, with irregular soft edges and thinner grass. The path uses the existing ground mesh/material instead of adding raised or floating objects. Updated Mercury/Jupiter objectives to point toward their flags and corrected README/planet notes.
+- Browser checks at 1440×900 and 800×700 confirmed no trail-peg meshes, retained flags/ship locator and no page errors. Reviewed both captures: the soil path sits naturally in the landscape. Production build and whitespace checks pass. Evidence: output/playwright/natural-trail/. No extra unit tests were added for this cosmetic change.
+- Local and uncommitted; no push or deployment.
+
+
+## 2026-10-15 22:58:27 — Exploration bug audit, closer ringed previews, and map-size verification
+
+- Re-ran all 80 unit tests and the complete nine-world landing/discovery/photo/return/boarding/takeoff/persistence browser flow; all pass. Real keyboard walking, lunar jumping, camera changes, menu pause, narrow control bounds, parked-visit refresh and cabin return also pass. Repeated exact-position/view refresh checks on Earth terrain, a rock, water, Moon terrain and the cabin passed without duplicate logs or page errors. Deterministic arrival/pose helpers were used; this is not a real-time autopilot benchmark.
+- Found and reproduced an extra bug: after 10 full camera revolutions, Find ship requested a 62.44-radian unwind. It now selects the equivalent target angle nearest the current heading; the same browser case requests only 0.39 radians.
+- Following the user’s additional request, tightened Saturn’s preview fit extent from 2.15 to 1.65 and Uranus’s from 1.75 to 1.35, making the default objects roughly 30% larger. Compared Earth/Jupiter/Saturn/Uranus at 1440×900 and 800×700; rings remain visible in the default framing.
+- Confirmed all eight planets plus the Moon share a 104m circular playable radius, 208m diameter and approximately 33,979m² / 3.4ha footprint. The rendered ground is 440 × 440m; surrounding scenery is beyond the playable boundary. Sizes were not changed.
+- Updated the edge-test fixture for the newer same-tab surface resume behavior, and made its synthetic Moon arrival point away from Earth: a fixed +Z pose could overlap Earth at some orbital phases and be rejected by existing clearance logic. No production landing change was required for that fixture issue.
+- Production build and whitespace checks pass; existing Vite chunk-size warning remains. Evidence/scripts: output/playwright/bug-audit/. Updated in-game notes. Local and uncommitted; no push or deployment.
+
+
+## 2026-10-16 07:04:16 — Bug and error audit
+
+- All 80 regression tests, audio checks, syntax checks across 30 source modules, production build and whitespace checks passed.
+- All nine complete world visits passed landing/walking/observation/photo/boarding/takeoff and saved-progress reload, with no recorded browser errors. Real keyboard walking, lunar jump, camera switching, settings pause, narrow layouts, active-visit restore and cabin return also passed. Deterministic arrivals were supplied by an isolated browser harness; real-time autopilot and hardware performance were not benchmarked.
+- No reproducible production bug found and no gameplay code changed. Existing Vite main-chunk warning remains: 714.35 kB before gzip / 200.42 kB gzip.
+- Corrected browser setup and selected the matching edge harness after blank-page setup and missing optional QA instrumentation failures. Details: output/playwright/current-audit/results.md.
+- Local only; no commit, push or deployment.
+
+
+## 2026-10-16 07:06:05 — Prepare planetary-visit commit documentation
+
+- Compared pending work with HEAD f981ec1 (walkable ship interior, continuous music, and loading reveal). Those existing features are not new in this pending commit.
+- Consolidated the October 15 player notes into A place on every world, covering nine-world visits, observations and science/fiction context, approach clearance, swimming, solid rock traversal, movement fixes, surface/cabin session resume, ship wayfinding, landmark/path refinements, consistent/closer previews, comet photography, and UI cleanup. The intro highlight now summarizes the whole update.
+- Updated README with the latest gameplay overview, shared 104m playable radius / 208m diameter, preview behavior, shortest ship-locator turn, comet credit/context, and corrected five-score soundtrack count.
+- Validation: update module import, production build, and whitespace checks passed. Main bundle is now 713.03 kB (200.05 kB gzip); existing Vite chunk warning remains. The preceding audit passed all 80 tests and nine-world browser flows; no gameplay code changed in this documentation pass.
+- No commit, push or deployment performed.

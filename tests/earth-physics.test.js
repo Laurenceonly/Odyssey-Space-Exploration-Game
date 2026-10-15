@@ -35,15 +35,11 @@ test('rocks and the ship stop movement even across a slow frame',()=>{
   assert.ok(body.x<1.16);
   assert.equal(walkableAt(body.x,body.z,obstacles),null);
 });
-test('lake shore prevents entering water while other low valleys stay walkable',()=>{
-  assert.equal(walkableAt(LAKE.x,LAKE.z),'water');
-  let x=-10;
-  while(walkableAt(x,LAKE.z)!=='water'&&x<LAKE.x)x+=.1;
-  const body=bodyAt(x-.25,LAKE.z);
-  for(let i=0;i<120;i++)stepAstronaut(body,{x:1,z:0},1/60);
-  assert.notEqual(walkableAt(body.x,body.z),'water');
-  assert.ok(body.x<x);
-  assert.equal(walkableAt(-50,0),null);
+test('the lake permits wading, buoyant swimming, and returning to dry land',()=>{
+  assert.equal(walkableAt(LAKE.x,LAKE.z),null);
+  const body=bodyAt(LAKE.x-29,LAKE.z);let swam=false,waded=false;
+  for(let i=0;i<60*42;i++){const result=stepAstronaut(body,{x:1,z:0,run:true},1/60);swam ||=result.swimming;waded ||=result.wading;if(body.swimming){assert.ok(body.y+1.7>LAKE.level+.4);assert.equal(body.grounded,false);}}
+  assert.ok(swam,'crosses the deep lake');assert.ok(waded,'uses the shallow shore');assert.ok(body.x>LAKE.x+32);assert.equal(body.swimming,false);assert.equal(body.grounded,true);assert.ok(Math.abs(body.y-terrainHeight(body.x,body.z))<1e-8);
 });
 test('the landing area has a physical boundary',()=>{
   assert.equal(walkableAt(SITE_RADIUS+1,0),'boundary');

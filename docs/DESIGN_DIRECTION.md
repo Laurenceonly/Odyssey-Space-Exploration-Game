@@ -138,3 +138,11 @@ No deadline, final feature order, hosting provider, payment platform, or player 
 ## Staged delivery
 
 See [Update roadmap](UPDATE_ROADMAP.md) for the sequence of small, independently reviewable updates. Updates 1 and 2 are implemented; Update 2 is local pending review and publication. Subsequent features remain planned.
+
+## October 15 direction — Distinct worlds to land on
+
+The creator wants every planet to be explorable, with its own feature and characteristics. Fiction should draw on real planetary identity rather than literal surface feasibility. Giant planets therefore have imagined walkable landscapes: Jupiter’s storm terraces, Saturn’s ringlit ice fields, Uranus’s tilted frost canyon, and Neptune’s wind-carved expanse. Stations and atmospheric landing platforms do not fulfill this experience. All worlds need different landforms and landmarks, rather than a recolored shared area.
+
+Real science stays in the Field Guide and discovery notes. Imagined giant-planet terrain, sky arrangements and playable gravity are explicitly fictional; actual gas/ice giants have no walkable ground. Rocky worlds retain representative geology, atmosphere and measured gravity. Keep the existing Earth, flight views and saves.
+
+The flight key guide and its Settings visibility toggle are removed at the creator’s request. Keyboard flight controls remain available.

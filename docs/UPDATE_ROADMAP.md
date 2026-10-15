@@ -2,7 +2,7 @@
 
 Created: 2026-10-14 (Asia/Manila).
 
-Source: [Design direction](DESIGN_DIRECTION.md). This is a proposed delivery sequence, not a promise of dates or authorization to implement all updates immediately. Updates 1 and 2 have been implemented; later updates remain planned. Update 2 remains local until committed and published. Update names are working labels.
+Source: [Design direction](DESIGN_DIRECTION.md). This is a proposed delivery sequence, not a promise of dates or authorization to implement all updates immediately. Updates 1 and 2 have been implemented. The October 15 direction expands the next milestone to a small visit at every planet and the Moon, before deeper gathering/building and co-op. The new visits are local pending final validation and review. Update names are working labels.
 
 ## Delivery rule
 
@@ -23,7 +23,7 @@ Done when: manual flight and automated approaches work at representative destina
 
 ## Update 2 — A Window to Space
 
-Status: implemented locally on 2026-10-14. A compact cabin connects through an open doorway to a walkable cockpit with a pilot seat and consoles. Shared monochrome controls provide Walk inside beside the flight views (I), and E near the seat takes controls. The side window and cockpit windshield render the live exterior with walking parallax. Bounded movement, looking, photos, and reliable flight-view return are supported. Entry works during manual flight anywhere in space, stopping the ship while you walk, as well as after a parked arrival. Refresh returns to saved flight while retaining the camera choice. Earth and Saturn browser checks passed; final validation is recorded in the work log. Not yet committed or published.
+Status: implemented locally on 2026-10-14. A compact cabin connects through an open doorway to a walkable cockpit with a pilot seat and consoles. Shared monochrome controls provide Walk inside beside the flight views (I), and E near the seat takes controls. The side window and cockpit windshield render the live exterior with walking parallax. Bounded movement, looking, photos, and reliable flight-view return are supported. Entry works during manual flight anywhere in space, stopping the ship while you walk, as well as after a parked arrival. Same-tab refresh now restores the cabin position and viewing direction (updated October 15). Earth and Saturn browser checks passed; final validation is recorded in the work log. Not yet committed or published.
 
 Depends on: Update 1 establishes the scale and camera approach.
 
@@ -36,19 +36,20 @@ Scope:
 
 Done when: entering/exiting is reliable, movement stays inside the cabin, and the window view remains convincing at Earth and another destination. Preserve current space first/third-person views and settings. Friends aboard moving ships, labs, and extensive customization are deferred.
 
-## Update 3 — The First Expedition
+## Update 3 — A Place on Every World
 
-Outcome: a complete solo Moon visit with a clear beginning, discovery, and return to the ship.
+Updated direction: prioritize breadth of explorable destinations before gathering, building, or multiplayer.
 
-Scope:
-- One contained Moon landing zone.
-- Land, walk, experience distinct gravity, investigate one feature, take a photo, and return.
-- Reuse and extend existing log/photo/guide systems.
-- Establish a short introductory expedition and personal progress format.
+Scope implemented locally on October 15:
+- Preserve Earth’s lakeside visit; add one contained surface zone each for Mercury, Venus, the Moon, and Mars.
+- Add distinct imagined landscapes for Jupiter, Saturn, Uranus, and Neptune, inspired by their storms, rings, tilt, color, and winds. State that real giant planets have no walkable ground; do not substitute stations or platforms for world exploration.
+- Match rocky-world gravity and broad environmental character to NASA facts. Explain Venus’s fictional protection and the giant worlds’ fictional terrain and tuned gravity.
+- Make each visit playable from arrival through walking, a factual investigation, a photo, boarding, and departure.
+- Save personal observations per existing game mode and retain existing flight/log/photo saves.
 
-Done when: a new player can complete the trip and resume appropriate progress without guidance or loss of existing saves. Learning emerges from one interaction rather than a long reading requirement.
+Follow-up: deepen the Moon into a guided introductory expedition and then extend meaningful activities across destinations. A whole seamless planet is outside this contained-zone scope.
 
-Progression direction: prepare the shared future Solo/Together structure and migrate existing Discovery/Exploration progress deliberately. Retire the fully unlocked Exploration option only once its replacement is usable and saved progress has a defined migration. Do not display a functioning Together option before co-op exists. Multiplayer will require only the introduction, not all planets.
+Progression direction remains: prepare future Solo/Together deliberately, migrate existing saves before retiring Exploration, and enable multiplayer after an introduction rather than requiring all planets. Co-op is not implemented by this visit update.
 
 ## Update 4 — Gather and Build
 
@@ -126,7 +127,7 @@ Done when: free play stays complete, purchase and restoration flows work, suppor
 
 ## Later expansions — choose based on player feedback
 
-- More destinations, including believable fictional stations for giant planets.
+- More destinations, including believable fictional platforms for giant planets.
 - Additional landing sites and connected investigations.
 - Earth boat and an interesting water-accessible destination.
 - Rovers where terrain and activities justify them.
@@ -139,4 +140,4 @@ These are a backlog, not mandatory prerequisites for launch. Add one useful vehi
 
 ## Next action
 
-Update 2 is implemented locally. Review the parked cabin in play, then commit and publish it separately from Update 1. The next development milestone is Update 3: one complete solo Moon landing expedition.
+Review the new visits locally, validate landing/return and scientific labels at all nine destinations, and gather feedback before publishing. Then deepen expedition activities; gathering, building, and multiplayer remain later milestones.

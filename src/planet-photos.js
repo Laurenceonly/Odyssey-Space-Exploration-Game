@@ -1,5 +1,6 @@
 // Spacecraft images and photo mosaics from NASA. Source pages are linked in the guide.
 export const planetPhotos = {
+  comet: {file:'comet.jpg',credit:'NASA/Bill Dunford · NEOWISE example',alt:'Comet NEOWISE over Utah, shown as a real comet example',source:'https://science.nasa.gov/resource/comet-c2020-f3-neowise-over-utah/'},
   sun: {file:'sun.jpg',credit:'NASA/SDO · ultraviolet view',source:'https://science.nasa.gov/photojournal/image-of-sun-from-nasas-solar-dynamics-observatory/'},
   mercury: {file:'mercury.jpg',credit:'NASA/JHUAPL/Carnegie · MESSENGER',source:'https://science.nasa.gov/photojournal/mercury-globe-0n-270e/'},
   venus: {file:'venus.png',credit:'NASA/JPL-Caltech · Mariner 10',source:'https://science.nasa.gov/image-detail/venus-single/'},

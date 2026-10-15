@@ -50,26 +50,29 @@ export function createAstronaut() {
     part(new THREE.SphereGeometry(.13,12,10),white,shoulder,[0,0,0]);
     part(capsule(.087,.16),white,shoulder,[side*.035,-.15,0]);
     part(new THREE.BoxGeometry(.03,.12,.13),orange,shoulder,[side*.125,-.06,-.01]);
-    const elbow=new THREE.Group();elbow.position.set(side*.04,-.31,0);shoulder.add(elbow);
+    shoulder.name=side<0?'left-shoulder':'right-shoulder';
+    const elbow=new THREE.Group();elbow.name=side<0?'left-elbow':'right-elbow';elbow.position.set(side*.04,-.31,0);shoulder.add(elbow);
     part(new THREE.SphereGeometry(.085,12,8),rubber,elbow,[0,0,0]);
     part(capsule(.081,.13),white,elbow,[0,-.12,0]);
-    part(new THREE.SphereGeometry(.085,12,8),rubber,elbow,[0,-.28,0],[.9,1.2,.85]);
+    part(new THREE.SphereGeometry(.085,12,8),rubber,elbow,[0,-.28,0],[.9,1.2,.85]).name=side<0?'left-hand':'right-hand';
     shoulder.rotation.z=side*.08;
     limbs.push({hip,knee,ankle,shoulder,elbow,side});
   }
-  let phase=0,weight=0,impact=0;
+  let phase=0,swimPhase=0,swimWeight=0,weight=0,impact=0;
   const footWorld=new THREE.Vector3(),footLocal=new THREE.Vector3();
   const legLength=.39,ankleHeight=.1025;
-  function update(dt,{distance=0,speed=0,grounded=true,vy=0,landed=false,landingSpeed=0,time=0,reduced=false,groundHeight=()=>0}={}){
+  function update(dt,{distance=0,speed=0,grounded=true,swimming=false,vy=0,landed=false,landingSpeed=0,time=0,reduced=false,groundHeight=()=>0}={}){
     const running=THREE.MathUtils.clamp((speed-2.8)/2.8,0,1);
     const stride=1.3+running*.5,stance=.48-running*.02;
     if(grounded)phase+=Math.max(0,distance)/stride;
+    if(swimming)swimPhase+=dt*(.55+speed*.12);
+    swimWeight=THREE.MathUtils.damp(swimWeight,swimming?1:0,10,dt);
     weight=THREE.MathUtils.damp(weight,Math.min(1,speed/2.8),10,dt);
     if(landed)impact=Math.min(.035,landingSpeed*.007);
     impact=THREE.MathUtils.damp(impact,0,12,dt);
-    pelvis.position.y=grounded?-(.08+running*.06)*weight-impact:0;
-    torso.rotation.x=grounded?-.035*running*weight:.02;
-    torso.rotation.y=reduced?0:Math.sin(phase*Math.PI*2)*.012*weight;
+    pelvis.position.y=THREE.MathUtils.damp(pelvis.position.y,grounded?-(.08+running*.06)*weight-impact:0,14,dt);
+    torso.rotation.x=THREE.MathUtils.damp(torso.rotation.x,THREE.MathUtils.lerp(grounded?.05*running*weight:.02,.14,swimWeight),10,dt);
+    torso.rotation.y=THREE.MathUtils.damp(torso.rotation.y,reduced?0:Math.sin(phase*Math.PI*2)*.012*weight*(1-swimWeight),10,dt);
     torso.scale.y=1+(reduced?0:Math.sin(time*1.7)*.002)*(1-weight);
     root.updateWorldMatrix(true,true);
     for(const limb of limbs){
@@ -100,9 +103,20 @@ export function createAstronaut() {
       limb.hip.rotation.set(hipAngle,0,0);
       limb.knee.rotation.set(kneeAngle,0,0);
       limb.ankle.rotation.set(-hipAngle-kneeAngle,0,0);
-      const armSwing=Math.sin(cycle*Math.PI*2);
-      limb.shoulder.rotation.x=THREE.MathUtils.damp(limb.shoulder.rotation.x,grounded?-armSwing*(.16+running*.16)*weight:-.22,14,dt);
-      limb.elbow.rotation.x=THREE.MathUtils.damp(limb.elbow.rotation.x,-.14-running*.3*weight-(grounded?0:.15),14,dt);
+      // Suit faces -Z: positive X flexion brings the forearm forward.
+      // Keep the elbow hinge positive in every state, including transitions.
+      const stroke=reduced?0:Math.sin((swimPhase+(limb.side<0?.5:0))*Math.PI*2);
+      if(swimWeight>.001){
+        limb.hip.rotation.x=THREE.MathUtils.lerp(hipAngle,.16+stroke*.12,swimWeight);
+        limb.knee.rotation.x=THREE.MathUtils.lerp(kneeAngle,-.42-stroke*.1,swimWeight);
+        limb.ankle.rotation.x=THREE.MathUtils.lerp(-hipAngle-kneeAngle,.2,swimWeight);
+      }
+      const armSwing=THREE.MathUtils.clamp(z/halfStep,-1,1)*(.22+running*.16);
+      const landShoulder=grounded?armSwing:.16;
+      const landElbow=.2+running*.35*weight+(grounded?0:.15);
+      limb.shoulder.rotation.x=THREE.MathUtils.damp(limb.shoulder.rotation.x,THREE.MathUtils.lerp(landShoulder,.62+stroke*.26,swimWeight),14,dt);
+      limb.shoulder.rotation.z=THREE.MathUtils.damp(limb.shoulder.rotation.z,limb.side*THREE.MathUtils.lerp(.08,.28,swimWeight),14,dt);
+      limb.elbow.rotation.x=THREE.MathUtils.damp(limb.elbow.rotation.x,THREE.MathUtils.lerp(landElbow,.82-stroke*.18,swimWeight),14,dt);
     }
   }
   return {root,update};

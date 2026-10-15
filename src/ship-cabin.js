@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { cabinLayout, moveCabinWalker, nearCabinCockpit, windowRenderSize } from './cabin-physics.js';
+import { cabinLayout, cabinPositionClear, moveCabinWalker, nearCabinCockpit, windowRenderSize } from './cabin-physics.js';
 
 export function createShipCabin({ keys, onControl }) {
   const scene = new THREE.Scene();
@@ -133,7 +133,6 @@ export function createShipCabin({ keys, onControl }) {
     ctx.fillStyle = '#bcbcbc'; ctx.font = '500 24px Oxanium, sans-serif'; ctx.fillText(title,30,45);
     ctx.fillStyle = '#eee'; ctx.font = '500 38px Oxanium, sans-serif'; ctx.fillText(action,30,109);
     ctx.strokeStyle = '#696d73'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(30,140); ctx.lineTo(482,140); ctx.stroke();
-    ctx.fillStyle = '#a0a0a0'; ctx.font = '22px DM Sans, sans-serif'; ctx.fillText('Click or aim and press E',30,194);
     const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace; return texture;
   }
   function instrument(title, x, primary, actionLabel, controls) {
@@ -141,7 +140,7 @@ export function createShipCabin({ keys, onControl }) {
     mesh.name = 'cockpit-instrument'; mesh.position.set(x,1.15,-7.04); mesh.rotation.x = -.42;
     mesh.userData = {action:primary,label:actionLabel}; scene.add(mesh);
     controls.forEach(([action,label],i) => {
-      const dx = (i - (controls.length - 1) / 2) * .26;
+      const dx = controls.length === 1 ? 0 : (i / (controls.length - 1) - .5) * .78;
       const key = box('console-key',[.215,.035,.2],[x+dx,.936,-6.87],materials.trim.clone());
       key.userData = {action,label};
       const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 128;
@@ -213,6 +212,8 @@ export function createShipCabin({ keys, onControl }) {
   }
   reset();
   return { scene, camera, player, exteriorCamera, windowTarget, reset, drag, update, render, point, activatePointedControl,
+    snapshot(){return {position:player.toArray(),yaw,pitch};},
+    restore(state){if(!Array.isArray(state?.position)||state.position.length!==3||!state.position.every(Number.isFinite)||!Number.isFinite(state.yaw)||!Number.isFinite(state.pitch)||!cabinPositionClear(state.position[0],state.position[2]))return false;player.fromArray(state.position);yaw=state.yaw;pitch=THREE.MathUtils.clamp(state.pitch,-1.1,1.1);update(0);return true;},
     get pointedControl() { return hoveredControl ? {action:hoveredControl.userData.action,label:hoveredControl.userData.label} : null; },
     get inCockpit() { return player.z < -cabinLayout.halfDepth; },
     get nearCockpit() { return nearCabinCockpit(player); },

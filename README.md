@@ -16,8 +16,19 @@ A desktop browser space exploration prototype built with Three.js, with first-pe
 - Name your pilot and choose original music, with responsive engine and collision audio.
 - Use reduced motion settings for more immediate camera changes.
 - Walk inside your ship anywhere in space and watch live exterior views through its windows.
+- Visit all eight planets and the Moon: distinct landscapes on rocky worlds and imagined terrain inspired by the giant planets.
 
 The intro includes **What’s new** and an **Update history** panel with dated gameplay additions. The history scrolls within its dialog and closes with its button or Escape.
+
+## Latest update — Planetary visits
+
+Explore one contained zone on every planet and the Moon. Each visit includes a distinct landscape, a local landmark with a NASA-linked observation, photos, boarding, and departure. Giant-planet landscapes and their tuned gravity are fictional; their discovery panels explain the real science.
+
+- Wade and swim in Earth’s lake, jump onto reachable rocks, and walk beneath raised arches.
+- Follow large survey flags and use **Find ship** to face your ship and track its direction and distance.
+- Refresh in the same tab to resume your surface or cabin position and viewing direction, including on a rock or in water.
+- Browse consistently framed previews, with closer default views of Saturn and Uranus and a credited comet photograph in the Field Guide.
+- Use clearer landing guidance and aligned cabin controls. The flight key strip and cabin instruction overlays have been removed; keyboard controls and the **?** reference remain.
 
 ## Built with
 
@@ -62,7 +73,7 @@ The [Playwright configuration](.playwright/cli.config.json) follows the native b
 
 ## Design notes
 
-Odyssey favors readable navigation over astronomical scale: planets are enlarged and orbital distances compressed. Its Field Guide uses credited NASA imagery and source links. The three continuous music scores and flight sound effects were created for the project.
+Odyssey favors readable navigation over astronomical scale: planets are enlarged and orbital distances compressed. Its Field Guide uses credited NASA imagery and source links. The five continuous music scores and flight sound effects were created for the project.
 
 This is an interactive prototype, not a scientific simulator. Flight progress is local to the browser and does not sync between devices.
 Startup shows only a loading screen until the planet surfaces, guide photos, fonts, texture uploads, and shaders are ready. Game UI stays hidden and cannot open during loading, including after refresh. The intro has no Settings button. The intro then starts with the finished planet details. Distant debris and comet effects update at a lower rate on the title screen; flight restores their full update rate.
@@ -77,35 +88,61 @@ The intro quotes Neil Armstrong's first step on the Moon, using [NASA's publishe
 
 Click a destination, including Earth's Moon, to glide into a preview and open its info panel while the ship stays in place. Aim the ship's **+ reticle** at a planet to see its name; press **F** to open its info without entering preview, and press **F** again to close it. Choose **Fly to** or press **P** to return to the ship and engage autopilot. The ship turns toward the destination, boosts during the long cruise, steers around nearby bodies, and parks at a safe viewing distance. On arrival, the camera eases into the same planet scene used by a Destinations preview and opens the Field Guide while the ship holds position. Drag the scene to orbit around a preview, or use the **,** and **.** keys to turn the view in 45° steps. During autopilot, use **Cancel flight** or **P** to return to manual control. Movement inputs and browsing another destination keep the active course. Impacts trigger another approach instead of ending the trip; a stalled or overlong journey uses a brief fade into a safe arrival position. Autopilot leads moving destinations and follows entry/exit waypoints around obstacles. Recovery starts after 12 active seconds without progress, three contacts, or at most two minutes of active flight; timing uses actual frame duration even at low frame rates. Menus and hidden tabs pause the trip. Starting a new course clears old parking state. **Return to ship** appears in the Field Guide only during a planet preview and closes it without moving the ship. Reduced motion settings make camera switches immediate.
 
-The Destinations panel has a close button and a labeled button to reopen it; its closed state is saved in this browser. The field guide opens when you choose a destination, arrive there by autopilot, or press **F** while aiming the + reticle at a planet or the Sun. Close it with **F** or its close button. Use **Field Guide** to reopen it; **F** also toggles it during a planet preview. A manual collision does not open the guide. **Explore more facts** shows rotation, orbit, atmosphere, notable features, and a link to NASA's full fact sheet for each world and the Sun. The Sun can be previewed from a safe distance but cannot be selected for autopilot. Planetary orbits and the asteroid belt are spaced 3.2 times farther apart to make flights take longer. The space backdrop is nearly black.
+The Destinations panel has a close button and a labeled button to reopen it; its closed state is saved in this browser. The field guide opens when you choose a destination, arrive there by autopilot, or press **F** while aiming the + reticle at a planet or the Sun. Close it with **F** or its close button. Use **Field Guide** to reopen it; **F** also toggles it during a planet preview. A manual collision does not open the guide. **Explore more facts** shows rotation, orbit, atmosphere, notable features, and a link to NASA's full fact sheet for each world and the Sun. Previews fit the space left by the guide panels and HUD, with room for planetary rings; Saturn and Uranus use closer default framing. The Sun can be previewed from a safe distance but cannot be selected for autopilot. Planetary orbits and the asteroid belt are spaced 3.2 times farther apart to make flights take longer. The space backdrop is nearly black.
 
-Field guide images in `public/planet-photos/` are NASA spacecraft photos or photo mosaics, credited and linked beside each image. Their source pages are recorded in `src/planet-photos.js`; `scripts/download-planet-photos.ps1` records the downloaded asset URLs. The Sun image is an ultraviolet observation, and the Earth image is a satellite mosaic.
+Field guide images in `public/planet-photos/` are NASA spacecraft photos or photo mosaics, credited and linked beside each image. The comet image shows NEOWISE over Utah, credited to NASA/Bill Dunford, as a real comet example rather than a photograph of Odyssey’s simulated comet. Their source pages are recorded in `src/planet-photos.js`; `scripts/download-planet-photos.ps1` records the downloaded asset URLs. The Sun image is an ultraviolet observation, and the Earth image is a satellite mosaic.
 
 ## Supported devices and controls
 
 Odyssey currently supports desktop and laptop browsers with a keyboard and mouse. Phones and tablets show a lightweight “Best explored on desktop” notice instead of loading the game, planet assets, or audio. Mobile gameplay is unavailable; the joystick and touch-only actions have been removed. Smaller desktop windows remain supported, and device detection does not use viewport width alone. Touchscreen laptops with a fine pointer can still play.
 
-On Earth, use **WASD** to walk, hold the left mouse button and drag the scene to look, **J or Space** to jump, **Shift** to run, **C** to switch camera views, and **E** to board within 8 metres. Camera views are also available through the buttons.
+During a planetary visit, use **WASD** to walk, hold the left mouse button and drag the scene to look, **J or Space** to jump, **Shift** to run, **C** to switch camera views, and **E** to board within 8 metres. Camera views are also available through the buttons. Approach the local survey flag and use **F** or **Investigate** within five metres of the landmark to record a discovery. Escape closes the fact panel.
 
 ## Inside your ship
 
-During manual flight anywhere in space, or after an autopilot arrival, choose **Walk inside** beside the **First person / Third person** view controls, or press **I**. Entry stops the ship and holds its position while you explore. Active autopilot, remote previews, and Earth surface exploration do not enable interior entry. The ship interior uses the same shaded monochrome controls as flight and Earth, with a charcoal cabin, seating, equipment lockers, and an open doorway into a separate cockpit.
+During manual flight anywhere in space, or after an autopilot arrival, choose **Walk inside** beside the **First person / Third person** view controls, or press **I**. Entry stops the ship and holds its position while you explore. Active autopilot, remote previews, and planetary visits do not enable interior entry. The ship interior has a centered Log / Flight view / Photo row with matching button heights. On-screen walking instructions, interaction prompts, and console instruction captions are removed; the controls below still work. The ship interior uses the same shaded monochrome controls as flight and Earth, with a charcoal cabin, seating, equipment lockers, and an open doorway into a separate cockpit.
 
 Use **WASD** to walk and strafe, **Shift** to walk faster, and hold the left mouse button and drag to look. The **arrow keys** also look around. Walk through the doorway, around the pilot seat, and up to the cockpit’s navigation consoles. Walking into the cockpit keeps you inside; you can look around and walk back to the cabin. Walls, furniture, the chair, and consoles block movement.
 
 The side observation window and cockpit windshield render the actual exterior from your ship. In free space they retain the ship’s orientation; near a parked world they frame that destination. Their views change as you move and as the exterior simulation continues. This remains a stylized metre-scale interior connected to compressed orbital coordinates.
 
-Press **E near the pilot seat** to take flight controls. Choose **Flight view** or press **Escape** from anywhere to return to your original first/third-person flight choice. The ship remains stopped in free space, or parked near its destination, until you resume flight. **T** saves a photo labeled with the parked destination when one exists, and **L** opens Captain’s log. Settings and other menus pause walking. Refreshing returns to your saved flight position instead of restoring an interior walking position. Existing flight and Discovery saves remain supported. Moving-ship interiors, Earth-ground cabin access, and multiplayer cabin visits are later work.
+Press **E near the pilot seat** to take flight controls. Choose **Flight view** or press **Escape** from anywhere to return to your original first/third-person flight choice. The ship remains stopped in free space, or parked near its destination, until you resume flight. **T** saves a photo labeled with the parked destination when one exists, and **L** opens Captain’s log. Settings and other menus pause walking. Refreshing in the same tab restores your interior position and viewing direction. Existing flight and Discovery saves remain supported. Moving-ship interiors, Earth-ground cabin access, and multiplayer cabin visits are later work.
+
+## Visits across the solar system
+
+Fly to a discovered destination, then use its Field Guide’s **Land on…** action. A remote preview never counts as an approach. Manual flight also grants clearance after moving nearby; Saturn’s wider ring-safe parking distance remains supported. All eight planets and the Moon have a visit. The Sun and comet do not.
+
+Every visit has a **104-metre playable radius** (208-metre diameter, approximately 3.4 hectares). The rendered ground spans 440 × 440 metres, with scenery outside the playable boundary. These are contained exploration zones.
+
+Every destination has its own landforms and landmark:
+
+| World | Exploration zone | Landmark / character |
+|---|---|---|
+| Mercury | Crater rim | Raised impact layers, bare rock, a prominent Sun |
+| Venus | Volcanic plain | Hexagonal basalt columns, dense amber haze |
+| Earth | Lakeside clearing | Trees, liquid water, living woodland |
+| Moon | Lunar crater margin | Reflector, secondary craters, Earth in the sky, long low-gravity jumps |
+| Mars | Dry channel overlook | Exposed sediment-like layers, rounded stones, drifting dust |
+| Jupiter | Storm terraces | Banded cloudstone, an animated cyclone, heavy steps |
+| Saturn | Ringlit ice fields | Crystal grove, pale dunes, sweeping rings overhead |
+| Uranus | Tilted frost canyon | Leaning ice walls, cyan haze, light steps |
+| Neptune | Wind-carved expanse | Natural arch, blue ridges, fast wind streamers |
+
+The giant-planet zones are **Odyssey’s imagined landscapes**, inspired by real characteristics. Their terrain, sky compositions, and tuned gravity are fiction. In reality these planets have no solid surface to walk on. There are no stations or landing platforms in these zones. Venus’s protective suit technology is also fictional. Real facts remain in each destination’s NASA-linked discovery panel. The upper-left visit guidance groups the location, current task, compact controls, and a brief context note; full fictional/scientific context is available in the discovery panel.
+
+Use **Find ship** directly below **Return to ship** whenever you need to return: its arrow points toward the ship, its distance updates as you move, and clicking it turns your view toward the ship without moving the astronaut. It uses the shortest camera turn even after looking around through multiple rotations. A label marks the ship when it is in view. Head toward the large survey flag and approach the local landmark. Earth has a subtle worn woodland path instead of separate trail pegs. **F** or its named action records one observation. Photos, boarding, and departure work at every destination. Discoveries persist separately for Discovery and Exploration, even after older log entries expire; starting a new Discovery game clears that voyage’s observations. Photos and log entries use the correct destination. Refresh in the same tab restores the visited world, walking position, and camera view, including standing on a rock or swimming.
+
+The flight key strip and its Settings visibility toggle have been removed. Keyboard flight controls still work, and the **?** control reference remains available. See [Planet visits](docs/PLANET_VISITS.md) for the scientific sources and fictional interpretation.
 
 ## Landing on Earth
 
 Choose **Exploration** for quick access, then open **Destinations → Earth** and choose **Fly to Earth**. Autopilot approaches and parks near Earth; **Land on Earth** then becomes available in the Field Guide. You can also approach Earth by flying manually. Landing requires an actual approach or parked arrival within 25 surface units; selecting Earth’s preview alone does not enable landing. In **Discovery**, scan Earth first. There is no separate ground-preview screen.
 
-The ship descends to one grassy landing site beside a lake. Compact three-point landing gear deploys under the nose and wing roots, supports the hull above the ground, and retracts after lift-off. A welcome message addresses the saved pilot name. Choose **Explore outside** to walk among trees, rocks, and water. The articulated astronaut accelerates, turns, walks, runs, jumps, and lands with Earth gravity. Its two-joint legs use a simple alternating step cycle, bend knees forward without sideways twisting, and keep boots level. Medium strides and restrained lift avoid shuffling or exaggerated crouching. Stride follows actual distance and speed; terrain height, jumping, and landing drive foot placement and body weight. Your pilot name appears above the suit in third person and in the HUD in first person. The header profile pill is hidden on Earth to avoid a duplicate name. The same circular Settings icon used in space stays at the top right for sound and profile preferences. Earth orbital parking shows Parked near Earth / ready to land rather than a distance readout. Return near the ship to **Board spaceship**, then **Take off** to resume orbital flight. Water keeps the astronaut on shore; swimming is unavailable, and the walkable patch extends 104 metres from its centre.
+The ship descends to one grassy landing site beside a lake. Compact three-point landing gear deploys under the nose and wing roots, supports the hull above the ground, and retracts after lift-off. A welcome message addresses the saved pilot name. Choose **Explore** to walk among trees, rocks, and water. The articulated astronaut accelerates, turns, walks, runs, jumps, and lands with Earth gravity. Its two-joint legs use a simple alternating step cycle, bend knees forward without sideways twisting, and keep boots level. Medium strides and restrained lift avoid shuffling or exaggerated crouching. Stride follows actual distance and speed; terrain height, jumping, and landing drive foot placement and body weight. Your pilot name appears above the suit in third person and in the HUD in first person. The header profile pill is hidden on Earth to avoid a duplicate name. The same circular Settings icon used in space stays at the top right for sound and profile preferences. Earth orbital parking shows Parked near Earth / ready to land rather than a distance readout. Return near the ship to **Board ship**, then **Take off** to resume orbital flight. Walk into shallow water to wade and deeper water to swim; the suit stays buoyant, Shift gives a stronger stroke, and Space/J gives a water kick. Reachable rocks and landmark surfaces support your feet: jump onto low rocks, walk along them, and drop back to the terrain. Taller formations still need a jump high enough to clear them. The playable patch extends 104 metres from its centre.
 
 The Captain’s log records landing, the first surface walk of each visit, boarding, and completed takeoff, with timestamps and snapshots. The surface **Log** button sits in a centered bottom row beside camera views and the photo button. Earth labels use white text directly over the scene, without background boxes. Buttons use translucent charcoal shading with white text/icons; Earth uses a stronger tint for daylight and space uses a lighter tint. Camera selection uses a brighter charcoal shade and border.
 
-The site is a locally generated, stylized landscape; the globe retains its existing Earth maps. Photos work on the surface and are labeled Earth. Photos and logs remain local to the browser. Refreshing on the surface returns to orbital flight; surface position is not saved.
+The site is a locally generated, stylized landscape; the globe retains its existing Earth maps. Photos work on the surface and are labeled Earth. Photos and logs remain local to the browser. Surface and cabin positions are saved in session storage for same-tab refresh; a fresh browser session starts normally. Discoveries, photos, and logs retain their existing persistent saves.
 
 ## Flight atmosphere
 

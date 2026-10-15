@@ -178,7 +178,6 @@ button:focus-visible,.intro-play:focus-visible{outline-color:#ffffff}
 .exit-card .exit-actions .travel-button{margin-top:0}
 .settings-card .setting-toggle{display:flex;align-items:center;gap:10px;margin:21px 0 16px;color:var(--text-primary);font-size:11px;letter-spacing:.04em;cursor:pointer}
 .settings-card .setting-toggle input{width:17px;height:17px;margin:0;accent-color:#fff;cursor:pointer}
-.hide-control-hints .control-hint{display:none!important}
 .signal-readout{position:absolute;z-index:5;top:82px;left:50%;display:flex;align-items:center;gap:9px;max-width:calc(100vw - 30px);padding:8px 12px;transform:translateX(-50%);background:rgba(0,0,0,.6);color:var(--text-primary);font:600 10px 'Oxanium',sans-serif;letter-spacing:.12em;white-space:nowrap;pointer-events:none;text-shadow:0 1px 5px #000}
 .signal-readout[hidden]{display:none}
 .log-toggle{left:14px;top:174px;display:none;align-items:center}
@@ -433,7 +432,7 @@ button:disabled{opacity:.5;cursor:default}
 }
 
 /* Preview actions live in the Field Guide; keep the view clear of a second toolbar. */
-.return-to-ship-button{width:100%;min-height:44px;margin-top:8px;border:1px solid #777;background:transparent;color:var(--text-primary);font:600 11px 'Oxanium',sans-serif}
+.return-to-ship-button{width:100%;min-height:44px;margin-top:8px;border:1px solid #777;background:transparent;color:var(--text-primary);font:600 12px 'Oxanium',sans-serif}
 .return-to-ship-button[hidden]{display:none}
 .surface-copy{background:transparent;padding:0;text-shadow:0 1px 5px #000}
 .surface-copy h2{display:none}
@@ -606,10 +605,8 @@ button:focus-visible{outline-color:var(--control-accent)}
 .cabin-hud[hidden],#enterCabin[hidden],#leaveCabin[hidden]{display:none}
 #app.cabin-mode #voyageButton,#app.cabin-mode #voyagePanelButton{display:none}
 #app.cabin-mode>.panel,#app.cabin-mode>.panel-toggle,#app.cabin-mode>.crosshair,#app.cabin-mode>.object-label,#app.cabin-mode>.telemetry,#app.cabin-mode>.flight-hud,#app.cabin-mode>.signal-readout,#app.cabin-mode>.scan-feedback{display:none}
-.cabin-controls{display:none}
 .cabin-mode .flight-controls,.cabin-mode .camera-switch{display:none}
 #app.cabin-mode .bottom-bar{gap:8px;justify-content:center;padding:0 24px;background:transparent}
-#app.cabin-mode .cabin-controls{display:flex;position:static;transform:none;width:auto;padding:0;margin-right:auto;background:transparent;border:0;color:var(--text-secondary)}
 #app.cabin-mode .surface-log,#app.cabin-mode .photo-trigger{display:flex;position:static;transform:none;flex-shrink:0;align-items:center;justify-content:center;width:44px;height:44px;min-width:44px;min-height:44px;margin:0;padding:0;background:var(--button-shade);border:1px solid var(--control-border);color:var(--text-primary)}
 #app .interior-control{min-height:44px;padding:0 14px;flex-shrink:0;background:var(--button-shade);border:1px solid var(--control-border);color:var(--text-primary);font:600 11px 'Oxanium',sans-serif}
 .interior-control kbd{margin-left:8px}
@@ -621,11 +618,9 @@ button:focus-visible{outline-color:var(--control-accent)}
 .cabin-copy{position:absolute;top:105px;left:36px;text-shadow:0 1px 5px #000}
 .cabin-copy p{margin:0;color:var(--text-primary);font:500 13px/1.5 'DM Sans',sans-serif}
 #cabinStatus{margin-top:3px;color:var(--text-secondary);font-size:11px}
-.cabin-door-hint{position:absolute;left:50%;bottom:94px;transform:translateX(-50%);margin:0;color:var(--text-primary);text-shadow:0 1px 5px #000;font:500 13px 'DM Sans',sans-serif;white-space:nowrap}
-.cabin-door-hint kbd{margin-right:6px}
 @media(hover:hover) and (pointer:fine){#app .interior-control:hover{background:var(--button-selected);border-color:var(--text-secondary)}}
-@media(max-width:1100px){#app.cabin-mode .cabin-controls{display:none}#app.cabin-mode .bottom-bar{justify-content:center}.cabin-copy{left:24px}}
-@media(max-width:650px){.cabin-copy{left:18px;top:88px}#app.cabin-mode .bottom-bar{padding-left:12px;padding-right:12px}.cabin-door-hint{bottom:84px}.interior-control kbd{display:none}}
+@media(max-width:1100px){#app.cabin-mode .bottom-bar{justify-content:center}.cabin-copy{left:24px}}
+@media(max-width:650px){.cabin-copy{left:18px;top:88px}#app.cabin-mode .bottom-bar{padding-left:12px;padding-right:12px}.interior-control kbd{display:none}}
 
 /* Keep view buttons clear of the flight instruction text. */
 @media(min-width:1101px){.flight-controls{max-width:calc(50% - 165px);flex-wrap:wrap;gap:4px 6px}}
@@ -650,3 +645,51 @@ body #app button:not(:disabled):not([aria-disabled="true"]):active{transition-du
 #app button:focus-visible{transition-duration:0ms;outline:2px solid var(--text-primary);outline-offset:3px}
 #app button:disabled,#app button[aria-disabled="true"]{filter:none;cursor:default}
 @media(prefers-reduced-motion:reduce){#app button{transition-duration:0ms}}
+
+/* Exploration shares the existing monochrome overlay controls; scenery carries each world's color. */
+.visit-description{margin:12px 0 8px;color:var(--text-secondary);font-size:12px;line-height:1.5}
+.surface-copy{max-width:min(460px,calc(100vw - 56px))}
+#surfaceObjective{max-width:48ch;font-size:14px;line-height:1.5;color:var(--text-primary)}
+#surfaceScienceNote{margin-top:12px;max-width:52ch;font-size:12px;line-height:1.55;color:var(--text-secondary)}
+#surfaceHint{font-size:12px;line-height:1.5}
+.surface-fact{position:absolute;left:28px;bottom:96px;width:min(400px,calc(100vw - 56px));max-height:45vh;overflow:auto;box-sizing:border-box;padding:22px;background:rgba(18,18,18,.96);border:1px solid var(--control-border);border-radius:var(--panel-radius,16px);pointer-events:auto;color:var(--text-primary)}
+.surface-fact[hidden]{display:none}
+.surface-fact h2{margin:0 0 12px;font:500 21px/1.3 'Oxanium',sans-serif;max-width:24ch}
+.surface-fact p{font-size:14px;line-height:1.65;margin:0 0 15px}
+.surface-fact a{color:var(--text-primary);font-size:13px;text-underline-offset:4px}
+#surfaceFactClose{float:right;margin:0 0 14px 12px;padding:7px 10px;min-height:36px;background:var(--button-shade);border:1px solid var(--control-border);color:var(--text-primary);font:500 11px 'Oxanium',sans-serif}
+.surface-actions{max-width:calc(100vw - 56px);flex-wrap:wrap;justify-content:flex-end}
+#app .landing-site-button:disabled{color:var(--text-muted);cursor:default}
+@media(max-width:900px){.surface-copy{left:20px;max-width:380px}.surface-fact{left:20px;width:min(380px,calc(100vw - 40px))}.surface-actions{right:20px;max-width:calc(100vw - 40px)}#surfaceObjective{font-size:13px}#surfaceScienceNote{font-size:11px}}
+@media(max-height:740px){#surfaceScienceNote{max-width:62ch;margin-top:6px;font-size:11px}.surface-fact{bottom:83px;max-height:42vh}.surface-actions{bottom:83px}.surface-copy{top:90px}}
+
+.surface-copy{text-shadow:0 1px 2px #000,0 0 8px #0009}
+
+/* Aligned scene guidance and interior actions. */
+#app.surface-mode .surface-copy{top:104px;left:36px;right:auto;width:min(380px,calc(100vw - 72px));max-width:none;display:flex;flex-direction:column;gap:0;text-align:left}
+#app.surface-mode .surface-copy p{margin:0;max-width:none}
+#app.surface-mode #surfaceTitle{font:500 18px/1.3 'Oxanium',sans-serif;letter-spacing:-.02em;text-wrap:balance}
+#app.surface-mode #surfaceStatus{margin-top:5px;font:400 12px/1.5 'DM Sans',sans-serif}
+#app.surface-mode #surfaceObjective{margin-top:12px;font:500 13px/1.55 'DM Sans',sans-serif;text-wrap:pretty}
+#app.surface-mode #surfaceHint{margin-top:10px;font:400 12px/1.65 'DM Sans',sans-serif;white-space:pre-line}
+#app.surface-mode #surfaceScienceNote{margin-top:12px;max-width:46ch;font:400 11px/1.6 'DM Sans',sans-serif;text-wrap:pretty}
+#app.surface-mode #surfacePilot{margin-top:10px}
+.surface-fact .surface-fact-context{font-size:12px;line-height:1.6;color:var(--text-secondary)}
+#app.cabin-mode .bottom-bar{display:grid;grid-template-columns:44px max-content 44px;justify-content:center;align-items:center;gap:8px;min-height:67px;padding:0 24px;box-sizing:border-box}
+#app.cabin-mode .surface-log,#app.cabin-mode .photo-trigger,#app.cabin-mode .interior-control{height:44px;min-height:44px;box-sizing:border-box;margin:0;display:inline-flex;align-items:center;justify-content:center;font-size:12px;line-height:1}
+#app.cabin-mode .interior-control{gap:10px;padding:0 16px}
+#app.cabin-mode .interior-control kbd{margin:0;display:inline-flex;align-items:center;justify-content:center}
+@media(max-width:900px){#app.surface-mode .surface-copy{top:92px;left:24px;width:min(340px,calc(100vw - 48px))}#app.surface-mode #surfaceTitle{font-size:17px}#app.surface-mode .earth-welcome{left:390px;right:24px;top:25%;font-size:23px}}
+@media(max-height:650px){#app.surface-mode .surface-copy{top:80px}#app.surface-mode #surfaceObjective,#app.surface-mode #surfaceHint,#app.surface-mode #surfaceScienceNote{margin-top:8px}}
+
+#app.surface-mode #surfaceHint:not([hidden]){display:block}
+
+/* Persistent direction and distance remain available when terrain hides the ship. */
+.surface-actions{align-items:flex-start}
+.surface-return{display:flex;flex-direction:column;gap:8px;align-items:stretch}
+#app .ship-locator{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;min-height:44px;padding:10px 14px;border:1px solid var(--control-border);border-radius:var(--control-radius);background:var(--button-shade);color:var(--text-primary);font:600 12px 'Oxanium',sans-serif;pointer-events:auto}
+#app .ship-locator[hidden],.ship-waypoint[hidden]{display:none}
+.ship-locator svg{flex:none;transform-origin:center}
+.ship-waypoint{position:absolute;top:0;left:0;display:flex;align-items:center;gap:6px;white-space:nowrap;pointer-events:none;color:var(--text-primary);font:600 12px 'Oxanium',sans-serif;text-shadow:0 1px 3px #000,0 0 8px #000}
+.ship-waypoint>span:first-child{font-size:25px;line-height:1}
+@media(hover:hover) and (pointer:fine){#app .ship-locator:hover{background:var(--button-selected);border-color:var(--text-secondary)}}
