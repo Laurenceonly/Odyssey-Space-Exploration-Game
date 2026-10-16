@@ -12,7 +12,8 @@ test('support uses transformed visible triangles instead of an infinite cylinder
 });
 test('walking hits a rock side; jumping lands on its top and can stay there',()=>{
   const collider=rock(),walker=body();for(let i=0;i<120;i++)stepAstronaut(walker,{x:1,z:0},1/60,[collider],environment);assert.ok(walker.x<.72);assert.equal(walker.y,0);
-  const jumper=body();let stood=false;for(let i=0;i<240;i++){stepAstronaut(jumper,{x:jumper.x<1.4?1:0,z:0,jump:i===0},1/60,[collider],environment);stood ||=jumper.support===collider;}
+  // Approach with walking momentum before jumping onto the rock.
+  const jumper={...body(),x:.3,vx:2.4};let stood=false;for(let i=0;i<240;i++){stepAstronaut(jumper,{x:jumper.x<1.4?1:0,z:0,jump:i===0},1/60,[collider],environment);stood ||=jumper.support===collider;}
   assert.ok(stood);assert.equal(jumper.grounded,true);assert.ok(Math.abs(jumper.y-.8)<1e-6);assert.equal(jumper.support,collider);
 });
 test('walking off a rock falls back to the terrain without getting stuck',()=>{
@@ -25,7 +26,7 @@ test('raised arches can be walked under instead of becoming invisible walls',()=
   const overhead=createSurfaceCollider(new THREE.BoxGeometry(2,.5,2),new THREE.Matrix4().makeTranslation(2,3,0));const walker=body();for(let i=0;i<120;i++)stepAstronaut(walker,{x:1,z:0},1/60,[overhead],environment);assert.ok(walker.x>4);assert.equal(walker.y,0);
 });
 test('rock landings are stable at 30, 60, and 120 fps',()=>{
-  for(const fps of [30,60,120]){const collider=rock(),jumper=body();for(let i=0;i<fps*4;i++)stepAstronaut(jumper,{x:jumper.x<1.4?1:0,z:0,jump:i===0},1/fps,[collider],environment);assert.ok(Math.abs(jumper.y-.8)<1e-6);assert.equal(jumper.grounded,true);}
+  for(const fps of [30,60,120]){const collider=rock(),jumper={...body(),x:.3,vx:2.4};for(let i=0;i<fps*4;i++)stepAstronaut(jumper,{x:jumper.x<1.4?1:0,z:0,jump:i===0},1/fps,[collider],environment);assert.ok(Math.abs(jumper.y-.8)<1e-6);assert.equal(jumper.grounded,true);}
 });
 
 test('curved rock edges can be left in every direction at 30, 60, and 120 fps',()=>{

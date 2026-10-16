@@ -177,7 +177,7 @@ export function createShipCabin({ keys, onControl }) {
     if (!paused) {
       yaw += (Number(keys.has('ArrowLeft')) - Number(keys.has('ArrowRight'))) * dt * 1.3;
       pitch = THREE.MathUtils.clamp(pitch + (Number(keys.has('ArrowUp')) - Number(keys.has('ArrowDown'))) * dt, -1.1, 1.1);
-      moveCabinWalker(player, Number(keys.has('KeyW')) - Number(keys.has('KeyS')), Number(keys.has('KeyD')) - Number(keys.has('KeyA')), yaw, dt, keys.has('ShiftLeft') || keys.has('ShiftRight') ? 2.3 : 1.65);
+      moveCabinWalker(player, Number(keys.has('KeyW')) - Number(keys.has('KeyS')), Number(keys.has('KeyD')) - Number(keys.has('KeyA')), yaw, dt, keys.has('ShiftLeft') || keys.has('ShiftRight') ? 3.2 : 2.3);
     }
     camera.position.copy(player); camera.rotation.set(pitch, yaw, 0, 'YXZ');
     if(!paused)resolveControl();

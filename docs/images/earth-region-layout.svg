@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1040" viewBox="0 0 1200 1040" role="img" aria-labelledby="title desc">
+<title id="title">Odyssey — Earth region layout</title><desc id="desc">Creator-facing schematic, not to scale. Landing grasslands connect north to woods and lake, west to ridge and caves, southwest to jungle, southeast to desert, and south to coast and ocean. Mountain and tundra lie north. Dashed lines indicate later exploration routes.</desc>
+<defs><pattern id="sea" width="48" height="36" patternUnits="userSpaceOnUse"><path d="M0 18q12-5 24 0t24 0" fill="none" stroke="#335862" stroke-width="1"/></pattern><style>text{font-family:Segoe UI,Arial,sans-serif;fill:#f3eee0}.region{font-size:22px;font-weight:600;text-anchor:middle}.type{font-size:13px;letter-spacing:2px;text-anchor:middle;fill:#dfdfcb}.minor{font-size:16px;fill:#c8d3cf}.route{fill:none;stroke:#f3d891;stroke-width:4;stroke-linecap:round;stroke-linejoin:round}.future{fill:none;stroke:#d7dfcf;stroke-width:2;stroke-dasharray:7 8;opacity:.65}.edge{stroke:#142b2d;stroke-width:5;stroke-linejoin:round}</style></defs>
+<rect width="1200" height="1040" fill="#11282d"/><rect x="40" y="130" width="1120" height="790" rx="28" fill="#224650"/><rect x="40" y="130" width="1120" height="790" rx="28" fill="url(#sea)"/>
+<text x="54" y="57" font-size="15" letter-spacing="5" fill="#d7bd7b">ODYSSEY / EARTH</text><text x="54" y="98" font-size="32" font-weight="600">A landscape made for wandering</text><text x="1144" y="57" text-anchor="end" class="minor">CREATOR LAYOUT · NOT TO SCALE</text>
+<g class="edge">
+<path d="M238 155L490 145 670 164 708 245 540 307 359 278 214 222Z" fill="#91a7a1"/>
+<path d="M670 164L819 151 942 206 999 320 912 402 746 362 665 282 708 245Z" fill="#657771"/>
+<path d="M214 222L359 278 402 370 333 498 188 507 105 406 135 293Z" fill="#65765a"/>
+<path d="M359 278L540 307 665 282 746 362 709 479 557 494 402 447 402 370Z" fill="#355947"/>
+<path d="M746 362L912 402 957 476 901 546 771 556 709 479Z" fill="#588e95"/>
+<path d="M333 498L402 447 557 494 709 479 771 556 741 655 566 714 368 665 274 587Z" fill="#71834f"/>
+<path d="M188 507L333 498 274 587 368 665 328 752 174 782 100 682 110 584Z" fill="#2d6350"/>
+<path d="M771 556L901 546 1029 590 1077 703 1008 787 832 748 741 655Z" fill="#ad7652"/>
+<path d="M174 782L328 752 368 665 566 714 741 655 832 748 1008 787 1034 828 917 860 790 830 644 858 490 815 344 848 217 830Z" fill="#b18c7c"/>
+</g>
+<!-- Terrain contour hints -->
+<g fill="none" stroke="#d9e2cd" stroke-width="1.4" opacity=".16"><path d="M241 183Q443 146 644 199M277 211Q471 181 651 233M150 331Q238 266 337 327T303 458M169 362Q250 310 317 366T275 467M763 212L860 191 927 281 903 342 814 323 753 270Z M787 235L853 214 900 280 881 314 825 298Z M810 257L853 242 876 278 850 287Z M384 562Q515 514 661 560T694 618M374 591Q509 547 650 592M850 611Q979 567 1016 683M829 638Q970 600 1028 710"/></g>
+<!-- Future route network -->
+<path class="future" d="M574 586Q417 565 254 395Q449 355 565 394M254 395Q423 224 826 290M817 477Q865 399 826 290L530 217M574 586Q420 676 220 680L390 791M574 586Q715 615 913 681L868 804M574 586L580 813M868 804L972 886"/>
+<!-- First exploration loop, composed of walkable land routes -->
+<path class="route" d="M547 593Q489 522 508 450Q530 418 581 430Q659 433 718 493L733 544Q690 594 611 603L547 593"/>
+<path class="route" d="M547 593Q416 556 342 469L300 435" stroke-dasharray="3 9"/>
+<!-- Underground cave access -->
+<path d="M276 454L236 488" fill="none" stroke="#e4d1b4" stroke-width="3" stroke-dasharray="3 5"/><ellipse cx="220" cy="504" rx="62" ry="28" fill="#273b3c" stroke="#b7a997" stroke-width="2"/>
+<text class="region" x="475" y="211">Hyskrum</text><text class="type" x="475" y="235">TUNDRA</text>
+<text class="region" x="839" y="290">Mount Keltrond</text><text class="type" x="839" y="315">DISTANT NORTHERN LANDMARK</text>
+<text class="region" x="240" y="371">Vaelcren</text><text class="type" x="240" y="396">RIDGE</text>
+<text class="region" x="562" y="375">Rainselve</text><text class="type" x="562" y="400">WOODS</text>
+<text class="region" x="831" y="470">Lake Evrathen</text><text class="type" x="831" y="495">SHORE / OPTIONAL SWIM</text>
+<text class="region" x="559" y="548">Fernlilt Grasslands</text><text class="type" x="559" y="572">ARRIVAL BASIN</text>
+<circle cx="547" cy="593" r="8" fill="#ffe9ac" stroke="#20382e" stroke-width="3"/><text x="563" y="631" font-size="16">Ship landing</text>
+<text x="216" y="509" text-anchor="middle" font-size="15" font-weight="600">Nacreloom</text><text x="208" y="548" text-anchor="middle" font-size="13" fill="#dfdfcb">CAVERNS · UNDERGROUND</text>
+<text class="region" x="223" y="667">Ossamber</text><text class="type" x="223" y="692">JUNGLE</text>
+<text class="region" x="915" y="666">Ashqarin</text><text class="type" x="915" y="691">DESERT</text>
+<text class="region" x="575" y="791">Teshora Coast</text><text class="region" x="709" y="894">Uloqai Ocean</text>
+<g transform="translate(1097 185)"><path d="M0 30V-8M-7 2L0-10 7 2" stroke="#f3eee0" stroke-width="2" fill="none"/><text x="0" y="-22" text-anchor="middle" font-size="14">N</text></g>
+<path class="route" d="M58 957H105"/><text x="118" y="963" class="minor">First forest–lake walking loop</text><path class="route" d="M466 957H513" stroke-dasharray="3 9"/><text x="526" y="963" class="minor">Ridge branch</text><path class="future" d="M770 957H817"/><text x="830" y="963" class="minor">Later regional connections</text>
+<text x="58" y="1004" class="minor">Player map: reveal through discovery. Exact distances, boundaries, and terrain remain to be designed.</text>
+</svg>

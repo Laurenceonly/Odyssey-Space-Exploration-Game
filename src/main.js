@@ -1,3 +1,6 @@
+import {createRenderScale} from './render-scale.js';
+import {createFrameRateMeter} from './frame-rate.js';
+import {createEarthMap} from './earth-map.js';
 import { setLoadingProgress, setLoadingFailure } from './loading-screen.js';
 import * as THREE from 'three';
 import { gameUpdates } from './game-updates.js';
@@ -39,6 +42,16 @@ scene.background = new THREE.Color(0x000104);
 const camera = new THREE.PerspectiveCamera(67, 1, 0.1, 5000);
 camera.rotation.order = 'YXZ';
 const clock = new THREE.Clock();
+const frameRateMeter=createFrameRateMeter();
+const fpsValue=document.getElementById('fpsValue');
+let savedGraphicsQuality='auto';
+try{savedGraphicsQuality=localStorage.getItem('odyssey-graphics-quality')||'auto';}catch{}
+const renderScale=createRenderScale(savedGraphicsQuality);
+function updateGraphicsQualityHint(){
+  const descriptions={auto:'Adjusts the view for smoother play.',low:'A softer, vintage feel. Best performance.',medium:'A balance of softness and detail.',high:'The sharpest view. More demanding.'};
+  document.getElementById('graphicsQualityHint').textContent=descriptions[renderScale.quality]+' Applies immediately; saved in this browser.';
+}
+function scenePixelRatio(){return Math.min(window.devicePixelRatio||1,matchMedia('(pointer: coarse)').matches?1.25:1.8)*renderScale.value;}
 const shipAudio = createShipAudio();
 const shipPosition = new THREE.Vector3();
 const shipRotation = new THREE.Euler(0, 0, 0, 'YXZ');
@@ -182,6 +195,10 @@ let cabinActive = false;
 const cabinHoldPosition = new THREE.Vector3();
 const cabinOrientation = new THREE.Quaternion();
 let earthSurface = null;
+const earthMap=createEarthMap({getSurface:()=>earthSurface,getMode:()=>gameMode,
+  onOpen:()=>{for(const code of keys)menuHeldKeys.add(code);keys.clear();resetMouseLook();},
+  onClose:()=>{keys.clear();resetMouseLook();},
+});
 let surfaceEntryPending = false;
 const visitApproaches=new Map();
 let earthApproachReady=false;
@@ -189,7 +206,7 @@ let earthApproachDistance=0;
 const menuHeldKeys=new Set();
 let settingsReturnFocus=null;
 function modalOpen() {
-  return ['helpOverlay','logOverlay','voyageOverlay','settingsOverlay','exitOverlay','photoViewer'].some(id=>!document.getElementById(id).hidden);
+  return earthMap.active || ['helpOverlay','logOverlay','voyageOverlay','settingsOverlay','exitOverlay','photoViewer'].some(id=>!document.getElementById(id).hidden);
 }
 function canEnterCabin() {
   return !cabinActive && !introActive && !introDive && !returningToIntro &&
@@ -292,6 +309,7 @@ function openLandingSite(resume=null) {
         hasObservation:()=>readObservations().has(site.id),
         onEvent:(type,details={})=>{
           if(type==='observation'){
+            shipAudio.cue('discovery');
             const observations=readObservations();if(observations.has(site.id))return;
             observations.add(site.id);try{localStorage.setItem(observationKey(),JSON.stringify([...observations]));}catch{}
           }
@@ -311,7 +329,7 @@ function openLandingSite(resume=null) {
         },
       });
       earthSurface.open(resume);
-      canvas.setAttribute('aria-label',site.name+' exploration. WASD walk, drag to look, Space jump, F investigate near the local landmark, E board near the ship.');
+      canvas.setAttribute('aria-label',site.name+' exploration. WASD walk, drag to look, Space jump and press again for suit boost, hold R near a survey flag to scan, E board near the ship.');
     }catch(error){console.error('Visit could not start',error);photoFeedback('Could not start this visit. Try again.');}
     finally{surfaceEntryPending=false;requestAnimationFrame(()=>requestAnimationFrame(()=>curtain.classList.remove('covered')));}
   },reducedMotion.matches?80:250);
@@ -1418,6 +1436,7 @@ function updateDiscoveryChoice() {
 }
 
 function startNewDiscoveryGame() {
+  earthMap.reset('discovery');
   observationCache=null;
   scannedBodies.clear();
   scannedLandmarks.clear();
@@ -2665,6 +2684,7 @@ function setupControls() {
     if(menuHeldKeys.has(event.code)){event.preventDefault();return;}
     if(document.getElementById('updatesDialog').open)return;
     if(surfaceEntryPending)return;
+    if(earthMap.active)return;
     if(earthSurface?.active&&!modalOpen()&&event.code==='Escape'){
       if(earthSurface.factOpen){earthSurface.closeFact();return;}
       openExit();
@@ -2686,6 +2706,7 @@ function setupControls() {
     if(introActive)return;
     if(event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLTextAreaElement || !document.querySelector('#helpOverlay').hidden || !document.querySelector('#logOverlay').hidden || !document.querySelector('#voyageOverlay').hidden || !document.querySelector('#settingsOverlay').hidden || !document.querySelector('#exitOverlay').hidden)return;
     if(cabinActive&&modalOpen())return;
+    if(event.code==='KeyM'&&!event.repeat&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&earthSurface?.active&&!modalOpen()){event.preventDefault();earthMap.toggle();return;}
     if(event.code==='KeyI'&&!event.repeat&&!event.ctrlKey&&!event.metaKey&&!event.altKey){event.preventDefault();openShipCabin();return;}
     if(event.code==='KeyL'&&!event.repeat&&!event.ctrlKey&&!event.metaKey&&!event.altKey){openLog();return;}
     if(event.code==='KeyT'&&!event.repeat&&!event.ctrlKey&&!event.metaKey&&!event.altKey){requestPhoto();return;}
@@ -2698,8 +2719,8 @@ function setupControls() {
     if(earthSurface?.active){
       if(event.ctrlKey||event.metaKey||event.altKey)return;
       if(['KeyW','KeyS','KeyA','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space','KeyJ','ShiftLeft','ShiftRight'].includes(event.code)){event.preventDefault();keys.add(event.code);}
-      if(['Space','KeyJ'].includes(event.code)&&!event.repeat)earthSurface.requestJump();
-      if(event.code==='KeyF'&&!event.repeat){event.preventDefault();earthSurface.observe();}
+      if(['Space','KeyJ'].includes(event.code)&&!event.repeat)earthSurface.requestJump(event.code);
+      if(event.code==='KeyR'&&!event.ctrlKey&&!event.metaKey&&!event.altKey){event.preventDefault();keys.add('KeyR');}
       if(event.code==='KeyE'&&!event.repeat&&earthSurface.mode==='walking')earthSurface.activate();
       if(event.code==='KeyC'&&!event.repeat)earthSurface.setView(earthSurface.viewMode==='chase'?'first-person':'chase');
       return;
@@ -2758,6 +2779,14 @@ function setupControls() {
   document.querySelector('#logOverlay').addEventListener('click',event=>{if(event.target.id==='logOverlay')closeLog();});
   document.querySelector('#closeHelp').addEventListener('click',closeHelp);
   document.querySelector('#helpOverlay').addEventListener('click',event=>{if(event.target.id==='helpOverlay')closeHelp();});
+  document.querySelector('#graphicsQuality').value=renderScale.quality;
+  updateGraphicsQualityHint();
+  document.querySelector('#graphicsQuality').addEventListener('change',event=>{
+    renderScale.setQuality(event.target.value);
+    renderer.setPixelRatio(scenePixelRatio());
+    updateGraphicsQualityHint();
+    try{localStorage.setItem('odyssey-graphics-quality',renderScale.quality);}catch{}
+  });
   document.querySelector('#settingsButton').addEventListener('click',openSettings);
   document.querySelector('#closeSettings').addEventListener('click',closeSettings);
   document.querySelector('#settingsOverlay').addEventListener('click',event=>{if(event.target.id==='settingsOverlay')closeSettings();});
@@ -3139,7 +3168,7 @@ function updateSignal() {
 function resize() {
   const width=document.querySelector('#app').clientWidth,height=document.querySelector('#app').clientHeight;
   renderer.setSize(width,height,false);
-  const pixelRatio=Math.min(window.devicePixelRatio||1,matchMedia('(pointer: coarse)').matches?1.25:1.8);
+  const pixelRatio=scenePixelRatio();
   renderer.setPixelRatio(pixelRatio);
   speedCanvas.width=Math.round(width*pixelRatio);
   speedCanvas.height=Math.round(height*pixelRatio);
@@ -3182,9 +3211,14 @@ function renderScene(){renderer.render(scene,camera);revealFirstFrame();}
 
 function animate() {
   requestAnimationFrame(animate);
+  const fps=frameRateMeter.tick(performance.now(),document.hidden);
+  if(fps!==null)fpsValue.textContent=String(fps);
+  const nextRenderScale=renderScale.tick(performance.now(),Boolean(earthSurface?.active)&&!document.hidden&&!modalOpen()&&!earthSurface.factOpen);
+  if(nextRenderScale!==null)renderer.setPixelRatio(scenePixelRatio());
   const frameDelta=clock.getDelta();
   const dt=Math.min(frameDelta,.05);
   const elapsed=clock.elapsedTime;
+  earthMap.update();
   if(earthSurface?.active){
     earthSurface.update(dt,modalOpen()||document.hidden||earthSurface.factOpen);
     speedContext.clearRect(0,0,speedCanvas.width,speedCanvas.height);

@@ -1,3 +1,4 @@
+import {SITE_RADIUS} from './earth-physics.js';
 // Facts: NASA destination pages and NSSDC gravity values. Local landscapes are illustrative.
 const nasa = id => 'https://science.nasa.gov/' + id + '/facts/';
 export const visitSites = {
@@ -9,10 +10,10 @@ export const visitSites = {
     feature:'Volcanic landscape', goal:'Find the hexagonal basalt outcrop in the volcanic plain.',
     fact:'Venus has a thick carbon-dioxide atmosphere and volcanic terrain. Its surface is about 467°C, at roughly 92 times Earth’s sea-level pressure.',
     conditions:'8.87 m/s² gravity · dense CO₂ atmosphere', fiction:'Imaginary suit and ship shielding make this walk possible. Real spacesuits could not protect a person here. Terrain is illustrative.', source:'https://science.nasa.gov/venus/venus-facts/' },
-  earth: { name:'Earth', action:'Observe living woodland', landmark:'woodland', title:'Lakeside clearing', kind:'surface', gravity:9.81,
+  earth: { name:'Earth', action:'Observe living woodland', landmark:'woodland', title:'Fernlilt Grasslands', kind:'surface', gravity:9.81,
     feature:'A world with surface water', goal:'Follow the trail to a fallen branch at the woodland edge.',
     fact:'Earth has abundant liquid water at its surface. Its atmosphere and water cycle help support the only life we know of so far.',
-    conditions:'9.81 m/s² gravity · liquid water and life', fiction:'This small lakeside landscape and its survey beacon are illustrative, rather than a mapped real location.', source:nasa('earth') },
+    conditions:'Golden hour · light breeze', fiction:'This small lakeside landscape and its survey beacon are illustrative, rather than a mapped real location.', source:nasa('earth') },
   moon: { name:'Moon', action:'Read lunar survey', landmark:'lunar', title:'Lunar crater margin', kind:'surface', gravity:1.62, sky:0x010203, ground:0x94918b, light:3.0, fog:0,
     feature:'Craters and lunar regolith', goal:'Find the lunar reflector at the crater margin. Try a low-gravity jump.',
     fact:'Impacts break lunar rock into dusty regolith. The Moon has a very thin exosphere and about one-sixth of Earth’s surface gravity; ordinary wind and rain do not reshape its craters.',
@@ -44,7 +45,7 @@ export function surveyRouteDistance(site,x,z){
   const t=Math.min(1,Math.max(0,((x-6)*dx+(z-7)*dz)/(dx*dx+dz*dz)));
   return Math.hypot(x-6-dx*t,z-7-dz*t);
 }
-export const visitRadius = () => 104;
+export const visitRadius = site => site?.id==='earth'?SITE_RADIUS:104;
 export function visitTerrainHeight(site,x,z) {
   const d=Math.hypot(x,z), fade=Math.min(1,Math.max(0,(d-13)/24));
   let y=(Math.sin(x*.043)*Math.cos(z*.039)*1.5 + Math.sin((x+z)*.092)*.45)*fade;

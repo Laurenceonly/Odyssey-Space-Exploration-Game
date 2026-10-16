@@ -19,7 +19,7 @@ export function cabinPositionClear(x, z) {
   return !furniture.some(item => x > item.minX - r && x < item.maxX + r && z > item.minZ - r && z < item.maxZ + r);
 }
 
-export function moveCabinWalker(position, forward, strafe, yaw, dt, speed = 1.65) {
+export function moveCabinWalker(position, forward, strafe, yaw, dt, speed = 2.3) {
   const length = Math.hypot(forward, strafe);
   if (!length || dt <= 0) return;
   const distance = speed * Math.min(dt, .05) / Math.max(1, length);

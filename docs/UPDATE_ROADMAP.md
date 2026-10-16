@@ -140,4 +140,11 @@ These are a backlog, not mandatory prerequisites for launch. Add one useful vehi
 
 ## Next action
 
-Review the new visits locally, validate landing/return and scientific labels at all nine destinations, and gather feedback before publishing. Then deepen expedition activities; gathering, building, and multiplayer remain later milestones.
+October 16 direction: defer new Moon and planetary activities. Brainstorm distinct, creative activities for every world before implementing expeditions; the Moon mission prototype was canceled and removed. Existing visits and observations remain available. Prioritize walking feel, readable manuals, and consistent interface behavior for now. Gathering, building, and multiplayer remain later milestones.
+
+## Earth exploration design — October 16
+
+The creator has selected 11 distinct Earth region names and a cinematic, relaxing exploration direction, with a discovery map, centered region-entry titles, and regional sound/music. See [Earth exploration plan](EARTH_EXPLORATION_PLAN.md) for the complete record and open decisions. These are planned features; this note does not mark them implemented or change the delivery sequence above.
+
+
+Earth local update (2026-10-16): Fernlilt expanded to a 560 m radius with a polished exploration atlas, continuous green meadow coverage, orange/yellow golden hour, gentler hills, and a live FPS counter. Other named regions remain unavailable. See WORK_LOG.md for validation and remaining scope.

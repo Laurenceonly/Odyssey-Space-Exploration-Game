@@ -438,3 +438,270 @@ Copy this template for future updates and replace the timestamp with the current
 - Updated README with the latest gameplay overview, shared 104m playable radius / 208m diameter, preview behavior, shortest ship-locator turn, comet credit/context, and corrected five-score soundtrack count.
 - Validation: update module import, production build, and whitespace checks passed. Main bundle is now 713.03 kB (200.05 kB gzip); existing Vite chunk warning remains. The preceding audit passed all 80 tests and nine-world browser flows; no gameplay code changed in this documentation pass.
 - No commit, push or deployment performed.
+
+
+## 2026-10-16 11:45:44 — Brisk walking, a wider manual, and deferred activities
+
+- Increased surface walking from 2.8 to 3.6 m/s and running from 5.6 to 6.6 m/s across the shared planetary movement system. Cabin walking/running now use 2.3/3.2 m/s. Swimming speeds and world gravity remain unchanged.
+- Lengthened the distance-driven stride, increased foot clearance, and replaced the fixed walking crouch with hip height based on each foot's reach. Regression coverage checks planted boots, joint direction, terrain/jump/swim transitions, and rising toward an upright stance between steps.
+- Reworked the flight manual into a wide desktop layout with the explanation beside a two-column key reference; narrow windows stack the sections. Split the long explanation into three paragraphs. Long descriptions use justified alignment with hyphenation; short text and control labels align left, with fixed key columns. Narrow paragraphs revert to left alignment to avoid excessive word spacing.
+- Following the creator's correction, canceled and removed the temporary Moon expedition prototype, including mission runner, checkpoints, objective controls, progress storage hooks, reward logging, and its tests. Hid the existing Moon objective paragraph as requested. Existing landing, free exploration, and optional observations remain available. The roadmap now defers Moon/all-world activities until distinct activities are brainstormed.
+- Validation: production build and all 81 regression tests pass; whitespace checks pass. The canceled mission identifiers have no remaining references in source or HTML. Visual browser verification is unavailable in this session, so gait feel, manual layout, and paragraph appearance still need an in-browser review.
+- Local changes only. No staging, commit, push, or deployment performed; the creator will commit.
+
+
+## 2026-10-16 12:22 — Grounded footsteps, forward running posture, and hold-to-scan
+
+- Replaced the earlier brisk gait tuning with distinct 2.4 m/s walking and 5.8 m/s running. World-space planted boots, hip abduction, bounded turn steps, heel/toe contact, bent-knee recovery and coordinated arms keep steps within anatomical reach. Airborne movement retains momentum; rock landing fixtures now use a walking approach.
+- Corrected the torso lean direction and moved its pivot to hip height. Shortened forward running foot placement. Removed an occasional stride-end corrective-step overlap and smoothed heel recovery; a 20-second regression checks both boots at 30/60/120 fps. Side-view stride evidence: output/playwright/walking-physics/stride.png.
+- Replaced discovery action buttons with continuous hold-R scanning aimed at the survey flag, with range checks and reset on release, looking away or pausing. Existing discoveries can be read again without duplicate records. The prompt is plain text: Hold R to scan/read discovery; removed the Aim at the survey flag prompt and its background panel.
+- Removed the landed movement instruction overlay and corrected dangling CSS selectors that gave upper-left paragraph lines button borders. Moon activities remain deferred and its objective stays hidden.
+- Validation: all 92 tests, production build and whitespace checks pass. The nine-world browser survey fixture exercises hold/release/pause/range/aim/re-read behavior; final evidence is in output/playwright/walking-physics/scan-final.html and scan-final.png. Existing Vite chunk-size warning remains.
+- Local changes only; no staging, commit, push or deployment.
+
+
+## 2026-10-16 12:29 — Nearby scan hint and responsive jump arms
+
+- Restored the plain Hold R scan/read hint throughout the nearby flag interaction range. Precise aiming still controls scan progress, but no longer hides the hint when the camera misses the flag. No action button or Aim at the flag prompt was added.
+- Jump arms blend upward during ascent, relax with downward velocity, and settle smoothly after landing; elbows stay bent and the arms open slightly for balance. Swimming retains its own animation.
+- Validation: all 93 tests and production build pass. Nine-world browser checks confirm nearby hints remain visible, out-of-range hints hide, and scan safeguards still work. Jump pose preview checked in output/playwright/walking-physics/jump.png; scan report in scan-hint.html. Existing bundle-size warning remains.
+- Local only; no commit or deployment.
+
+
+## 2026-10-16 12:31 — Survey hold interaction without pointing
+
+- Removed the survey crosshair and camera-ray requirement. Hold R now progresses anywhere within the same 8m range that displays the hint, in first-person or chase view. Release, leaving range, and menus still reset unfinished progress. Updated the flight manual wording to match.
+- Validation: all 94 tests and production build pass. The nine-world browser fixture confirms completion while facing away in both camera views, no duplicate records, range/pause/release safeguards, and no survey reticle. Evidence: output/playwright/walking-physics/scan-proximity.html and scan-proximity.png.
+- Local only; no commit or deployment.
+
+
+## 2026-10-16 12:59 — Closer surveys, rounded boots, and upright walking
+
+- Reduced survey scanning from 8m to 3m. Anchored the plain hold/progress hint below the boot soles in chase view, with a lower-screen fallback in first-person. The nine-world browser fixture passes range, hold, pause, release and reread checks in both views. Layout measurement places the hint 28px below the lower projected sole. No pointer or action button.
+- Replaced cuboid boot shells and ankle cuffs with rounded geometry and added a curved sole footprint with a broad toe and narrower heel. Existing boot dimensions/contact points remain consistent. Preview: output/playwright/walking-physics/boots.png.
+- Corrected an out-of-range roll calculation after corrective turns and reset contact roll when the foot replants. An attempted per-leg phase reset caused both legs to synchronize; removed it and restored the shared alternating gait. Speculative changes to body support and knee reach were backed out. Added irregular-turn orientation and post-turn stride-alternation regression coverage.
+- Following creator feedback that running is good, retained its existing stride, forward lean and arm drive. Shortened only the walking stride from 1.3m to 1.1m and stance fraction from .58 to .52 so the body stays taller. Standing settles with nearly straight knees (about 1.8 degrees) and an upright torso. Speeds remain walk 2.4m/s and run 5.8m/s.
+- Validation: all 97 tests, production build and whitespace checks pass. Walking hip displacement averages about -3.5cm on flat ground, compared with the earlier deeper crouch. Pose evidence: output/playwright/walking-physics/gait-upright.png. Browser close-survey results: close-scan-final.html; hint position measurement: anchor-results.html. Existing Vite bundle-size warning remains.
+- Local only; no staging, commit, push or deployment.
+
+
+## 2026-10-16 — Airborne boot turns
+
+- Fixed boots retaining their ground-facing direction during airborne body turns. Airborne foot yaw now carries the body turn, including angle wrapping, while smoothly relaxing any takeoff yaw offset. Grounded foot planting, running and walking cycles remain intact.
+- Added a full lunar-gravity jump regression at 30/60/120 fps with repeated rotations and landing; verifies both boots face with the body and remain upright throughout more than five seconds of airtime. All 98 tests, production build and whitespace checks pass.
+- Local only; no commit or deployment.
+
+
+## 2026-10-16 — More believable suit detailing
+
+- Replaced rectangular knee blocks with curved fabric reinforcement and covered knee/elbow hinges with suit-colored fabric and restraint folds.
+- Added sealed wrist cuffs, shaped palms, separate fingers and thumbs, plus boot gaiter folds, instep reinforcement and sole tread. Retained the character's stylized proportions, rig hierarchy, contact dimensions and movement logic.
+- Validation: rendered suit preview checked at output/playwright/walking-physics/suit-detail.png; all 98 tests, production build and whitespace checks pass. Existing Vite bundle-size warning remains.
+- Local only; no staging, commit, push or deployment.
+
+
+## 2026-10-16 — Simple rounded hands
+
+- Following creator feedback, removed detailed fingers, thumbs and palm patches. Hands are simple rounded white gloves; wrist cuffs and the other approved suit details remain. Finger detailing is deferred.
+- All 98 tests, production build and whitespace checks pass. Local only; no commit or deployment.
+
+
+## 2026-10-16 — Double-Space suit boost
+
+- Added one upward suit-thruster burst per surface jump: Space jumps, and a second Space press while airborne boosts. J remains a normal jump. Landing recharges the next jump; swimming and falling off a ledge do not arm the boost. Gravity and airborne horizontal momentum retain their existing behavior.
+- Queued non-repeating keydown presses so a quick double tap survives a slow render frame. Holding Space cannot retrigger. Menus discard pending presses, and same-tab surface saves retain whether the current jump still has its boost available.
+- Added twin backpack nozzles with a short fading exhaust effect. Updated the manual, accessible canvas controls and README.
+- Validation: all 101 regression tests pass, including queued double taps, once-per-jump limits, J/swimming/ledge safeguards, recharge, and safe landings at 30/60/120 fps under Earth, Moon, Mars and Jupiter gravity. Production build and whitespace checks pass. Existing Vite bundle-size warning remains.
+- Browser verification could not be completed: Playwright CLI initialization timed out and the in-app browser was unavailable. Exhaust appearance and live keyboard feel still need browser review.
+- Local only; no staging, commit, push or deployment.
+
+
+## 2026-10-16 — Soft suit-boost smoke
+
+- Replaced the blue cone exhaust with soft white-gray smoke emitted from both backpack nozzles. Puffs spread, slow down, and fade over roughly one second, remaining in world space as the astronaut rises.
+- Uses a shared procedural cloud texture and a fixed pool of 32 sprites, with no image downloads or new dependencies. Mode changes clear the effect; menus pause it. Reduced motion emits two small stationary fading puffs. Surface-scene disposal includes smoke textures/materials.
+- Validation: production build and git diff --check pass. Gameplay physics are unchanged. Browser visual review remains unavailable as recorded in the preceding entry; plume density and appearance need an in-game feel check. Existing Vite chunk-size warning remains.
+- Local only; no staging, commit, push or deployment.
+
+
+## 2026-10-16 — Swimming movement and water feedback
+
+- Replaced fixed-plane float snapping with damped buoyancy and cushioned water entry. Space/J water kicks keep the swimming state and use a short cooldown, preventing repeated taps from stacking vertical impulses or flashing the airborne pose. Existing dry-land double-Space boost remains separate.
+- Added smoother water acceleration and a brief release glide, with existing normal/Shift swimming speeds retained. Existing lake crossing, wading, shore return, rock traversal and jump behavior remain covered.
+- Added a forward swimming lean, coordinated breaststroke-style arm sweeps and leg kicks, gentler idle treading, and smooth pose transitions. Helmet clearance and pause freezing have regression coverage.
+- Replaced the attached pulsing ring with pooled, feathered ripples that expand and fade where the swimmer passed. Reduced motion uses one stationary waterline ring; menus pause the effect and mode changes clear it. Updated README.
+- Validation: all 105 regression tests, production build and whitespace checks pass. New checks exercise buoyancy, water-kick stability, falling into water, gliding at 30/60/120 fps, forward posture and helmet clearance. Browser visual/feel review remains unavailable in this session; no new rendered gameplay claim is made. Existing Vite chunk-size warning remains.
+- Local only; no staging, commit, push or deployment.
+
+
+## 2026-10-16 — Full-body front crawl after swimming feedback
+
+- Rebuilt the swimming pose after creator feedback that the earlier version was only leaning. The entire articulated suit now rotates around its hips into a nearly horizontal posture, with feet trailing behind. Walking/jump foot placement is solved separately before applying the water pose.
+- Added alternating front-crawl phases: reach/catch, underwater pull, push to the hip, and bent-elbow above-water recovery. Shoulder quaternions keep recovery continuous across angle wrapping. Flutter kicks stay extended instead of reusing the walking crouch; subtle longitudinal body roll and neck extension accompany the stroke.
+- Stopping returns to upright sculling/treading. Water depth reduces the prone posture near shore, and the first-person eye height lowers toward the waterline without rolling the camera. Reduced motion suppresses cyclic kicks/body roll and holds a quieter arm pose. Updated README.
+- Validation: all 106 tests, production build and whitespace checks pass. Pose checks measure the actual head/hip axis, trailing feet, alternating submerged pulls/raised recovery, continuous world-space hand movement, helmet waterline, pause freezing and upright shore exit at 30/60/120 fps. Replaced prior tests requiring a tilted chest and hands always in front, which encoded the rejected paddle pose.
+- No browser was available (computer-use inventory reported no browsers), so live rendered appearance still needs in-game review. Existing Vite bundle-size warning remains. Local only; no staging, commit, push or deployment.
+
+
+## 2026-10-16 — Enclosed Earth lake and dry surface cameras
+
+- Investigated the reported floating water: the fixed 32m water disc ended above low terrain along 159 of 360 sampled perimeter directions (lowest bank -5.89m versus water at -0.45m). The chase camera also respected only the basin floor and could orbit beneath the surface, exposing the water sheet from below.
+- Added a smooth terrain bank around the lake, with a broad dry rim covering the disc edge even between rendered ground vertices. The deeper basin remains swimmable. Water now explicitly renders as an opaque, depth-writing top surface.
+- Added shared water-camera clearance for first-person and chase targets, plus the final blended camera position. Surface exploration keeps its camera above the lake instead of exposing an unimplemented underwater view.
+- Validation: all 109 regression tests, production build and whitespace checks pass. Perimeter tests cover all 360 directions and surrounding terrain-grid corners. Swimming-to-shore checks pass in 32 directions; existing landing, woodland route, buoyancy, rock and astronaut tests also pass. Browser visual review remains unavailable; these are geometry/simulation checks. Existing Vite chunk-size warning remains.
+- Local only; no staging, commit, push or deployment.
+
+
+## 2026-10-16 — Head-up swimming and limited Shift sprint
+
+- Following creator direction, normal swimming now uses a head-up breaststroke-style pull and recovery; Shift selects the lower face-down front crawl. Body pitch, neck extension, arm strokes, kicks, roll and first-person eye height blend between these modes. Idle treading and shallow-water upright transitions remain.
+- Removed swimming jumps and water kicks. Space, double-Space and J cannot apply vertical impulses or activate the suit boost while swimming. Grounded land jumps/boosts remain supported.
+- Added a five-second fast-swim stamina budget, eight-second full recovery during normal swimming/rest, and exhaustion lockout until Shift is released with at least 30% stamina. Holding Shift after exhaustion cannot repeatedly restart the sprint; holding Shift without moving does not drain stamina. A compact swim-only meter shows remaining stamina and status distinguishes normal, fast and recovery. Session saves retain stamina and exhaustion.
+- Updated the manual and README to remove water-kick instructions and explain the two strokes and stamina.
+- Validation: all 112 tests, production build and whitespace checks pass. Tests cover ignored swim jump inputs in both modes, distinct head/eye heights, exhaustion/recovery/rearm, normal swimming without stamina drain, and 30/60/120 fps timing. Existing lake, shore, walking, boost and crawl regressions pass. Browser visual review remains unavailable in this session; existing Vite chunk-size warning remains.
+- Local only; no staging, commit, push or deployment.
+
+
+## 2026-10-16 — Center swim stamina above camera options
+
+- Moved the stamina label, meter and percentage from the upper-left surface copy into the bottom control footer. Positioned the row centrally above the camera options, anchored to the responsive footer height.
+- Restricted visibility to active surface walking/swimming so moving it outside the surface HUD cannot leave it visible in flight or the cabin. No swimming mechanics changed.
+- Validation: production build and whitespace checks pass. No new tests for this layout-only adjustment; browser visual review remains unavailable. Local only; no commit, push or deployment.
+
+
+## 2026-10-16 — Smoother walking body support
+
+- Investigated the reported bumpy walk. On flat ground at 60 fps, the gait moved the hips through a 4.35cm vertical range, with individual planting frames dropping as much as 2.46cm. The pelvis reach ceiling was following both planted and swinging boots and immediately clamping downward.
+- Shortened walking foot reach to 24cm and let planted feet determine normal walking support. Swing-leg reach no longer jolts the whole body. A small steady walking knee bend absorbs the remaining support changes while idle still straightens fully. Running retains its existing support/stride behavior.
+- Measured the revised flat-ground walk: 1.21cm vertical range and 0.59cm largest per-frame change at 60 fps, roughly 72% less bounce and 76% less planting-frame displacement. Camera code was unchanged; this fixes the measured astronaut-gait issue.
+- Validation: all 113 regression tests, production build and whitespace checks pass. New checks bound body bounce, frame-to-frame drops and crouch at 30/60/120 fps. Existing planted-foot, turn, running, landing, swim and jump regressions pass. Browser feel/visual review remains unavailable; existing Vite chunk-size warning remains.
+- Local only; no staging, commit, push or deployment.
+
+
+## 2026-10-16 — Running fatigue with shared stamina
+
+- Extended the existing stamina pool to planetary running: a full meter provides eight seconds of running or five seconds of fast swimming. Exhaustion falls back to walking/head-up swimming; walking, normal swimming and rest recharge it over eight seconds. Existing release-Shift and 30% recovery rearm avoids repeated sprint flicker.
+- Shared the existing session-saved stamina/exhaustion fields so moving between land and water does not grant a second budget. The centered meter is now labeled Stamina and stays visible while sprinting, swimming or recovering. Land status indicates tired/recovery. Idle Shift and paused time do not consume energy. Cabin movement is unchanged.
+- Updated manual and README. Validation: all 115 regression tests, production build and whitespace checks pass. New tests cover running duration/rearm at 30/60/120 fps, fallback speed, shared run/swim spending, idle Shift and pause. Browser visual review remains unavailable; existing Vite bundle-size warning remains.
+- Local only; no staging, commit, push or deployment.
+
+
+## 2026-10-16 — Rooted wildflowers and softer meadow grass
+
+- Replaced Earth’s floating blossom spheres with small wildflowers: gently curved stems, two pointed leaves, eight rounded petals and golden centers. Ivory/lavender colors, varied heights and headings retain the existing flower distribution. Stem roots are buried slightly into the terrain.
+- Replaced tall straight triangle grass with shorter four-blade tufts, narrow curved leaves, drooping tips, varied proportions and muted greens. Preserved the worn trail, dry-land exclusion and ship clearing. Vegetation uses four instanced flower batches and one instanced grass batch, with no new textures or per-frame animation.
+- Validation: production build, runtime geometry/instance/culling-bound checks and whitespace checks pass. Generated 105 flowers and 9,000 grass tufts (36,000 blades). Flower-base ray checks against the actual triangulated ground found root clearances from -7.22cm to +0.35cm, resolving the visibly suspended blossom issue. No new tests for this cosmetic change. Browser visual/performance review remains unavailable; the denser curved grass increases triangle count and still needs in-game performance review. Existing Vite bundle-size warning remains.
+- Local only; no staging, commit, push or deployment.
+
+
+## 2026-10-16 — Fine short grass after visual feedback
+
+- Replaced the rejected broad curved tuft geometry with fine, mostly upright grass silhouettes and slight bends. A shared procedural alpha-cutout texture carries 24 thin blades on crossed patches, with a more even short height and denser distribution. Ground/path/ship clearances remain.
+- Uses one instanced draw batch, opaque depth writing and alpha-to-coverage. The configured maximum is 24,000 four-triangle patches (96,000 triangles), below the preceding 324,000-triangle tuft geometry. Texture disposal follows the existing surface-scene cleanup. Flowers are unchanged.
+- Validation: production build and whitespace checks pass. No extra tests for this cosmetic revision. Live appearance still needs in-game review because no browser is available; no visual-quality approval is claimed. Existing Vite chunk-size warning remains.
+- Local only; no staging, commit, push or deployment.
+
+
+## 2026-10-16 — Patch-based grass coverage (interpretation pending)
+
+- Interpreted “look bad. not all over” as a request for patchy coverage. Changed grass placement to broad irregular islands with soft, thinned edges and open ground between them, preserving path, water and ship exclusions.
+- Asked whether the creator instead meant that grass was missing from too much of the ground; no answer arrived during the optional clarification window. This interpretation remains open to correction.
+- Validation: production build and whitespace checks pass. Grass shape and gameplay are unchanged; no new tests for this placement-only edit. Browser visual review remains unavailable. Local only; no commit, push or deployment.
+
+
+## 2026-10-16 — Longer stamina and pointed grass with curved edges
+
+- Extended shared stamina from 8 to 24 seconds of running and from 5 to 12 seconds of fast swimming. Full recovery remains 8 seconds. Updated duration-based regressions and README; no change to swim jump restrictions or the centered meter.
+- Following the creator’s correction, restored pointed 3D grass with gently bowed side edges and a small curved tip. Removed the alpha-cutout cards and patch-island mask. Jittered coverage now spans the playable ground; the trail, landing clearance and lake remain clear. Added fine ground-texture strokes for distant coverage.
+- Found the cause of missing grass beyond the lake: a global height filter rejected dry valleys below lake elevation. Water/shore exclusion now applies to the actual lake region. Runtime placement checks found 26,629 tufts, including 10,569 in previously excluded dry lowlands, across 372 ten-metre cells, with no grass in the lake or trail. Four edge segments limit geometry to 559,209 grass triangles in one instanced batch.
+- Validation: all 115 regression tests pass with extended stamina, production build and whitespace checks pass, and runtime geometry/coverage checks pass. The first coverage check usefully exposed the over-broad elevation exclusion before it was fixed. Browser appearance/performance review remains unavailable; existing Vite chunk-size warning remains.
+- Local only; no staging, commit, push or deployment.
+
+
+## 2026-10-16 — Scattered dark-green grass patches
+
+- Followed the creator’s clarified direction: retained the pointed grass with gently curved sides/tips, limited placement to scattered irregular patches, and left open ground between them. Added a few patches around the landing area; trail, ship and lake exclusions remain.
+- Changed the blades to dark green with restrained variation. This supersedes the preceding continuous-coverage interpretation. No stamina or gameplay changes.
+- Validation: production build and whitespace checks pass. No new tests for this color/placement adjustment. Browser visual review remains unavailable. Local only; no commit, push or deployment.
+
+## 2026-10-16 — Earth region layout draft
+
+Recorded the selected 11-region geography in docs/EARTH_REGION_LAYOUT.md with a linked SVG schematic. The arrival basin connects to a grasslands/woods/lake walking loop and a ridge branch; the northern mountain guides orientation. Defined later region transitions, underground cave placement, map disclosure, and first-slice acceptance targets. Linked the layout from the exploration plan. This step changes documentation only; terrain, map UI, audio, saves, and region discovery are not implemented here. Verified all 11 selected names and the diagram reference; git diff --check passed. No runtime tests needed for documentation-only changes.
+
+## 2026-10-16 — First playable Earth layout, local prototype
+
+Implemented the first connected section within the existing 104 m radius: Fernlilt landing ground, a Rainselve woodland route looping around Lake Evrathen, and a walkable Vaelcren overlook. Shared layout coordinates drive paths and scenery clearance. Terrain now has broad ridge shoulders; woodland distribution replaces uniform scattered trees, with darker forest ground and restrained dark-green grass patches. A connected northern massif replaces the repetitive ring of cone mountains, representing distant Keltrond. The surface header identifies the local region. Old saved positions obstructed by new vegetation move to nearby clear ground; clear positions retain their coordinates.
+
+Validation: 119 tests pass, including bidirectional route traversal at 30/60 fps, dry trail width, landing-pad levelness, regional identities, old-save recovery, and existing swimming/shore-exit regressions. Constructed the actual Three.js scene with a canvas/DOM stub and walked both routes in both directions against all 196 generated ship/tree/rock colliders; all waypoints reached. Scene has 93 trunks, 465 canopy clusters, 100 rocks, 1,676 grass tufts, and 111 flowers. Restoring a woodland walk updates its header and reconciles terrain support. Production build and git diff --check pass. Existing large-chunk warning persists (main approximately 765.72 kB, 217.73 kB gzip).
+
+Browser validation remains unavailable: shell helper fails to launch Playwright and computer-use inventory exposes no browsers. Headless scene checks verify geometry and logic, not rendered appearance or GPU performance. No visual approval claimed. New map UI, saved discoveries, centered entry titles, audio, larger map dimensions, and the remaining regions are not implemented in this step. No commit or deployment.
+
+## 2026-10-16 — Earth map and corrected region scope
+
+Creator clarified that all 11 names denote separate large regions. Corrected earthRegionAt and its regression test so the current compact pond/grove/rise remain within Fernlilt, rather than falsely discovering Evrathen, Rainselve, and Vaelcren. Updated the Earth landing title and both planning documents. The travel architecture question (continuous landscape versus large areas with transitions) remains open; this map does not commit to either.
+
+Added an actual map dialog accessible with M or the visible Map button while walking on Earth or aboard its parked ship. It samples the same terrain and water functions, adds contours and an accurate 25 m scale, marks position/facing and the ship, and reveals nearby ground as it is explored. Fog and visited-region progress persist separately by game mode; New game resets Discovery map data. Local waypoints can be placed by clicking or keyboard-accessible coordinate inputs and are session-local. All 11 regions are listed independently; only Fernlilt is available and the other ten explicitly say Not yet available. This is the local landing-area map, not a finished planet map or a claim of built large-region terrain.
+
+The native dialog pauses gameplay through modalOpen, blocks gameplay shortcuts, closes with M/Escape, restores focus, and hides its trigger outside supported Earth walking/parked states. Integrated with the existing bottom control row so it does not cover Log/camera/photo controls. No soundtrack changes or new travel gates.
+
+Validation: all 125 tests pass, production build passes, git diff --check passes. New tests cover region availability and unique initials, nearby fog reveal, save round-trip and malformed data, map boundaries, waypoint validation, per-mode storage isolation, and a DOM/canvas-stub flow for opening, closing, rendering layers, placing/clearing pins, saving, new-game reset, and rejection on other planets/departure. Existing large-chunk warning remains (main 774.47 kB, 220.96 kB gzip). Browser rendering/focus/layout remain visually unverified because this session has no browser surface and the shell helper cannot launch Playwright. No commit/deployment.
+
+
+## 2026-10-16 — Expanded Fernlilt, atlas polish, golden hour, and FPS
+
+Fernlilt now has a 560 m playable radius: 1.12 km across and approximately 0.985 km², about 29 times the former landing area. The other ten named regions remain unbuilt. The pond, groves, and low rises are all within Fernlilt. The player atlas has responsive chart sizing, zoom/pan, Locate me, accurate scale, markers, and persistent exploration fog; old map saves migrate to the expanded grid.
+
+The grasslands use green curved blades, recycled near-detail tiles, natural-size distant grass, and continuous meadow ground shading. Oversized distant tufts were removed. Warm orange/yellow golden-hour lighting and a visible sun replace the earlier afternoon treatment. Hills and the local rise are lower so the horizon and sunlight remain visible. Far mountain scenery is outside the playable region.
+
+An always-visible FPS counter beside the Odyssey logo reports actual wall-clock frame intervals. Rendering cost is lower through reduced distant blade geometry, a coarser main terrain mesh with a fine pond-bank insert, and removal of unnecessary ground shadow casting. Near grass streams in reusable buffers.
+
+Validation: all 130 tests pass, production build passes, and git diff --check passes. Browser preview at 1440 × 960 measured 60 FPS over 180 frames with a 17 ms 95th-percentile frame interval. Walking averaged 58 FPS over 240 frames, with an 18 ms 95th-percentile interval and a final counter reading of 51 FPS. Movement still has occasional dips. These are local measurements, not a guarantee for every device or a benchmark above the display refresh limit. Map and landscape screenshots are in output/playwright. Existing bundle-size warning remains. No commit or deployment.
+
+
+## 2026-10-16 — Follow-up for 40 FPS standing on Intel graphics
+
+The creator reported 38–40 FPS in Chrome, including while stationary. Chrome GPU report confirms hardware-accelerated WebGL on Intel integrated graphics and a 60 Hz 1080p display; it does not establish the bottleneck. Simplified grass from standard PBR to Lambert lighting while preserving blade geometry, color, wind, density, and coverage. Detail tiles fully beyond their fade are culled before rendering. Added sustained-load adaptive drawing-buffer scaling for surface exploration: after each three-second interval below 52 FPS, reduce linear resolution by 10%, bounded at 70%; hidden tabs, menus, and large stalls reset measurement. Scaling stays stable until reload and does not reduce DOM UI resolution.
+
+Validation: 132 tests and production build pass; diff whitespace check passes. Browser screenshot confirms grass and golden-hour rendering; preview counter read 60 FPS with a 1166 × 777 drawing buffer. This separate preview does not verify 60 FPS on the creator's live Chrome session. Existing bundle warning remains. No commit/deployment.
+
+
+## 2026-10-16 — Player graphics quality controls
+
+Added Settings → Graphics quality with Auto (default), Low / soft vintage (70%), Medium / balanced (85%), and High / sharpest (100% of the existing device pixel-ratio budget). Fixed presets keep their selected scale; Auto retains sustained-load adjustment. Selection applies immediately and persists across reloads in odyssey-graphics-quality; invalid stored choices fall back to Auto. DOM interface remains native resolution. Lower quality changes rendering softness, not region size or grass coverage.
+
+Validation: all 133 tests pass, build and whitespace checks pass. Browser interaction verified Low and High update the drawing-buffer width from 1007 to 1440 at a 1440 px viewport and save the corresponding preference. Settings screenshot visually checked; Auto restored afterward. Existing bundle-size warning remains. No commit/deployment.
+
+
+## 2026-10-16 — Fullscreen exploration map redesign
+
+Replaced the inset atlas card and permanent region ledger with a fullscreen terrain map. It opens at 3× around the player, supports zoom through 8×, and keeps future regions in an optional Regions panel. The same terrain, pond, meadow, and woodland functions drive relief shading and geographic colors; walking trails have contrasting outlines. Added an on-map Fernlilt label, local pond label, heading cone, and a direct waypoint bearing line. Existing fog saves, ship/player markers, scale, coordinates, keyboard pin placement, modal pause, and M/Escape behavior remain. The straight waypoint line indicates bearing, not a computed walkable route.
+
+Validation: 133 tests pass, build and whitespace checks pass. Browser screenshot inspected at 1440 × 960: map fills the screen, pond/trails/player/ship remain legible, controls and scale do not overlap, region ledger is initially hidden. Initial visual-check attempt was blocked by the preview's open exit menu; dismissed it and completed the check. Existing bundle warning remains. No commit/deployment.
+
+
+## 2026-10-16 — Circular minimap, waypoint HUD, and quiet surface guidance
+
+Added a clickable circular north-up minimap at bottom left, without a Map/M caption. It shares cached terrain and exploration fog with the full map, updates at 4 Hz, and marks player heading, ship, and an optional waypoint (clamped inside the circular edge). Added a projected in-world waypoint marker with distance and off-screen bearing guidance; clicking the minimap opens the full map to set or clear waypoints. Upper left now retains the region name and short landscape description. Objective/mode/swim/tired/boundary messages move to lower center, display once per state change for three active-play seconds, and expire rather than refresh indefinitely. Welcome is also lower center.
+
+Validation: full suite 134 tests passed before the final fog-cache and round-shape refinement; affected map/notification tests rerun successfully afterward, build and whitespace checks pass. Browser interaction verifies clicking minimap, placing a waypoint, returning to a visible distance marker, and message expiration after four seconds. Circular HUD screenshot inspected at 1440 × 960; minimap is 172 × 172 with 50% radius and only N as visible text. No claim of new live-device FPS. Existing bundle warning remains. No commit/deployment.
+
+
+## 2026-10-16 — Map transition and simpler map controls
+
+Map trigger now reads only Map, without repeated icon/key-hint content. Extended the existing panel-duration/ease-out tokens to native map dialog opacity/scale and backdrop opacity, including discrete display/overlay exits. Entry/exit last 250 ms; reduced motion uses an 80 ms fade without scale. Native dialog pause/focus lifecycle stays intact. The creator explicitly requested a map transition, including the existing keyboard-open path.
+
+Simplified map chrome after feedback: shared muted terrain-green header/footer, smaller header, removed repeated location label, empty waypoint prompt, instruction footer and legend. Grouped zoom and locate controls in the footer; coordinate pin entry lives in the optional regions panel. Region panel resets closed each time the map opens.
+
+Validation: affected map test, production build and whitespace checks pass. Browser inspection confirmed opening opacity/transform transitions and closing display/opacity/overlay/transform transitions at 250 ms, final opacity 1 / identity transform, and native dialog closure. Screenshot of simplified controls reviewed; region and coordinate panels remain operable. Existing bundle warning remains. No commit/deployment.
+
+
+## 2026-10-16 — Centered map window and icon controls
+
+Map now opens as a centered window, maximum 1120 × 740 with visible landscape margins, rather than fullscreen. Removed scale and horizontal spread transitions; only a quick 150 ms opacity fade remains (80 ms with reduced motion). Replaced map trigger, regions, recenter, zoom, and close controls with consistent stroke SVG icons, accessible names and native hover titles. Removed the duplicate footer Back control; X, M, Escape, minimap, and map trigger remain supported.
+
+Validation: affected map test, production build, and whitespace checks pass. Native map closure and return focus to surfaceMap verified in browser during icon-control check. Existing bundle warning remains. No commit/deployment.
+
+
+## 2026-10-16 — Session wrap and commit handoff
+
+Stopped feature work at creator request. Corrected README survey controls to hold R within 3 m, Fernlilt radius to 560 m, current name/HUD behavior, minimap/waypoint controls, and saved graphics presets. Final verification on the complete working tree: all 134 tests pass, production build passes, git diff --check passes. Centered map browser measurement is 1120 × 740 in a 1440 × 960 viewport, with transform/clip-path both none. Screenshot inspected. Build retains the existing main-chunk size warning. Performance remains device-dependent; creator reported roughly 40 FPS standing before the latest quality changes, so no live-device 60 FPS claim is made. Other ten Earth regions, new activities, region soundtracks, and space audio changes remain future work. No staging, commit, push, or deployment performed.

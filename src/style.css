@@ -317,7 +317,7 @@ button:disabled{opacity:.5;cursor:default}
 .surface-copy{position:absolute;top:calc(105px + env(safe-area-inset-top));left:max(28px,env(safe-area-inset-left));max-width:420px;padding:16px 20px;background:rgba(10,18,18,.8)}
 .surface-copy h2{margin:0;font:500 24px 'Oxanium',sans-serif;letter-spacing:-.02em}
 .surface-copy p{margin:9px 0 0;font-size:13px;line-height:1.5;color:var(--text-primary)}
-#surfaceHint{font-size:11px;color:var(--text-secondary)}
+
 .surface-actions{position:absolute;right:max(28px,env(safe-area-inset-right));bottom:calc(95px + env(safe-area-inset-bottom));display:flex;gap:10px;pointer-events:auto}
 .surface-actions button{width:auto;min-height:46px;min-width:110px;margin:0;padding:12px 18px;border:0;background:#fff;color:var(--text-on-accent);font:600 12px 'Oxanium',sans-serif}
 .surface-actions #surfaceSecondary{background:#182321;color:var(--text-primary)}
@@ -365,7 +365,7 @@ button:disabled{opacity:.5;cursor:default}
   .surface-copy{top:calc(78px + env(safe-area-inset-top));left:14px;right:14px;max-width:none;padding:12px 14px}
   .surface-copy h2{font-size:18px}
   .surface-copy p{font-size:11px}
-  #surfaceHint{display:none}
+
   .surface-actions{left:16px;right:16px;bottom:calc(80px + env(safe-area-inset-bottom));justify-content:center;flex-wrap:wrap}
   .surface-actions button{min-width:0;padding:12px 16px;font-size:11px}
   .surface-walking .surface-actions{left:auto;right:16px;bottom:calc(150px + env(safe-area-inset-bottom));max-width:190px;flex-direction:column}
@@ -541,7 +541,7 @@ kbd,.scan-meter,.scan-meter span,#loadingProgress,#loadingProgress::-webkit-prog
 /* Shared monochrome text and control roles across flight and Earth. */
 :root{--text-primary:#eee;--text-secondary:#bcbcbc;--text-muted:#a0a0a0;--text-on-accent:#111;--control-bg:rgba(21,21,21,.94);--control-hover:#292929;--control-border:rgba(255,255,255,.28);--control-accent:#eee}
 :root{color:var(--text-primary)}
-.surface-copy p,#surfaceHint{color:var(--text-secondary)}
+.surface-copy p{color:var(--text-secondary)}
 .icon-button,.sound-button,.intro-sound,.panel-toggle,.camera-switch,.surface-log,.landing-site-button,.return-to-ship-button,.intro-new-game,.surface-actions #surfaceSecondary,.voyage-actions button+button{background:var(--control-bg);color:var(--text-primary);border:1px solid var(--control-border)}
 .intro-play,.travel-button,.surface-actions #surfacePrimary,.voyage-actions button:first-child,.camera-switch button[aria-pressed="true"],.log-tabs button[aria-selected="true"],.intro-mode-option[aria-pressed="true"],.intro-sound[aria-pressed="true"]{background:var(--control-accent);color:var(--text-on-accent)}
 .intro-mode-option[aria-pressed="true"] span{color:var(--text-on-accent)}
@@ -568,7 +568,7 @@ button:focus-visible{outline-color:var(--control-accent)}
 .voyage-progress,.voyage-stops span{border-radius:var(--detail-radius)}
 
 /* Earth text stays directly over the scene; controls share the existing dark treatment. */
-#app.surface-mode .surface-copy p,#app.surface-mode #surfaceHint,#app.surface-mode .earth-welcome,#app.surface-mode .profile-readout,#app.surface-mode .pilot-label{color:var(--text-primary)}
+#app.surface-mode .surface-copy p,#app.surface-mode .earth-welcome,#app.surface-mode .profile-readout,#app.surface-mode .pilot-label{color:var(--text-primary)}
 #app.surface-mode .surface-copy,#app.surface-mode .earth-welcome,#app.surface-mode .profile-readout,#app.surface-mode .brand,#app.surface-mode .pilot-label{background:transparent}
 #app.surface-mode .pilot-label{text-shadow:0 1px 4px #000}
 
@@ -682,7 +682,7 @@ body #app button:not(:disabled):not([aria-disabled="true"]):active{transition-du
 .surface-copy{max-width:min(460px,calc(100vw - 56px))}
 #surfaceObjective{max-width:48ch;font-size:14px;line-height:1.5;color:var(--text-primary)}
 #surfaceScienceNote{margin-top:12px;max-width:52ch;font-size:12px;line-height:1.55;color:var(--text-secondary)}
-#surfaceHint{font-size:12px;line-height:1.5}
+
 .surface-fact{position:absolute;left:28px;bottom:96px;width:min(400px,calc(100vw - 56px));max-height:45vh;overflow:auto;box-sizing:border-box;padding:22px;background:rgba(18,18,18,.96);border:1px solid var(--control-border);border-radius:var(--panel-radius,16px);pointer-events:auto;color:var(--text-primary)}
 .surface-fact[hidden]{display:none}
 .surface-fact h2{margin:0 0 12px;font:500 21px/1.3 'Oxanium',sans-serif;max-width:24ch}
@@ -702,7 +702,6 @@ body #app button:not(:disabled):not([aria-disabled="true"]):active{transition-du
 #app.surface-mode #surfaceTitle{font:500 18px/1.3 'Oxanium',sans-serif;letter-spacing:-.02em;text-wrap:balance}
 #app.surface-mode #surfaceStatus{margin-top:5px;font:400 12px/1.5 'DM Sans',sans-serif}
 #app.surface-mode #surfaceObjective{margin-top:12px;font:500 13px/1.55 'DM Sans',sans-serif;text-wrap:pretty}
-#app.surface-mode #surfaceHint{margin-top:10px;font:400 12px/1.65 'DM Sans',sans-serif;white-space:pre-line}
 #app.surface-mode #surfaceScienceNote{margin-top:12px;max-width:46ch;font:400 11px/1.6 'DM Sans',sans-serif;text-wrap:pretty}
 #app.surface-mode #surfacePilot{margin-top:10px}
 .surface-fact .surface-fact-context{font-size:12px;line-height:1.6;color:var(--text-secondary)}
@@ -711,9 +710,8 @@ body #app button:not(:disabled):not([aria-disabled="true"]):active{transition-du
 #app.cabin-mode .interior-control{gap:10px;padding:0 16px}
 #app.cabin-mode .interior-control kbd{margin:0;display:inline-flex;align-items:center;justify-content:center}
 @media(max-width:900px){#app.surface-mode .surface-copy{top:92px;left:24px;width:min(340px,calc(100vw - 48px))}#app.surface-mode #surfaceTitle{font-size:17px}#app.surface-mode .earth-welcome{left:390px;right:24px;top:25%;font-size:23px}}
-@media(max-height:650px){#app.surface-mode .surface-copy{top:80px}#app.surface-mode #surfaceObjective,#app.surface-mode #surfaceHint,#app.surface-mode #surfaceScienceNote{margin-top:8px}}
+@media(max-height:650px){#app.surface-mode .surface-copy{top:80px}#app.surface-mode #surfaceObjective,#app.surface-mode #surfaceScienceNote{margin-top:8px}}
 
-#app.surface-mode #surfaceHint:not([hidden]){display:block}
 
 /* Persistent direction and distance remain available when terrain hides the ship. */
 .surface-actions{align-items:flex-start}
@@ -733,3 +731,197 @@ body #app button:not(:disabled):not([aria-disabled="true"]):active{transition-du
     transition-duration:80ms!important;
   }
 }
+
+/* Wide flight reference: explanation beside a compact two-column key reference. */
+#helpOverlay .help-card{
+  width:min(1100px,100%);max-height:calc(100dvh - 48px);
+  display:grid;grid-template-columns:minmax(240px,.95fr) minmax(0,1.65fr);
+  gap:20px 32px;align-items:start;padding:32px;
+}
+#helpOverlay .manual-intro{min-width:0}
+#helpOverlay .manual-intro h2{font-size:32px;margin:14px 0}
+#helpOverlay .manual-intro>p{font-size:14px;line-height:1.65;color:var(--text-secondary);margin:0}
+#helpOverlay .help-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 22px;margin:12px 0 0;padding:12px 0;min-width:0}
+#helpOverlay .help-grid>div{min-width:0;min-height:54px;gap:4px}
+#helpOverlay .help-grid>div>span:last-child{font-size:12px;line-height:1.4;max-width:65%;overflow-wrap:anywhere}
+#helpOverlay .scale-note{grid-column:1/-1;margin:0;padding-top:16px;border-top:1px solid var(--control-border)}
+@media(max-width:900px){
+  #helpOverlay .help-card{grid-template-columns:minmax(0,1fr);gap:18px;width:min(760px,100%)}
+  #helpOverlay .help-grid{margin:0}
+}
+@media(max-width:540px){
+  #helpOverlay .help-card{padding:24px 18px}
+  #helpOverlay .help-grid{grid-template-columns:minmax(0,1fr)}
+  #helpOverlay .help-grid>div{min-height:44px}
+}
+
+
+/* Long explanations share clean edges; controls use fixed key and label columns. */
+#app :is(.help-card>p,.manual-intro>p,.discovery-panel>p,.discovery-notes p,.landmark-item p,.surface-fact p,.log-entry p,.updates-entries li),
+#planetDescription{
+  text-align:justify;text-align-last:left;hyphens:auto;overflow-wrap:break-word;
+  word-break:normal;word-spacing:normal;letter-spacing:normal;
+}
+#helpOverlay .manual-intro>p+p{margin-top:14px}
+#helpOverlay .help-grid>div{display:grid;grid-template-columns:72px minmax(0,1fr);gap:8px;align-items:center}
+#helpOverlay .manual-keys{display:flex;align-items:center;gap:4px}
+#helpOverlay .help-grid>div>span:last-child{margin:0;max-width:none;text-align:left;overflow-wrap:break-word;hyphens:auto}
+#app :is(.log-heading p,.voyage-intro,.visit-description,.panel-intro),
+#app.surface-mode .surface-copy p{text-align:left;text-wrap:pretty;overflow-wrap:break-word}
+@media(min-width:901px){#helpOverlay .help-card{grid-template-columns:minmax(280px,1fr) minmax(0,1.2fr)}}
+@media(max-width:600px){
+  #app :is(.help-card>p,.manual-intro>p,.discovery-panel>p,.discovery-notes p,.landmark-item p,.surface-fact p,.log-entry p,.updates-entries li),
+  #planetDescription{text-align:left;hyphens:manual}
+}
+
+.surface-scanner{position:absolute;left:0;top:0;z-index:7;pointer-events:none;color:var(--text-primary)}
+.surface-scanner[hidden],.surface-scan-meter[hidden]{display:none}
+.surface-scan-feedback{position:absolute;left:0;top:0;transform:translateX(-50%);width:min(280px,80vw);padding:4px 0;text-align:center;text-shadow:0 1px 4px #000,0 1px 12px #000}
+.surface-scan-feedback strong{font:600 11px/1.5 'Oxanium',sans-serif}
+.surface-scan-meter{height:3px;margin-top:9px;background:#ffffff35;overflow:hidden;border-radius:var(--detail-radius)}
+.surface-scan-meter span{display:block;height:100%;background:var(--text-primary);transform:scaleX(0);transform-origin:left}
+
+.surface-swim-stamina{position:absolute;left:50%;bottom:calc(100% + 2px);transform:translateX(-50%);display:none;align-items:center;justify-content:center;gap:10px;margin:0;color:#fff;font-size:11px;font-variant-numeric:tabular-nums;text-shadow:0 1px 3px #0008;white-space:nowrap;pointer-events:none;}
+.surface-mode.surface-walking .surface-swim-stamina:not([hidden]){display:flex;}
+.surface-swim-stamina[hidden]{display:none;}
+.surface-swim-stamina meter{width:90px;height:7px;border:0;background:transparent;}
+.surface-swim-stamina meter::-webkit-meter-bar{background:#ffffff30;border:0;border-radius:4px;}
+.surface-swim-stamina meter::-webkit-meter-optimum-value{background:#fff;border-radius:4px;}
+.surface-swim-stamina meter::-moz-meter-bar{background:#fff;border-radius:4px;}
+
+/* Odyssey atlas: dark navigation glass, quiet terrain, and open space. */
+.surface-map-button{display:flex;align-items:center;gap:8px;min-height:44px;padding:0 12px;border:1px solid var(--control-border);background:var(--control-bg);color:var(--text-primary);font:500 12px 'DM Sans',sans-serif}
+.surface-map-button[hidden]{display:none}
+.surface-map-button kbd{font:inherit;color:var(--text-muted);border:1px solid #ffffff35;padding:2px 5px}
+.surface-mode .surface-map-button{position:static;transform:none;flex-shrink:0;height:44px;box-sizing:border-box;margin:0}
+.earth-map-dialog{--atlas-ink:#f1f0e7;--atlas-muted:#b6bcb1;position:fixed;inset:0;width:100%;height:100dvh;max-width:none;max-height:none;margin:0;padding:0;border:0;border-radius:0;background:#29312d;color:var(--atlas-ink);overflow:hidden;box-sizing:border-box}
+.earth-map-dialog[open]{display:grid;grid-template-rows:80px minmax(0,1fr) 56px}
+.earth-map-dialog::backdrop{background:#18201d}
+.earth-map-header{position:relative;z-index:2;display:flex;justify-content:space-between;align-items:center;padding:0 36px;background:#171e1b;border-bottom:1px solid #ffffff15}
+.earth-map-header>div{display:flex;align-items:baseline;gap:24px}
+.earth-map-header h2{margin:0;font:500 28px 'Oxanium',sans-serif;letter-spacing:-.03em}
+.earth-map-header p{margin:0;color:var(--atlas-muted);font-size:14px}
+.earth-map-header button{width:44px;height:44px;border:0;background:transparent;color:var(--atlas-ink);font-size:28px}
+.earth-map-body{position:relative;min-height:0}
+.earth-map-chart{position:absolute;inset:0;min-width:0}
+.earth-map-stage{position:absolute;inset:0;overflow:hidden}
+#earthMapCanvas{display:block;width:100%;height:100%;cursor:grab;touch-action:none}
+#earthMapCanvas:active{cursor:grabbing}
+.earth-map-location{position:absolute;left:36px;top:26px;z-index:1;pointer-events:none;display:flex;flex-direction:column;gap:5px;text-shadow:0 1px 5px #0009;font:500 14px 'DM Sans',sans-serif}
+#earthMapCoordinates{font-size:11px;color:#d1d6ca;font-variant-numeric:tabular-nums}
+.earth-map-north{position:absolute;right:36px;top:24px;display:flex;flex-direction:column;align-items:center;gap:3px;color:#ecefdf;font:600 12px 'DM Sans',sans-serif;pointer-events:none}
+.earth-map-north svg{width:20px;height:32px}
+.earth-map-tools{position:absolute;right:28px;bottom:28px;display:flex;gap:1px;align-items:center;background:#171e1bf2;padding:4px;border-radius:4px}
+.earth-map-tools button{min-width:40px;min-height:40px;padding:0 13px;border:0;background:transparent;color:var(--atlas-ink);font:500 18px 'DM Sans',sans-serif}
+.earth-map-tools #earthMapCenter{font-size:12px;margin-left:6px;border-left:1px solid #ffffff26;border-radius:0}
+.earth-map-tools span{min-width:36px;text-align:center;font-size:11px;color:var(--atlas-muted)}
+.earth-map-tools button:disabled{opacity:.3}
+.earth-map-pin{position:absolute;right:28px;bottom:86px;min-height:36px;padding:0 13px;border:0;border-radius:4px;background:#171e1bf2;color:var(--atlas-ink);font:500 12px 'DM Sans',sans-serif}
+.earth-map-legend{position:absolute;left:36px;bottom:26px;display:flex;gap:20px;align-items:center;font-size:12px;color:#e3e7dc;text-shadow:0 1px 4px #000}
+.earth-map-legend>span{display:flex;gap:7px;align-items:center}
+.map-player-key{display:inline-block;width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-bottom:9px solid #f1f3ee}
+.map-ship-key{display:inline-block;width:7px;height:7px;border:1px solid #a9c5b8;transform:rotate(45deg)}
+.map-fog-key{display:inline-block;width:10px;height:10px;background:#202c26;border:1px solid #9eaa93}
+.earth-map-scale{display:none!important}
+.earth-map-waypoint{position:absolute;left:36px;top:82px;display:flex;align-items:center;gap:12px;max-width:calc(100% - 150px)}
+.earth-map-waypoint p{margin:0;color:#e5d0a6;text-shadow:0 1px 4px #000;font-size:12px}
+.earth-map-waypoint button,.earth-map-pin-controls button{min-height:34px;padding:0 12px;border:1px solid #ffffff30;background:#171e1be8;color:var(--atlas-ink);font-size:11px}
+.earth-map-waypoint button[hidden],.earth-map-pin-controls[hidden],.earth-map-regions[hidden]{display:none}
+.earth-map-pin-controls{position:absolute;right:28px;bottom:132px;display:flex;align-items:end;gap:10px;flex-wrap:wrap;padding:16px;background:#171e1bf5;border:1px solid #ffffff20;border-radius:4px}
+.earth-map-pin-controls label{display:grid;gap:5px;color:var(--atlas-muted);font-size:11px}
+.earth-map-pin-controls input{width:96px;min-height:34px;box-sizing:border-box;padding:6px 8px;border:1px solid #ffffff35;border-radius:3px;background:#26302a;color:var(--atlas-ink);font:13px 'DM Sans',sans-serif}
+.earth-map-regions{position:absolute;z-index:3;left:24px;top:20px;bottom:20px;width:260px;box-sizing:border-box;overflow:auto;padding:24px;background:#171e1bf5;border:1px solid #ffffff20;border-radius:4px;scrollbar-width:thin}
+.earth-map-regions h3{margin:0;font:500 20px 'Oxanium',sans-serif}
+#earthMapProgress{margin:7px 0 20px;color:var(--atlas-muted);font-size:12px}
+#earthMapRegions{list-style:none;margin:0;padding:0}
+#earthMapRegions li{padding:10px 0;border-bottom:1px solid #ffffff0c}
+#earthMapRegions strong{display:block;color:#c2c8bc;font:400 13px 'DM Sans',sans-serif}
+#earthMapRegions li>span{display:block;margin-top:3px;color:#939f92;font-size:11px}
+#earthMapRegions .earth-map-current strong{color:#fff;font-weight:600}
+#earthMapRegions .earth-map-current>span{color:#c3d8ad}
+.earth-map-region-note{margin:18px 0 0;color:var(--atlas-muted);font-size:11px;line-height:1.6}
+.earth-map-footer{position:relative;z-index:4;display:flex;align-items:center;gap:24px;padding:0 32px;background:#171e1b;color:var(--atlas-muted);font-size:12px;border-top:1px solid #ffffff15}
+.earth-map-footer>span:last-child{margin-left:auto}
+.earth-map-footer button{min-height:36px;padding:0 14px;background:#ffffff08;border:1px solid #ffffff30;color:var(--atlas-ink);font:500 12px 'DM Sans',sans-serif}
+.earth-map-footer button[aria-expanded="true"]{background:#e3e7dc;color:#19221c}
+.earth-map-footer kbd{font:inherit;color:var(--atlas-ink)}
+.earth-map-dialog :is(button,input):focus-visible{outline:2px solid #edf0dc;outline-offset:3px}
+@media(hover:hover) and (pointer:fine){.earth-map-dialog button:not(:disabled):hover{background:#ffffff18}}
+@media(max-width:650px){.earth-map-dialog[open]{grid-template-rows:68px minmax(0,1fr) 56px}.earth-map-header{padding:0 18px}.earth-map-header>div{gap:14px}.earth-map-header h2{font-size:24px}.earth-map-header p{font-size:11px}.earth-map-location{left:18px;top:20px}.earth-map-waypoint{left:18px;top:72px}.earth-map-north{right:20px}.earth-map-tools{right:14px;bottom:55px}.earth-map-pin{right:14px;bottom:111px}.earth-map-pin-controls{right:14px;bottom:156px;max-width:calc(100% - 60px)}.earth-map-legend{left:18px;bottom:20px;gap:16px;font-size:11px}.earth-map-footer{padding:0 14px;gap:12px;font-size:11px}.earth-map-footer>span:nth-child(2){display:none}.earth-map-regions{left:14px;top:12px;bottom:12px;width:250px}.surface-map-button kbd{display:none}}
+
+.fps-readout{display:inline-flex;align-items:baseline;gap:5px;margin-right:14px;color:var(--text-primary);font:500 12px 'DM Sans',sans-serif;font-variant-numeric:tabular-nums;white-space:nowrap}.fps-readout small{font-size:9px;color:var(--text-muted)}
+@media(max-width:540px){.fps-readout{margin-right:7px;gap:3px;font-size:10px}.fps-readout small{font-size:8px}}
+
+.settings-card .graphics-quality-hint{margin:9px 0 18px;color:var(--text-secondary);font-size:11px;line-height:1.6;letter-spacing:0}
+
+/* Exploration keeps only place and description in the corner. */
+#app.surface-mode #surfaceObjective,#app.surface-mode #surfacePilot{display:none}
+#app.surface-mode #surfaceScienceNote{margin-top:7px;max-width:40ch}
+.surface-notice{position:absolute;left:50%;bottom:150px;transform:translate(-50%,6px);width:min(520px,calc(100% - 48px));margin:0;text-align:center;color:#f5f3e9;font:500 14px/1.6 'DM Sans',sans-serif;text-shadow:0 1px 4px #000,0 0 14px #0009;pointer-events:none;opacity:0;transition:opacity .25s ease,transform .25s ease}
+.surface-notice.visible{opacity:1;transform:translate(-50%,0)}
+#app.surface-mode .earth-welcome{left:50%;right:auto;top:auto;bottom:194px;transform:translateX(-50%);font:500 18px 'Oxanium',sans-serif;width:max-content;max-width:calc(100% - 48px);text-align:center}
+#app .earth-minimap{position:absolute;left:28px;bottom:28px;width:172px;height:172px;padding:0;border:1px solid #ffffff55;border-radius:50%;overflow:hidden;background:#202b22;color:#eeefe2;pointer-events:auto;box-shadow:0 2px 14px #0003}
+#app .earth-minimap[hidden],.surface-map-waypoint[hidden]{display:none}
+.earth-minimap canvas{display:block;width:170px;height:170px}
+.minimap-north{position:absolute;top:9px;right:50%;transform:translateX(50%);font:600 11px 'DM Sans',sans-serif;text-shadow:0 1px 3px #000}
+.surface-map-waypoint{position:absolute;left:0;top:0;display:flex;align-items:center;gap:7px;color:#f4ca81;font:600 12px 'DM Sans',sans-serif;text-shadow:0 1px 3px #000,0 0 8px #000;pointer-events:none;white-space:nowrap}
+#surfaceMapWaypointArrow{font-size:20px}
+@media(max-width:900px){#app .earth-minimap{left:18px;bottom:90px;width:138px;height:138px}.earth-minimap canvas{width:136px;height:136px}.surface-notice{bottom:155px;font-size:13px}}
+@media(prefers-reduced-motion:reduce){.surface-notice{transition:none}}
+
+/* Centered map window keeps the landscape visible around it. */
+.earth-map-dialog{
+  inset:0;margin:auto;width:min(1120px,calc(100vw - 80px));height:min(740px,calc(100dvh - 96px));max-width:calc(100vw - 32px);max-height:calc(100dvh - 32px);
+  border:1px solid #d8dfca35;border-radius:10px;box-shadow:0 18px 65px #0005;
+  opacity:0;transform:none;clip-path:none;
+  transition:opacity var(--control-feedback-duration) ease,display var(--control-feedback-duration) allow-discrete,overlay var(--control-feedback-duration) allow-discrete;
+}
+.earth-map-dialog[open]{opacity:1;transform:none;clip-path:none}
+.earth-map-dialog::backdrop{
+  background:#0b110c44;opacity:0;
+  transition:opacity var(--control-feedback-duration) ease,display var(--control-feedback-duration) allow-discrete,overlay var(--control-feedback-duration) allow-discrete;
+}
+.earth-map-dialog[open]::backdrop{opacity:1}
+@starting-style{
+  .earth-map-dialog[open],.earth-map-dialog[open]::backdrop{opacity:0}
+}
+@media(prefers-reduced-motion:reduce){
+  .earth-map-dialog,.earth-map-dialog::backdrop{transition-duration:80ms}
+}
+@media(max-width:650px){.earth-map-dialog{width:calc(100vw - 32px);height:calc(100dvh - 64px)}}
+
+/* One restrained control rail; terrain owns the map. */
+.earth-map-dialog[open]{grid-template-rows:64px minmax(0,1fr) 52px}
+.earth-map-header,.earth-map-footer{background:#303a30;border-color:#ffffff0c;color:#dce1d2}
+.earth-map-header{padding:0 28px}
+.earth-map-header h2{font-size:23px}
+.earth-map-header p{font-size:12px;color:#bcc6b4}
+.earth-map-header button{border-radius:3px;background:transparent;color:#e9ebde}
+.earth-map-location{top:20px;left:28px}
+#earthMapLocation{display:none}
+.earth-map-legend{display:none}
+.earth-map-footer{padding:0 24px;gap:20px;justify-content:space-between;font-size:11px}
+.earth-map-footer .earth-map-tools{position:static;gap:2px;background:transparent;border:0;border-radius:0;padding:0;margin-left:auto}
+.earth-map-tools button,.earth-map-footer button{border:0;background:transparent;min-height:36px;min-width:36px;border-radius:3px;color:#e6eadb;font:500 12px 'DM Sans',sans-serif}
+.earth-map-tools button:not(#earthMapCenter){font-size:19px}
+.earth-map-tools #earthMapCenter{border:0;margin-left:12px;font-size:12px}
+#earthMapZoomLabel{display:none}
+.earth-map-footer .earth-map-return{margin-left:4px;color:#bdc6b7}
+.earth-map-footer kbd{color:#e6eadb;border:1px solid #e6eadb40;padding:2px 5px;border-radius:3px;margin-right:5px}
+.earth-map-footer button[aria-expanded="true"]{background:#e0e5d41c;color:#f0f2e7}
+.earth-map-regions{left:20px;top:14px;bottom:14px;background:#303a30fa;border-color:#ffffff1a}
+.earth-map-regions .earth-map-pin{position:static;margin:16px 0 4px;background:transparent;border:1px solid #ffffff30;border-radius:3px}
+.earth-map-pin-controls{bottom:16px;background:#303a30f5;border-color:#ffffff24}
+.earth-map-pin-controls input{background:#263026;border-color:#ffffff30}
+.earth-map-waypoint{top:46px;left:28px}
+.earth-map-waypoint button{background:#303a30e8;border-color:#ffffff25}
+.earth-map-north{right:28px;top:20px;font-size:11px}
+.earth-map-north svg{height:22px;width:14px}
+@media(max-width:650px){.earth-map-dialog[open]{grid-template-rows:58px minmax(0,1fr) 50px}.earth-map-header{padding:0 18px}.earth-map-header h2{font-size:22px}.earth-map-location{left:18px}.earth-map-waypoint{left:18px}.earth-map-footer{padding:0 12px;gap:8px}.earth-map-tools #earthMapCenter{margin-left:4px;padding:0 8px}.earth-map-footer .earth-map-return{font-size:10px}.earth-map-pin-controls{bottom:15px}}
+
+/* A single icon per control, with accessible names and hover labels. */
+#app .surface-map-button{width:44px;min-width:44px;padding:0;justify-content:center}
+.surface-map-button svg{display:block!important}
+.earth-map-dialog button svg{display:block;flex:none;pointer-events:none}
+.earth-map-footer button,.earth-map-header button{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;padding:0}
+.earth-map-tools #earthMapCenter{margin-left:12px;padding:0}
