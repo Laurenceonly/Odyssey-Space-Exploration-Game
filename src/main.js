@@ -1615,31 +1615,19 @@ function chaseCameraPosition(){
   return shipPosition.clone().addScaledVector(behind,flightScale.chaseDistance*fit).addScaledVector(worldUp,flightScale.chaseHeight*fit);
 }
 
-let previewFrameKey='',previewFrame=null,previewFrameTarget=null,previewFrameViewport='';
 function updateCamera(dt,instant=false) {
   if(cameraAnchorReady)cameraShipShift.copy(shipPosition).sub(cameraShipAnchor);
   else cameraShipShift.set(0,0,0);
   cameraShipAnchor.copy(shipPosition);
   cameraAnchorReady=true;
   camera.up.copy(worldUp);
-  if(previewTarget){
-    const app=document.getElementById('app'),guide=document.getElementById('fieldGuide');
-    const key=[innerWidth,innerHeight,previewTarget.data.id,app.className,guide.className].join('|');
-    if(key!==previewFrameKey){
-      const panels=[];
-      for(const [selector,hidden] of [['.destination-panel',app.classList.contains('destinations-hidden')],['#fieldGuide',app.classList.contains('guide-hidden')]]){
-        const panel=document.querySelector(selector);
-        if(panel&&!hidden)panels.push({left:panel.offsetLeft,top:panel.offsetTop,right:panel.offsetLeft+panel.offsetWidth,bottom:panel.offsetTop+panel.offsetHeight});
-      }
-      previewFrameTarget=previewRegion(innerWidth,innerHeight,panels);previewFrameKey=key;
-    }
-    const viewport=innerWidth+'x'+innerHeight;
-    if(!previewFrame||instant||reducedMotion.matches||viewport!==previewFrameViewport)previewFrame={...previewFrameTarget};
-    else for(const edge of ['left','right','top','bottom'])previewFrame[edge]=THREE.MathUtils.damp(previewFrame[edge],previewFrameTarget[edge],12,dt);
-    previewFrameViewport=viewport;
-    const cx=(previewFrame.left+previewFrame.right)/2,cy=(previewFrame.top+previewFrame.bottom)/2;
-    camera.setViewOffset(innerWidth,innerHeight,innerWidth/2-cx,innerHeight/2-cy,innerWidth,innerHeight);
-  }else if(camera.view?.enabled){camera.clearViewOffset();previewFrameKey='';previewFrame=null;previewFrameTarget=null;}
+  // Panels overlay the scene; preview position and scale depend only on the viewport.
+  const previewFrame=previewTarget?previewRegion(innerWidth,innerHeight):null;
+  if(previewFrame){
+    // Center above the flight HUD using a fixed offset independent of open panels.
+    const centerY=(previewFrame.top+previewFrame.bottom)/2;
+    camera.setViewOffset(innerWidth,innerHeight,0,innerHeight/2-centerY,innerWidth,innerHeight);
+  }else if(camera.view?.enabled)camera.clearViewOffset();
   if(introActive){cameraAnchorReady=false;updateIntroFlight();return;}
   if(launchTransition){
     const transition=launchTransition;
@@ -1671,7 +1659,7 @@ function updateCamera(dt,instant=false) {
   }
   unlockLens=THREE.MathUtils.damp(unlockLens,unlockCinematicActive&&!reducedMotion.matches?1:0,unlockCinematicActive?2.5:4,dt);
   const previewLens=['saturn','uranus'].includes(previewTarget?.data.id)?18:53;
-  const targetFov=(previewTarget?previewLens:cameraMode==='first-person'?72+(reducedMotion.matches?0:boostAmount*3):64+(reducedMotion.matches?0:boostAmount*4))-unlockLens*5;
+  const targetFov=previewTarget?previewLens:(cameraMode==='first-person'?72+(reducedMotion.matches?0:boostAmount*3):64+(reducedMotion.matches?0:boostAmount*4))-unlockLens*5;
   const nextFov=instant?targetFov:THREE.MathUtils.damp(camera.fov,targetFov,5,dt);
   if(Math.abs(camera.fov-nextFov)>.005){camera.fov=nextFov;camera.updateProjectionMatrix();}
   engineGlows.forEach(glow=>{
@@ -1698,8 +1686,8 @@ function updateCamera(dt,instant=false) {
       const outward=center.clone().normalize();
       const side=new THREE.Vector3().crossVectors(outward,worldUp).normalize();
       side.applyAxisAngle(worldUp,previewOrbitAngle);
-      const length=cometTailShape(cometPosition(cometElapsed).activity).length;
-      const focus=center.clone().addScaledVector(outward,Math.min(length*.06,radius*.75));
+      // Center the nucleus in the available preview area, like the other destinations.
+      const focus=center.clone();
       const headDistance=previewDistance(radius,1.35,previewFrame,innerWidth,innerHeight,camera.fov);
       const headView=side.clone().addScaledVector(outward,-.65).addScaledVector(worldUp,.18).normalize();
       camera.position.copy(focus).addScaledVector(headView,headDistance);

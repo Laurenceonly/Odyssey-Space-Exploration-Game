@@ -65,7 +65,6 @@ button{touch-action:manipulation}
 .settings-button{margin-right:10px;font-size:15px}
 .destinations-toggle{display:flex;align-items:center;gap:8px;height:32px;margin-left:29px;padding:0 10px;border:1px solid rgba(181,181,181,.42);background:rgba(17,17,17,.38);color:var(--text-secondary);font:600 10px 'Oxanium',sans-serif;white-space:nowrap}.destinations-toggle span:first-child{font-size:16px;line-height:1}@media (hover: hover) and (pointer: fine){.destinations-toggle:hover{border-color:#dedede;color:var(--text-primary)}}
 .destinations-hidden .destination-panel{transform:translateX(calc(-100% - 50px));opacity:0;pointer-events:none}
-.destination-panel{transition:transform .38s ease-in-out,opacity .3s ease-out}
 @media(max-width:950px){.destinations-toggle{margin-left:12px;padding:0 8px}.destinations-toggle .toggle-label{display:none}}
 .sound-button{height:32px;display:flex;align-items:center;gap:7px;margin-right:10px;padding:0 10px;border:1px solid #767676;border-radius:17px;background:rgba(17,17,17,.4);color:var(--text-primary);font:600 10px 'Oxanium',sans-serif;white-space:nowrap}
 .sound-button span:first-child{font-size:16px;line-height:1}
@@ -134,7 +133,6 @@ button{touch-action:manipulation}
 .help-card{background:linear-gradient(140deg,#1e1e1e,#0c0c0c 70%)}
 .settings-card input{background:#101010}
 .destination-panel .planet-list{margin-top:21px}
-#app>.destination-panel,#app>.info-panel{transition:transform .38s ease-in-out,opacity .3s ease-out}
 .guide-hidden .info-panel{transform:translateX(calc(100% + 50px));opacity:0;pointer-events:none}
 .panel-toggle{position:absolute;z-index:9;top:130px;height:38px;border:1px solid rgba(194,194,194,.3);background:rgba(19,19,19,.92);color:var(--text-primary);padding:0 15px;font:600 10px/1 'Oxanium',sans-serif;letter-spacing:.06em;backdrop-filter:blur(16px)}
 .panel-toggle[hidden]{display:none}
@@ -416,10 +414,43 @@ button:disabled{opacity:.5;cursor:default}
 .pilot-label[hidden],#surfacePilot[hidden]{display:none}
 .earth-welcome{position:absolute;top:25%;left:16px;right:16px;text-align:center;font:500 clamp(22px,3vw,38px)/1.25 'Oxanium',sans-serif;letter-spacing:-.02em;color:white;text-shadow:0 2px 12px #000b;opacity:0;transform:translateY(6px);transition:opacity 250ms cubic-bezier(.23,1,.32,1),transform 250ms cubic-bezier(.23,1,.32,1)}
 .earth-welcome.visible{opacity:1;transform:translateY(0)}
-#app>.destination-panel,#app>.info-panel{transition:transform 250ms cubic-bezier(.23,1,.32,1),opacity 180ms cubic-bezier(.23,1,.32,1)}
-.help-overlay,.photo-viewer{opacity:1;transition:opacity 180ms cubic-bezier(.23,1,.32,1),display 180ms allow-discrete}
-.help-overlay[hidden],.photo-viewer[hidden]{opacity:0}
-@starting-style{.help-overlay:not([hidden]),.photo-viewer:not([hidden]){opacity:0}}
+/* One motion rhythm for button-opened panels and dialogs. */
+:root{--panel-duration:250ms;--ease-out:cubic-bezier(.23,1,.32,1)}
+#app>.destination-panel,#app>.info-panel{
+  transition:transform var(--panel-duration) var(--ease-out),opacity var(--panel-duration) var(--ease-out),visibility var(--panel-duration);
+}
+.destinations-hidden .destination-panel,.guide-hidden .info-panel{visibility:hidden}
+.help-overlay,.photo-viewer{
+  opacity:1;
+  transition:opacity var(--panel-duration) var(--ease-out),display var(--panel-duration) allow-discrete;
+}
+.help-overlay[hidden],.photo-viewer[hidden]{opacity:0;pointer-events:none}
+.help-overlay>:is(.help-card,.log-card,.voyage-card),.photo-viewer-card{
+  transform:translateY(0);
+  transition:transform var(--panel-duration) var(--ease-out);
+}
+.help-overlay[hidden]>:is(.help-card,.log-card,.voyage-card),.photo-viewer[hidden]>.photo-viewer-card{transform:translateY(8px)}
+.discovery-panel,.surface-fact{
+  opacity:1;transform:translateY(0);
+  transition:opacity var(--panel-duration) var(--ease-out),transform var(--panel-duration) var(--ease-out),display var(--panel-duration) allow-discrete;
+}
+.discovery-panel[hidden],.surface-fact[hidden]{opacity:0;transform:translateY(8px);pointer-events:none}
+.updates-dialog{
+  opacity:0;transform:translateY(8px);
+  transition:opacity var(--panel-duration) var(--ease-out),transform var(--panel-duration) var(--ease-out),display var(--panel-duration) allow-discrete,overlay var(--panel-duration) allow-discrete;
+}
+.updates-dialog[open]{opacity:1;transform:translateY(0)}
+.updates-dialog::backdrop{
+  opacity:0;
+  transition:opacity var(--panel-duration) var(--ease-out),display var(--panel-duration) allow-discrete,overlay var(--panel-duration) allow-discrete;
+}
+.updates-dialog[open]::backdrop{opacity:1}
+@starting-style{
+  .help-overlay:not([hidden]),.photo-viewer:not([hidden]){opacity:0}
+  .help-overlay:not([hidden])>:is(.help-card,.log-card,.voyage-card),.photo-viewer:not([hidden])>.photo-viewer-card{transform:translateY(8px)}
+  .discovery-panel:not([hidden]),.surface-fact:not([hidden]),.updates-dialog[open]{opacity:0;transform:translateY(8px)}
+  .updates-dialog[open]::backdrop{opacity:0}
+}
 @media (max-width:540px){
   .surface-mode .camera-switch button{min-width:72px;font-size:9px;padding:0 9px}
   .earth-welcome{top:180px;font-size:23px}
@@ -693,3 +724,12 @@ body #app button:not(:disabled):not([aria-disabled="true"]):active{transition-du
 .ship-waypoint{position:absolute;top:0;left:0;display:flex;align-items:center;gap:6px;white-space:nowrap;pointer-events:none;color:var(--text-primary);font:600 12px 'Oxanium',sans-serif;text-shadow:0 1px 3px #000,0 0 8px #000}
 .ship-waypoint>span:first-child{font-size:25px;line-height:1}
 @media(hover:hover) and (pointer:fine){#app .ship-locator:hover{background:var(--button-selected);border-color:var(--text-secondary)}}
+
+@media(prefers-reduced-motion:reduce){
+  #app>.destination-panel,#app>.info-panel,.help-overlay,.photo-viewer,
+  .help-overlay>:is(.help-card,.log-card,.voyage-card),.photo-viewer-card,
+  .discovery-panel,.surface-fact,.updates-dialog,.updates-dialog::backdrop{
+    transform:none!important;
+    transition-duration:80ms!important;
+  }
+}
