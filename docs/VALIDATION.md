@@ -56,3 +56,13 @@ No page-view POST was observed in Chromium automation. Inspection of Vercel's se
 - The original plain FPS counter now uses one shared placement beside Odyssey in both scene headers; profile name/icon are hidden.
 - Full live-map browser verification was interrupted. The final rendered land/space header comparison was also interrupted; these checks are not recorded as completed. Automated geometry, movement, and map tests do not establish visual quality or device-specific frame rate.
 - Changes are local and uncommitted. No push or deployment was performed.
+
+
+## 2026-10-17 — Persistent grass and river coverage follow-up
+
+Passed 10 targeted tests across tests/earth-grass.test.js and tests/render-scale.test.js, including camera-clearance removal, stable roots and canopy height, aerial visibility, gradual tile streaming, and Low pixel bounds. Production build passed with the existing bundle-size warning. A full-HD browser check reproduced the west-bank view and physically crossed to the east bank with no page errors. Low/Shadows-off sustained samples were 56.41, 54.76, and 47.78 FPS; stable 60 FPS remains unmet. No full-suite or completed two-way region-travel browser validation is claimed in this pass.
+
+
+## 2026-10-17 — Balanced/High grass tiers and commit handoff
+
+All 149 regression tests pass after the grass detail-tier optimization. Targeted checks verify full nearby High detail, lower outer-tile budgets, smooth tier fades and reusable geometry cleanup references. Production build passes with the existing chunk warning; release-note syntax and final whitespace checks pass. Same-view Shadows-off stationary samples improved Balanced from 34.05 to 59.91/60.01 FPS and High from 22.96 to 41.49/48.02 FPS, at unchanged per-quality resolution. After-run browser samples captured no page/console errors. High screenshot visually reviewed; sustained High 60 FPS, shadows-on movement performance and two-way region-travel browser validation remain unverified.

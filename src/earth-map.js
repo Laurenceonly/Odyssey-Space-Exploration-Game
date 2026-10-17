@@ -1,5 +1,6 @@
+import {getEarthRegion,earthRegionExits,earthNextRegion} from './earth-regions.js';
 import {Vector3} from 'three';
-import {LAKE,SITE_RADIUS,terrainHeight,waterLevelAt} from './earth-physics.js';
+import {LAKE,SITE_RADIUS,terrainHeight as fernHeight,waterLevelAt as fernWater} from './earth-physics.js';
 import {EARTH_PATHS,earthMeadowCover,earthWoodland,earthGrassDryness} from './earth-layout.js';
 import {EARTH_REGIONS,MAP_EXTENT,MAP_CELL,MAP_GRID,createEarthMapState,earthMapStorageKey} from './earth-map-state.js';
 
@@ -10,6 +11,9 @@ const element=id=>document.getElementById(id);
 const path=(ctx,points)=>{ctx.beginPath();points.forEach(([x,z],i)=>ctx[i?'lineTo':'moveTo'](screen(x),screen(z)));ctx.stroke();};
 
 export function createEarthMap({getSurface,getMode,onOpen=()=>{},onClose=()=>{},onEdit=()=>{}}){
+  const terrainHeight=(x,z)=>(getSurface()?.terrainHeight||fernHeight)(x,z);
+  const waterLevelAt=(x,z)=>(getSurface()?.waterLevelAt||fernWater)(x,z);
+  const paths=()=>state?.regionId==='fernlilt'?EARTH_PATHS:earthRegionExits(state?.regionId).map(exit=>exit.path);
   const dialog=element('earthMapDialog'),button=element('surfaceMap'),canvas=element('earthMapCanvas'),ctx=canvas.getContext('2d');
   const waypointLabel=element('earthMapWaypoint'),clearButton=element('earthMapClear');
   const minimap=element('earthMinimap'),miniCanvas=element('earthMinimapCanvas'),mini=miniCanvas.getContext('2d');
@@ -19,10 +23,10 @@ export function createEarthMap({getSurface,getMode,onOpen=()=>{},onClose=()=>{},
   const fog=document.createElement('canvas');fog.width=fog.height=SIZE;
   let mode=null,state=null,dirty=false,lastSaved=0,returnFocus=null,baseReady=false,zoom=1,centerX=0,centerZ=0,projection=null,drag=null,suppressClick=false;
   function load(){
-    const nextMode=getMode();if(mode===nextMode&&state)return;
-    save();mode=nextMode;let saved=null;
-    try{saved=JSON.parse(localStorage.getItem(earthMapStorageKey(mode))||'null');}catch{}
-    state=createEarthMapState(saved);dirty=false;
+    const nextMode=getMode();
+    if(mode!==nextMode||!state){save();mode=nextMode;let saved=null;try{saved=JSON.parse(localStorage.getItem(earthMapStorageKey(mode))||'null');}catch{}state=createEarthMapState(saved);dirty=false;lastFogState=null;baseReady=false;}
+    if(state.setRegion(getSurface()?.regionId||'fernlilt')){baseReady=false;lastFogState=null;lastMiniFrame=lastMapFrame=-Infinity;}
+    element('earthMapScope').textContent=getEarthRegion(state.regionId).name;
   }
   function save(){
     if(!dirty||!state||!mode)return;
@@ -30,7 +34,7 @@ export function createEarthMap({getSurface,getMode,onOpen=()=>{},onClose=()=>{},
     lastSaved=Date.now();
   }
   function buildBase(){
-    if(baseReady)return;const c=base.getContext('2d');
+    if(baseReady)return;const c=base.getContext('2d'),region=getEarthRegion(state.regionId);
     c.fillStyle='#323b35';c.fillRect(0,0,SIZE,SIZE);
     const resolution=384,cell=SIZE/resolution,spacing=MAP_EXTENT*2/resolution;
     for(let iz=0;iz<resolution;iz++)for(let ix=0;ix<resolution;ix++){
@@ -40,16 +44,16 @@ export function createEarthMap({getSurface,getMode,onOpen=()=>{},onClose=()=>{},
       if(water!==null){const depth=water-height;c.fillStyle=depth<2?'#6d9292':depth<6?'#527a80':'#3e626f';}
       else{
         const dx=(terrainHeight(x+.5,z)-terrainHeight(x-.5,z)),dz=(terrainHeight(x,z+.5)-terrainHeight(x,z-.5));
-        const woods=earthWoodland(x,z),grain=Math.sin(x*1.7+z*.67)*Math.cos(z*1.3)*.8;
+        const woods=state.regionId==='fernlilt'?earthWoodland(x,z):0,grain=Math.sin(x*1.7+z*.67)*Math.cos(z*1.3)*.8;
         const light=Math.max(25,Math.min(53,43+height*.5-dx*9-dz*7-woods*13+grain));
-        c.fillStyle='hsl('+(woods>.16?100:54-earthGrassDryness(x,z)*10)+' '+(16+earthMeadowCover(x,z)*9)+'% '+light+'%)';
+        c.fillStyle='hsl('+(state.regionId==='fernlilt'?(woods>.16?100:54-earthGrassDryness(x,z)*10):region.hue)+' '+(16+earthMeadowCover(x,z)*9)+'% '+light+'%)';
       }
       c.fillRect(ix*cell,iz*cell,cell+.5,cell+.5);
     }
     c.save();c.beginPath();c.arc(SIZE/2,SIZE/2,SITE_RADIUS*SCALE,0,Math.PI*2);c.clip();
     // Contours sample the same height function as the actual walking terrain.
     const steps=96,delta=MAP_EXTENT*2/steps;c.strokeStyle='#dce4bd24';c.lineWidth=1;
-    for(let level=-9;level<=27;level+=3){
+    for(let level=state.regionId==='nacreloom'?-40:-9;level<=(state.regionId==='keltrond'?150:27);level+=state.regionId==='keltrond'?10:3){
       c.beginPath();
       for(let iz=0;iz<steps;iz++)for(let ix=0;ix<steps;ix++){
         const x=ix*delta-MAP_EXTENT,z=iz*delta-MAP_EXTENT;
@@ -64,8 +68,8 @@ export function createEarthMap({getSurface,getMode,onOpen=()=>{},onClose=()=>{},
       c.stroke();
     }
     c.lineJoin='round';c.lineCap='round';
-    c.strokeStyle='#3b402b';c.lineWidth=5;for(const trail of EARTH_PATHS)path(c,trail);
-    c.strokeStyle='#c7bc91';c.lineWidth=2.5;for(const trail of EARTH_PATHS)path(c,trail);
+    c.strokeStyle='#3b402b';c.lineWidth=5;for(const trail of paths())path(c,trail);
+    c.strokeStyle='#c7bc91';c.lineWidth=2.5;for(const trail of paths())path(c,trail);
     c.restore();baseReady=true;
   }
   function buildFog(){
@@ -82,7 +86,8 @@ export function createEarthMap({getSurface,getMode,onOpen=()=>{},onClose=()=>{},
     const sx=x=>size/2+(x-p.x)*scale,sz=z=>size/2+(z-p.z)*scale;
     miniCanvas.width=miniCanvas.height=size;mini.fillStyle='#29312d';mini.fillRect(0,0,size,size);
     for(const layer of [base,fog])mini.drawImage(layer,sx(-MAP_EXTENT),sz(-MAP_EXTENT),MAP_EXTENT*2*scale,MAP_EXTENT*2*scale);
-    mini.strokeStyle='#bdcddd';mini.fillStyle='#233d44';mini.lineWidth=3;mini.beginPath();mini.moveTo(sx(0),sz(4)-7);mini.lineTo(sx(0)+7,sz(4));mini.lineTo(sx(0),sz(4)+7);mini.lineTo(sx(0)-7,sz(4));mini.closePath();mini.fill();mini.stroke();
+    if(state.regionId==='fernlilt'){mini.strokeStyle='#bdcddd';mini.fillStyle='#233d44';mini.lineWidth=3;mini.beginPath();mini.moveTo(sx(0),sz(4)-7);mini.lineTo(sx(0)+7,sz(4));mini.lineTo(sx(0),sz(4)+7);mini.lineTo(sx(0)-7,sz(4));mini.closePath();mini.fill();mini.stroke();}
+    mini.fillStyle='#e6c792';for(const exit of earthRegionExits(state.regionId)){const dx=exit.x-p.x,dz=exit.z-p.z,k=Math.min(1,135/Math.max(1,Math.hypot(dx,dz)));mini.fillRect(size/2+dx*k-3,size/2+dz*k-3,6,6);}
     if(state.waypoint){
       const w=state.waypoint;mini.strokeStyle='#f4ca81';mini.lineWidth=2;mini.setLineDash([5,5]);mini.beginPath();mini.moveTo(size/2,size/2);mini.lineTo(sx(w.x),sz(w.z));mini.stroke();mini.setLineDash([]);
       const dx=w.x-p.x,dz=w.z-p.z,factor=Math.min(1,140/Math.max(1,Math.hypot(dx,dz)));mini.fillStyle='#f4ca81';mini.beginPath();mini.arc(size/2+dx*factor,size/2+dz*factor,5,0,Math.PI*2);mini.fill();
@@ -109,8 +114,10 @@ export function createEarthMap({getSurface,getMode,onOpen=()=>{},onClose=()=>{},
     const list=element('earthMapRegions');list.replaceChildren();
     for(const region of EARTH_REGIONS){
       const li=document.createElement('li'),name=document.createElement('strong'),status=document.createElement('span');
-      name.textContent=region.name;status.textContent=region.available?(state.visited.has(region.id)?'You are here':'Not visited'):'Not yet available';
-      li.className=region.available?'earth-map-current':'earth-map-future';li.append(name,status);list.append(li);
+      const here=region.id===state.regionId;name.textContent=region.name;status.textContent=here?'You are here':state.visited.has(region.id)?'Visited':'Unexplored';
+      li.className=here?'earth-map-current':'';li.append(name,status);
+      if(!here){const next=earthNextRegion(state.regionId,region.id),exit=earthRegionExits(state.regionId).find(e=>e.to===next);if(exit){const route=document.createElement('button');route.type='button';route.textContent=next===region.id?'Mark route':'Via '+getEarthRegion(next).name;route.addEventListener('click',()=>{state.setWaypoint(exit.x,exit.z);render();});li.append(route);}}
+      list.append(li);
     }
     element('earthMapProgress').textContent=state.visited.size+' of '+EARTH_REGIONS.length+' regions visited';
   }
@@ -134,15 +141,16 @@ export function createEarthMap({getSurface,getMode,onOpen=()=>{},onClose=()=>{},
     const walking=surface.mode==='walking',position=walking?surface.position:{x:0,z:4};
     // Geographic labels sit on the terrain; local landmarks aren't separate regions.
     ctx.font='500 '+Math.round(27*ratio)+'px "Oxanium",sans-serif';ctx.textAlign='center';ctx.fillStyle='#e5e8cf85';
-    ctx.fillText('Fernlilt Grasslands',sx(-45),sz(-155));ctx.textAlign='left';
-    if(zoom>=2){label('Pond',sx(LAKE.x),sz(LAKE.z)-25*scale,'center');}
+    ctx.fillText(getEarthRegion(state.regionId).name,sx(-45),sz(-155));ctx.textAlign='left';
+    if(zoom>=2&&state.regionId==='fernlilt'){label('Pond',sx(LAKE.x),sz(LAKE.z)-25*scale,'center');}
     if(walking){
       ctx.save();ctx.translate(sx(position.x),sz(position.z));ctx.rotate(-(surface.heading??0));
       const cone=ctx.createRadialGradient(0,0,0,0,0,75*ratio);cone.addColorStop(0,'#ffffff24');cone.addColorStop(1,'#ffffff00');ctx.fillStyle=cone;ctx.beginPath();ctx.moveTo(0,0);ctx.arc(0,0,75*ratio,-Math.PI*.7,-Math.PI*.3);ctx.closePath();ctx.fill();ctx.restore();
     }
     // Ship and player use different silhouettes and labels, even near touchdown.
-    ctx.save();ctx.translate(sx(0),sz(4));ctx.scale(ratio,ratio);ctx.strokeStyle='#a9c5b8';ctx.fillStyle='#182c2b';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(0,-7);ctx.lineTo(7,0);ctx.lineTo(0,7);ctx.lineTo(-7,0);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();
-    label('Your ship',sx(0)-12*ratio,sz(4)+24*ratio,'right');
+    if(state.regionId==='fernlilt'){ctx.save();ctx.translate(sx(0),sz(4));ctx.scale(ratio,ratio);ctx.strokeStyle='#a9c5b8';ctx.fillStyle='#182c2b';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(0,-7);ctx.lineTo(7,0);ctx.lineTo(0,7);ctx.lineTo(-7,0);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();
+    label('Your ship',sx(0)-12*ratio,sz(4)+24*ratio,'right');}
+    for(const exit of earthRegionExits(state.regionId)){ctx.fillStyle='#f1d39d';ctx.strokeStyle='#273027';ctx.lineWidth=2*ratio;ctx.beginPath();ctx.arc(sx(exit.x),sz(exit.z),5*ratio,0,Math.PI*2);ctx.fill();ctx.stroke();label(exit.name,sx(exit.x),sz(exit.z)-12*ratio,'center');}
     const waypoint=state.waypoint;
     if(waypoint){
       const px=sx(waypoint.x),pz=sz(waypoint.z);
@@ -161,9 +169,9 @@ export function createEarthMap({getSurface,getMode,onOpen=()=>{},onClose=()=>{},
     ctx.strokeStyle='#d2dbd4';ctx.lineWidth=1.5*ratio;ctx.beginPath();ctx.moveTo(bx,by-4*ratio);ctx.lineTo(bx,by);ctx.lineTo(bx+metres*scale,by);ctx.lineTo(bx+metres*scale,by-4*ratio);ctx.stroke();
     label(metres+' m',bx,by-11*ratio);
     element('earthMapZoomLabel').textContent=zoom.toFixed(1)+'×';element('earthMapZoomOut').disabled=zoom<=1;element('earthMapZoomIn').disabled=zoom>=8;
-    element('earthMapLocation').textContent=walking?'Fernlilt Grasslands':'Your ship · Fernlilt';
+    element('earthMapLocation').textContent=walking?getEarthRegion(state.regionId).name:'Your ship · Fernlilt';
     element('earthMapCoordinates').textContent=Math.round(Math.abs(position.x))+' m '+(position.x<0?'W':'E')+' / '+Math.round(Math.abs(position.z))+' m '+(position.z<0?'N':'S');
-    canvas.setAttribute('aria-label','Fernlilt Grasslands map. '+(walking?'You are '+Math.round(Math.hypot(position.x,position.z-4))+' metres from your ship.':'You are aboard your parked ship.')+' Fog marks unexplored ground.');
+    canvas.setAttribute('aria-label',getEarthRegion(state.regionId).name+' map. '+(walking?(state.regionId==='fernlilt'?'You are '+Math.round(Math.hypot(position.x,position.z-4))+' metres from your ship.':'Follow a marked route to continue exploring or return toward Fernlilt.'):'You are aboard your parked ship.')+' Fog marks unexplored ground.');
   }
   function changeZoom(next){zoom=Math.max(1,Math.min(8,next));if(zoom===1){centerX=0;centerZ=0;followPlayer=false;}render();}
   function close(restoreFocus=true){if(!dialog.open)return;restoreOnClose=restoreFocus!==false;dialog.close();}
@@ -175,7 +183,7 @@ export function createEarthMap({getSurface,getMode,onOpen=()=>{},onClose=()=>{},
   }
   function toggle(){if(dialog.open)close();else open();}
   function place(x,z){
-    if(!state.setWaypoint(x,z)){waypointLabel.textContent='Choose a point inside Fernlilt.';return;}
+    if(!state.setWaypoint(x,z)){waypointLabel.textContent='Choose a point inside '+getEarthRegion(state.regionId).name+'.';return;}
     render();
   }
   const onMapClick=event=>{
@@ -233,6 +241,6 @@ export function createEarthMap({getSurface,getMode,onOpen=()=>{},onClose=()=>{},
         }
       }else{updateWaypoint(surface);if(now-lastMiniFrame>250){drawMinimap(surface);lastMiniFrame=now;}}
     },
-    reset(resetMode){if(resetMode===mode){dirty=false;state=createEarthMapState();}try{localStorage.removeItem(earthMapStorageKey(resetMode));}catch{}},
+    reset(resetMode){if(resetMode===mode){dirty=false;state=createEarthMapState();baseReady=false;lastFogState=null;}try{localStorage.removeItem(earthMapStorageKey(resetMode));}catch{}},
   };
 }

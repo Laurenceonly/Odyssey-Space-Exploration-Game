@@ -1,3 +1,6 @@
+import {getEarthRegion,earthRegionExits,earthExitNear,earthNextRegion} from './earth-regions.js';
+import {earthRegionHeight,earthRegionWater,earthRegionWalkable} from './earth-region-terrain.js';
+import {buildEarthRegionEnvironment,buildEarthExitSigns} from './earth-region-environment.js';
 import {createSurfaceNotice} from './surface-notice.js';
 import {earthPathDistance,earthTrailWidth,earthWoodland,earthMeadowCover,earthRegionAt,clearEarthResumePosition,EARTH_SUMMIT,EARTH_STREAM,earthStreamAt,earthGrassDryness,earthGrassDensity} from './earth-layout.js';
 import * as THREE from 'three';
@@ -14,15 +17,17 @@ import { createSurfaceScanner } from './surface-scanner.js';
 import { getVisitSite, visitFeaturePosition, visitRadius, visitTerrainHeight, surveyRouteDistance } from './visit-sites.js';
 import { buildPlanetEnvironment, buildSurveyBeacon } from './planet-environment.js';
 
-export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, reducedMotion, site=getVisitSite('earth'), hasObservation=()=>false }) {
-  const isEarth=site.id==='earth';
+export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, reducedMotion, site=getVisitSite('earth'), hasObservation=()=>false,regionId='fernlilt',onRegionTravel=()=>{} }) {
+  const isEarth=site.id==='earth',region=getEarthRegion(regionId),isFernlilt=isEarth&&region.id==='fernlilt';
+  const surfaceWater=(x,z)=>isEarth?earthRegionWater(region.id,x,z):null;
+  const regionCameraHeight=(x,z,y)=>{const water=surfaceWater(x,z);return water===null?y:Math.max(y,water+.3);};
   const notes={mercury:'Illustrative terrain; extreme-temperature suit protection is fictional.',venus:'Fictional shielding makes this walk possible. Real spacesuits could not protect you here.',earth:'Wind-swept grasses, sheltered groves, and a winding stream beneath an open sky.',moon:'Illustrative lunar terrain and equipment, with the Moon’s low gravity.',mars:'A reconstructed landscape inspired by ancient Martian waterways.'};
-  const terrainHeight=isEarth?earthHeight:(x,z)=>visitTerrainHeight(site,x,z);
-  const walkableAt=isEarth?earthWalkable:(x,z,obstacles=[])=>Math.hypot(x,z)>visitRadius(site)?'boundary':obstacles.some(o=>Math.hypot(x-o.x,z-o.z)<o.radius+.35)?'obstacle':null;
-  const stepAstronaut=(body,input,dt,obstacles)=>stepBody(body,input,dt,obstacles,{terrainHeight,walkableAt,gravity:site.gravity,waterLevelAt:isEarth?earthWater:()=>null});
+  const terrainHeight=isEarth?(x,z)=>earthRegionHeight(region.id,x,z):(x,z)=>visitTerrainHeight(site,x,z);
+  const walkableAt=isEarth?(x,z)=>earthRegionWalkable(region.id,x,z):(x,z,obstacles=[])=>Math.hypot(x,z)>visitRadius(site)?'boundary':obstacles.some(o=>Math.hypot(x-o.x,z-o.z)<o.radius+.35)?'obstacle':null;
+  const stepAstronaut=(body,input,dt,obstacles)=>stepBody(body,input,dt,obstacles,{terrainHeight,walkableAt,gravity:site.gravity,waterLevelAt:surfaceWater});
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(isEarth?0xd6e2e9:site.sky);
-  scene.fog = isEarth?new THREE.FogExp2(0xc4d5df,.0005):site.fog?new THREE.FogExp2(site.sky,site.fog):null;
+  scene.background = new THREE.Color(isEarth?region.sky:site.sky);
+  scene.fog = isEarth?new THREE.FogExp2(region.sky,region.id==='nacreloom'?.003:region.id==='rainselve'||region.id==='ossamber'?.0018:.0007):site.fog?new THREE.FogExp2(site.sky,site.fog):null;
   const camera = new THREE.PerspectiveCamera(58, 1, .1, isEarth?5000:650);
   scene.add(new THREE.HemisphereLight(isEarth?0xd6e6fa:0xc4d2dc,isEarth?0x8b7858:0x393230,isEarth?1.55:site.kind==='imagined'?1.5:.85));
   const sun = new THREE.DirectionalLight(isEarth?0xffe3b5:site.id==='venus'?0xffcf89:0xfff4e4,isEarth?2.8:site.light??2.2);
@@ -48,7 +53,7 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
   }
 
   let environment=null,earthGrass=null,meadowGroundTime={value:0};
-  if(isEarth) {
+  if(isFernlilt) {
   const skyMaterial=new THREE.ShaderMaterial({
     side:THREE.BackSide,depthWrite:false,
     uniforms:{sunDirection:{value:sun.position.clone().normalize()}},
@@ -283,13 +288,15 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
     scene.add(group);
   }
 
-  } else environment=buildPlanetEnvironment({scene,site,terrainHeight,mesh,material,obstacles});
-  buildSurveyBeacon({scene,site,terrainHeight,mesh,material,obstacles});
+  } else if(isEarth)environment=buildEarthRegionEnvironment({scene,regionId:region.id,terrainHeight,mesh,material,obstacles});
+  else environment=buildPlanetEnvironment({scene,site,terrainHeight,mesh,material,obstacles});
+  if(isEarth)buildEarthExitSigns(scene,region.id,terrainHeight);
+  if(!isEarth||isFernlilt)buildSurveyBeacon({scene,site,terrainHeight,mesh,material,obstacles});
   const surfaceScanner=createSurfaceScanner();
   const scanUI=document.getElementById('surfaceScanner'),scanTitle=document.getElementById('surfaceScanTitle');
   const scanMeter=document.getElementById('surfaceScanMeter'),scanFill=document.getElementById('surfaceScanFill');
   let animatedWater=null; if(isEarth)scene.traverse(o=>{if(o.material?.uniforms?.time)animatedWater=o.material;});
-  const wake=isEarth?createSwimWake(scene,earthWater):null;
+  const wake=isEarth?createSwimWake(scene,surfaceWater):null;
   const landedShip=ship.clone(true);
   landedShip.name='landed-ship';
   landedShip.rotation.set(0,0,0);landedShip.scale.setScalar(1.8);
@@ -302,14 +309,14 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
   const landingGear=createLandingGear();landedShip.add(landingGear.root);
   const restingHeight=terrainHeight(0,4)+landingGear.groundOffset*landedShip.scale.y;
   let touchdownAt=-Infinity;
-  obstacles.push({x:0,z:4,radius:3.5},{x:-3.1,z:5,radius:1.2},{x:3.1,z:5,radius:1.2});
+  if(!isEarth||isFernlilt)obstacles.push({x:0,z:4,radius:3.5},{x:-3.1,z:5,radius:1.2},{x:3.1,z:5,radius:1.2});
   const rig=createAstronaut(),astronaut=rig.root;scene.add(astronaut);
   const scanFeet=['left-foot','right-foot'].map(name=>astronaut.getObjectByName(name));
   const body={x:6,y:0,z:7,vx:0,vz:0,vy:0,grounded:true};
   let mode='closed',viewMode='chase',transitionTime=0,elapsed=0;
   let orbitYaw=.55,targetYaw=.55,orbitPitch=.18,targetPitch=.18;
   let messageUntil=0,message='',welcomeUntil=0,cameraBlend=null,firstCameraFrame=true;
-  let sessionExplored=false,jumpPresses=[];
+  let sessionExplored=false,jumpPresses=[],welcomeIsRegion=false;
   const boostSmoke=createBoostSmoke(scene),boostNozzles=[];
   for(const x of [-.13,.13]){
     const nozzle=new THREE.Mesh(new THREE.CylinderGeometry(.045,.035,.07,10),new THREE.MeshStandardMaterial({color:0x29343b,roughness:.6}));
@@ -326,7 +333,8 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
     if(mode!=='walking')return;
     if(!factPanel.hidden)closeFact();
     keys.clear();
-    const bearing=Math.atan2(body.x,body.z-4);
+    const homeExit=isEarth&&!isFernlilt?earthRegionExits(region.id).find(exit=>exit.to===earthNextRegion(region.id)):null;
+    const bearing=Math.atan2(body.x-(homeExit?.x??0),body.z-(homeExit?.z??4));
     targetYaw=orbitYaw+Math.atan2(Math.sin(bearing-orbitYaw),Math.cos(bearing-orbitYaw));
     targetPitch=viewMode==='first-person'?THREE.MathUtils.clamp(Math.atan2(body.y+1.7-(restingHeight+1),Math.max(1,Math.hypot(body.x,body.z-4))),-.75,1.05):.18;
     if(reducedMotion.matches){orbitYaw=targetYaw;orbitPitch=targetPitch;}
@@ -362,30 +370,33 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
     const distance=Math.hypot(body.x-feature.x,body.z-feature.z);
     const studied=hasObservation();
 
-    text(title,isEarth&&mode==='walking'?earthRegionAt(body.x,body.z):isEarth?'Fernlilt Grasslands':site.title);
+    text(title,isEarth?region.name:site.title);
     objective.hidden=true;
-    text(objective,mode==='walking'?(studied?'Discovery saved. Take a photo or head back to your ship.':site.goal+' · '+Math.round(distance)+' m'):mode==='parked'?'Step outside to explore. Board your ship when you’re ready to leave.':mode==='descending'?'Your ship is landing automatically.':'Your ship is returning to orbit.');
-    text(scienceNote,site.kind==='imagined'?'Imagined terrain and gravity; real '+site.name+' has no walkable surface.':notes[site.id]);
+    text(objective,mode==='walking'?(isEarth&&!isFernlilt?'Explore '+region.name+'. Follow a marked route to another region.':studied?'Discovery saved. Take a photo or head back to your ship.':site.goal+' · '+Math.round(distance)+' m'):mode==='parked'?'Step outside to explore. Board your ship when you’re ready to leave.':mode==='descending'?'Your ship is landing automatically.':'Your ship is returning to orbit.');
+    text(scienceNote,site.kind==='imagined'?'Imagined terrain and gravity; real '+site.name+' has no walkable surface.':isEarth?region.description:notes[site.id]);
     if(mode!=='walking')factPanel.hidden=true;
-    const shipRange=Math.hypot(body.x,body.z-4),near=shipRange<8;
+    const shipRange=Math.hypot(body.x,body.z-4),near=(!isEarth||isFernlilt)&&shipRange<8;
+    const exit=isEarth&&mode==='walking'?earthExitNear(region.id,body.x,body.z):null;
     shipLocator.hidden=mode!=='walking';
     if(mode==='walking'){
       const metres=Math.round(shipRange),bearing=Math.atan2(body.x,body.z-4);
-      text(shipDistance,'Find ship · '+metres+' m');
-      shipArrow.style.transform='rotate('+(-(bearing-orbitYaw))+'rad)';
-      shipLocator.setAttribute('aria-label','Ship, '+metres+' metres away. Turn your view toward it.');
+      const homeExit=isEarth&&!isFernlilt?earthRegionExits(region.id).find(e=>e.to===earthNextRegion(region.id)):null;
+      text(shipDistance,homeExit?'Toward ship · '+homeExit.name+' · '+Math.round(Math.hypot(body.x-homeExit.x,body.z-homeExit.z))+' m':'Find ship · '+metres+' m');
+      const homeBearing=homeExit?Math.atan2(body.x-homeExit.x,body.z-homeExit.z):bearing;
+      shipArrow.style.transform='rotate('+(-(homeBearing-orbitYaw))+'rad)';
+      shipLocator.setAttribute('aria-label',homeExit?'Route toward your ship via '+homeExit.name+'. Turn your view toward the route.':'Ship, '+metres+' metres away. Turn your view toward it.');
     }else shipWaypoint.hidden=true;
-    primary.disabled=mode==='descending'||mode==='ascending'||mode==='departing'||mode==='walking'&&!near;
-    text(primary,mode==='descending'?'Landing…':mode==='parked'?'Explore':mode==='walking'?(near?'Board ship':'Return to ship'):'Taking off…');
+    primary.disabled=mode==='descending'||mode==='ascending'||mode==='departing'||mode==='walking'&&!near&&!exit;
+    text(primary,mode==='descending'?'Landing…':mode==='parked'?'Explore':mode==='walking'?(exit?'Travel to '+exit.name:near?'Board ship':isEarth&&!isFernlilt?'Follow a marked route':'Return to ship'):'Taking off…');
     secondary.hidden=mode!=='parked';text(secondary,'Take off');
     text(status,elapsed<messageUntil?message:mode==='descending'?site.name+' · Landing':mode==='parked'?site.name+' · Ship parked':mode==='walking'?(body.swimming?(body.fastSwimming?'Fast swimming':body.swimExhausted?(body.swimStamina>=.3?'Head-up swim · release Shift':'Head-up swim · recovering'):'Head-up swim'):body.wading?'Wading · head toward the shore to walk':body.swimExhausted?(body.swimStamina>=.3?'Tired · release Shift':'Tired · recovering'):site.conditions):site.name+' · Departure');
     const noticeState=elapsed<messageUntil?'message:'+message:mode!=='walking'?mode:body.swimming?(body.fastSwimming?'fast-swim':body.swimExhausted?'tired-swim':'swim'):body.wading?'wade':body.swimExhausted?'tired':studied?'studied':'walking';
-    const noticeText=elapsed<messageUntil?message:mode!=='walking'?objective.textContent:body.swimming||body.wading||body.swimExhausted?status.textContent:studied?'Discovery saved.':site.goal;
+    const noticeText=elapsed<messageUntil?message:mode!=='walking'?objective.textContent:body.swimming||body.wading||body.swimExhausted?status.textContent:studied?'Discovery saved.':isEarth&&!isFernlilt?'Follow marked routes to explore or head toward your ship.':site.goal;
     text(status,surfaceNotice.update(elapsed,noticeState,noticeText));
     status.classList.toggle('visible',Boolean(status.textContent));
         text(pilotReadout,getPilotName());
     pilotReadout.hidden=mode!=='walking'||viewMode!=='first-person';
-    if(welcomeUntil>elapsed)text(welcome,isEarth?'Welcome to Earth':('Welcome to '+site.name+', ')+getPilotName());
+    if(welcomeUntil>elapsed)text(welcome,isEarth?(welcomeIsRegion?region.name:'Welcome to Earth'):('Welcome to '+site.name+', ')+getPilotName());
     welcome.classList.toggle('visible',welcomeUntil>elapsed&&!['closed','ascending','departing'].includes(mode));
     text(pilotLabel,getPilotName());
     for(const button of cameraButtons){
@@ -418,7 +429,7 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
     surfaceScanner.reset();scanUI.hidden=true;
     observationRead=false;factPanel.hidden=true;scienceSource.href=site.source;
     hud.setAttribute('aria-label',site.name+' landing and exploration');
-    elapsed=0;welcomeUntil=0;messageUntil=0;surfaceNotice.reset();sessionExplored=false;text(welcome,'');
+    elapsed=0;welcomeUntil=0;welcomeIsRegion=Boolean(resume?.entryFrom);messageUntil=0;surfaceNotice.reset();sessionExplored=false;text(welcome,'');
     touchdownAt=-Infinity;landingGear.update(0);
     orbitYaw=targetYaw=.55;orbitPitch=targetPitch=.18;viewMode='chase';
     body.swimStamina=1;body.swimExhausted=false;body.fastSwimming=false;body.running=false;
@@ -432,7 +443,7 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
     if(valid){
       const saved=resume.position;
       Object.assign(body,{x:saved.x,y:saved.y,z:saved.z,vy:saved.vy,vx:0,vz:0,grounded:saved.grounded===true,swimming:saved.swimming===true,wading:saved.wading===true,boostReady:saved.boostReady===true,swimStamina:Number.isFinite(saved.swimStamina)?THREE.MathUtils.clamp(saved.swimStamina,0,1):1,swimExhausted:saved.swimExhausted===true});
-      if(isEarth){
+      if(isFernlilt){
         const restored=clearEarthResumePosition(body.x,body.z,(x,z)=>!walkableAt(x,z,obstacles,Math.max(body.y,terrainHeight(x,z))));
         if(restored.x!==body.x||restored.z!==body.z){
           body.x=restored.x;body.z=restored.z;body.y=terrainHeight(body.x,body.z);body.vy=0;
@@ -450,6 +461,7 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
       elapsed=Number.isFinite(resume.elapsed)?Math.max(0,resume.elapsed):0;
       astronaut.position.set(body.x,body.y,body.z);astronaut.rotation.y=Number.isFinite(resume.facing)?resume.facing:orbitYaw;
       if(mode==='walking'||mode==='parked'){landedShip.position.y=restingHeight;landingGear.update(1);}
+      if(welcomeIsRegion)welcomeUntil=elapsed+3.5;
       update(0);refresh();
     }else setMode('descending');
     cameraBlend=null;
@@ -466,7 +478,11 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
     if(mode==='parked'){
       body.x=6;body.z=7;body.y=terrainHeight(6,7);body.vy=0;body.grounded=true;
       setMode('walking');document.getElementById('universe').focus({preventScroll:true});
-    }else if(mode==='walking'&&Math.hypot(body.x,body.z-4)<8)setMode('parked');
+    }else if(mode==='walking'){
+      const exit=isEarth?earthExitNear(region.id,body.x,body.z):null;
+      if(exit){keys.clear();onRegionTravel(exit.to);}
+      else if((!isEarth||isFernlilt)&&Math.hypot(body.x,body.z-4)<8)setMode('parked');
+    }
   }
   function setView(next){
     if(mode!=='walking'||!['first-person','chase'].includes(next)||next===viewMode)return;
@@ -483,7 +499,7 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
     if(paused)jumpPresses.length=0;
     elapsed+=step;transitionTime+=step;
     if(animatedWater)animatedWater.uniforms.time.value=reducedMotion.matches?0:elapsed;
-    if(earthGrass)earthGrass.userData.update(body.x,body.z,elapsed,reducedMotion.matches);
+    if(earthGrass)earthGrass.userData.update(body.x,body.z,elapsed,reducedMotion.matches,Math.max(0,camera.position.y-terrainHeight(camera.position.x,camera.position.z)),camera.position.x,camera.position.z);
     meadowGroundTime.value=reducedMotion.matches?0:elapsed;
     if(isEarth){
       const texel=130/1024;
@@ -512,6 +528,7 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
     }else{
       landedShip.position.y=restingHeight-compression*landedShip.scale.y;landedShip.rotation.z=0;
     }
+    landedShip.visible=!isEarth||isFernlilt;
     landingGear.update(gearDeployment,compression);
     let motion={distance:0,speed:0,landed:false,landingSpeed:0};
     if(mode==='walking'&&!paused){
@@ -521,7 +538,7 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
       motion=stepAstronaut(body,{x,z,jumpPresses,run:keys.has('ShiftLeft')||keys.has('ShiftRight')},step,obstacles);
       jumpPresses.length=0;
       if(motion.boosted)boostSmoke.trigger();
-      if(motion.blocked==='boundary'){message='Edge of the landing area · head back toward the ship';messageUntil=elapsed+1.5;}
+      if(motion.blocked==='boundary'){message='Edge of this area · follow a marked route to continue';messageUntil=elapsed+1.5;}
       astronaut.position.set(body.x,body.y,body.z);
       const facing=viewMode==='first-person'?orbitYaw:motion.speed>.1?Math.atan2(-body.vx,-body.vz):astronaut.rotation.y;
       const turn=Math.atan2(Math.sin(facing-astronaut.rotation.y),Math.cos(facing-astronaut.rotation.y));
@@ -530,14 +547,14 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
     swimStamina.hidden=mode!=='walking'||!(body.swimming||body.running||body.swimStamina<.999||body.swimExhausted);
     swimMeter.value=body.swimStamina??1;text(swimPercent,Math.round((body.swimStamina??1)*100)+'%');
     wake?.update(step,{active:mode==='walking'&&(body.swimming||body.wading),x:body.x,z:body.z,speed:motion.speed,swimming:body.swimming,reduced:reducedMotion.matches});
-    rig.update(step,{...motion,grounded:body.grounded,swimming:body.swimming===true,vy:body.vy,time:elapsed,waterDepth:isEarth?(earthWater(body.x,body.z)??terrainHeight(body.x,body.z))-terrainHeight(body.x,body.z):0,reduced:reducedMotion.matches,groundHeight:(x,z)=>supportAt(x,z,body.y+.18,obstacles,terrainHeight,body.support).height});
+    rig.update(step,{...motion,grounded:body.grounded,swimming:body.swimming===true,vy:body.vy,time:elapsed,waterDepth:isEarth?(surfaceWater(body.x,body.z)??terrainHeight(body.x,body.z))-terrainHeight(body.x,body.z):0,reduced:reducedMotion.matches,groundHeight:(x,z)=>supportAt(x,z,body.y+.18,obstacles,terrainHeight,body.support).height});
     astronaut.updateWorldMatrix(true,true);
     boostSmoke.update(step,boostNozzles,body,reducedMotion.matches);
     const walking=mode==='walking';
     if(walking&&viewMode==='first-person'){
       // Eye-height camera: no artificial head bob, and no visible inside of the helmet.
       desiredCamera.set(body.x,body.y+rig.eyeHeight,body.z);
-      if(isEarth)desiredCamera.y=waterCameraHeight(desiredCamera.x,desiredCamera.z,desiredCamera.y);
+      if(isEarth)desiredCamera.y=regionCameraHeight(desiredCamera.x,desiredCamera.z,desiredCamera.y);
       camera.rotation.set(-orbitPitch,orbitYaw,0,'YXZ');
       desiredQuaternion.copy(camera.quaternion);
     }else{
@@ -546,7 +563,7 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
       focus.set(walking?body.x:0,walking?body.y+1.25:landedShip.position.y+.5,walking?body.z:4);
       desiredCamera.copy(focus).add(new THREE.Vector3(Math.sin(orbitYaw)*distance,elevation,Math.cos(orbitYaw)*distance));
       desiredCamera.y=Math.max(desiredCamera.y,terrainHeight(desiredCamera.x,desiredCamera.z)+.8);
-      if(isEarth)desiredCamera.y=waterCameraHeight(desiredCamera.x,desiredCamera.z,desiredCamera.y);
+      if(isEarth)desiredCamera.y=regionCameraHeight(desiredCamera.x,desiredCamera.z,desiredCamera.y);
       camera.position.copy(desiredCamera);camera.lookAt(focus);desiredQuaternion.copy(camera.quaternion);
     }
     if(firstCameraFrame){camera.position.copy(desiredCamera);camera.quaternion.copy(desiredQuaternion);firstCameraFrame=false;}
@@ -561,10 +578,10 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
       camera.position.copy(desiredCamera);camera.quaternion.copy(desiredQuaternion);
     }
     // Camera-view blends must respect the same waterline constraint.
-    if(isEarth)camera.position.y=waterCameraHeight(camera.position.x,camera.position.z,camera.position.y);
+    if(isEarth)camera.position.y=regionCameraHeight(camera.position.x,camera.position.z,camera.position.y);
     astronaut.visible=walking&&viewMode==='chase'&&camera.position.distanceTo(astronaut.position)>1.2;
     camera.updateMatrixWorld();
-    const scanRange=Math.hypot(body.x-feature.x,body.z-feature.z)<=3;
+    const scanRange=(!isEarth||isFernlilt)&&Math.hypot(body.x-feature.x,body.z-feature.z)<=3;
     const scanBlocked=paused||mode!=='walking'||!factPanel.hidden;
     const scan=surfaceScanner.update(step,{inRange:scanRange,holding:keys.has('KeyR'),blocked:scanBlocked});
     // The hint and interaction share the same proximity check in both camera views.
@@ -591,16 +608,17 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
     projected.set(0,landedShip.position.y+2.4,4).project(camera);
     const markerX=(projected.x*.5+.5)*innerWidth,markerY=(-projected.y*.5+.5)*innerHeight;
     const inCopy=markerX<460&&markerY<310;
-    shipWaypoint.hidden=!walking||Math.hypot(body.x,body.z-4)<8||projected.z>1||projected.z< -1||markerX<30||markerX>innerWidth-30||markerY<82||markerY>innerHeight-160||inCopy;
+    shipWaypoint.hidden=isEarth&&!isFernlilt||!walking||Math.hypot(body.x,body.z-4)<8||projected.z>1||projected.z< -1||markerX<30||markerX>innerWidth-30||markerY<82||markerY>innerHeight-160||inCopy;
     if(!shipWaypoint.hidden){shipWaypoint.style.transform='translate3d('+markerX+'px,'+markerY+'px,0) translate(-50%,-100%)';text(shipWaypointText,'Your ship · '+Math.round(Math.hypot(body.x,body.z-4))+' m');}
     projected.set(body.x,body.y+2.16,body.z).project(camera);
     if(!pilotLabel.hidden)pilotLabel.style.transform='translate3d('+((projected.x*.5+.5)*innerWidth)+'px,'+((-projected.y*.5+.5)*innerHeight)+'px,0) translate(-50%,-100%)';
     refresh();
   }
   return {
-    scene,camera,open,close,update,activate,setView,observe,closeFact,
+    scene,camera,open,close,update,activate,setView,observe,closeFact,terrainHeight,waterLevelAt:surfaceWater,
+    get regionId(){return isEarth?region.id:null;},get regionName(){return isEarth?region.name:site.title;},
     setGraphicsQuality(quality,scale){earthGrass?.userData.setQuality(quality,scale);},
-    snapshot(){if(mode==='closed'||mode==='departing')return null;return {worldId:site.id,mode,position:{x:body.x,y:body.y,z:body.z,vy:body.vy,grounded:body.grounded,swimming:body.swimming,wading:body.wading,boostReady:body.boostReady===true,swimStamina:body.swimStamina,swimExhausted:body.swimExhausted===true},yaw:targetYaw,pitch:targetPitch,viewMode,facing:astronaut.rotation.y,explored:sessionExplored,transitionTime,elapsed};},
+    snapshot(){if(mode==='closed'||mode==='departing')return null;return {worldId:site.id,regionId:isEarth?region.id:null,mode,position:{x:body.x,y:body.y,z:body.z,vy:body.vy,grounded:body.grounded,swimming:body.swimming,wading:body.wading,boostReady:body.boostReady===true,swimStamina:body.swimStamina,swimExhausted:body.swimExhausted===true},yaw:targetYaw,pitch:targetPitch,viewMode,facing:astronaut.rotation.y,explored:sessionExplored,transitionTime,elapsed};},
     requestJump(code='KeyJ'){if(mode==='walking'&&!this.factOpen&&jumpPresses.length<2)jumpPresses.push(code);},
     get factOpen(){return !factPanel.hidden;},
     get worldId(){return site.id;},
@@ -609,7 +627,7 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
       scanUI.hidden=true;document.getElementById('surfaceFactClose').removeEventListener('click',closeFact);
       // Hull resources belong to the orbital ship; release only the visit's own assets.
       landedShip.remove(landingGear.root);scene.remove(landedShip);
-      const geometries=new Set(),materials=new Set(),textures=new Set();
+      const geometries=new Set(earthGrass?.userData.geometries||[]),materials=new Set(),textures=new Set();
       for(const object of [scene,landingGear.root])object.traverse(o=>{if(o.isInstancedMesh)o.dispose();if(o.geometry)geometries.add(o.geometry);for(const m of (Array.isArray(o.material)?o.material:o.material?[o.material]:[])){materials.add(m);for(const v of Object.values(m))if(v?.isTexture)textures.add(v);}});
       geometries.forEach(g=>g.dispose());textures.forEach(t=>t.dispose());materials.forEach(m=>m.dispose());scene.clear();
     },

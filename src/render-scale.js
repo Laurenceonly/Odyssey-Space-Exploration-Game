@@ -24,3 +24,10 @@ export function createRenderScale(initialQuality='auto'){
     },
   };
 }
+
+// Keep Low's 3D fill cost bounded on full-HD and high-density displays.
+export function sceneRenderPixelRatio({width,height,pixelRatio=1,coarse=false,quality='auto',scale=1}){
+ const base=Math.min(Number.isFinite(pixelRatio)&&pixelRatio>0?pixelRatio:1,coarse?1.25:1.8)*scale;
+ if(quality!=='low'||!Number.isFinite(width)||!Number.isFinite(height)||width<=0||height<=0)return base;
+ return Math.min(base,Math.sqrt((768*432)/(width*height)));
+}

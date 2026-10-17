@@ -1,3 +1,4 @@
+import {earthRegionExits} from './earth-regions.js';
 // Shared layout coordinates keep scenery, paths and movement checks aligned.
 const LOOP_POINTS = [
   [6,7],[7,-5],[-9,-15],[-16,-37],[-6,-48],[14,-59],
@@ -30,7 +31,7 @@ export const EARTH_STREAM_TRAIL=windingPath([
   [37,15],[75,36],[111,69],[151,87],[174,48],[160,5],[138,-39],
   [126,-96],[143,-147],[148,-192],[151,-227],
 ]);
-export const EARTH_PATHS=[EARTH_LOOP,EARTH_RIDGE_ROUTE,EARTH_MEADOW_TRAIL,EARTH_STREAM_TRAIL];
+export const EARTH_PATHS=[EARTH_LOOP,EARTH_RIDGE_ROUTE,EARTH_MEADOW_TRAIL,EARTH_STREAM_TRAIL,...earthRegionExits('fernlilt').map(exit=>exit.path)];
 export const EARTH_RIDGE = {x:-67,z:-9,height:4.5};
 export const EARTH_SUMMIT = {x:210,z:-1450,height:300};
 export function polylineDistance(points,x,z){

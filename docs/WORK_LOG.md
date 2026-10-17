@@ -762,3 +762,28 @@ Validation: all 138 regression tests and audio checks pass. Production build and
 Replaced COMMIT_NOTES_TEMP.md with the complete commit summary, validation results, remaining limits, and creator-managed commit handoff. Rewrote the latest in-game update entry to cover scenery, creek/trails, live map movement, graphics detail, Shadows, Earth greeting, final plain FPS placement, and hidden header profile. Updated the intro summary and in-game manual. Corrected stale green-meadow/golden-hour, named-welcome, paused-map, and resolution-only graphics descriptions in README and the exploration plan. Updated the roadmap, performance notes, and validation record; historical work-log entries and generated commit history remain historical.
 
 Validation: update-module syntax, production build, and git diff --check pass after these documentation/copy changes. The earlier full 138-test and audio-check results remain recorded; no gameplay code changed in this documentation pass. Existing large-bundle warning remains. No staging, commit, push, or deployment; creator will commit.
+
+
+## 2026-10-17 — Grass persistence, river coverage, and Low performance
+
+Removed camera-clearance grass shortening and fading. Kept the original tall curved blades and baked their silhouettes into a permanent distant canopy, shared with stable nearby roots. Evened out the distant subset distribution, conformed roots to terrain slope, retained three canopy planes on Low, and corrected alpha filtering through direct multisample coverage. Detailed grass still adds nearby texture without deleting the established canopy. Aerial coverage follows altitude even without a tile change. Ordinary walking refills tiles gradually (128 placement candidates/frame); no unfinished tiles are exposed. Low now bounds 3D pixel work to a 768 × 432 budget while UI text stays native. Far backlighting moved to vertices to reduce fragment work.
+
+Validation: all 10 targeted grass/render-scale tests pass; production build passes with the existing large-chunk warning (main 820.48 kB, 237.68 kB gzip before the final copy-only release-note update). Riverbank screenshots and a real walking/wading crossing reported no page errors. Final Low/Shadows-off/full-HD viewport samples measured 56.41 FPS west-bank standing, 54.76 crossing/walking, and 47.78 east-bank standing. Stable 60 FPS is not achieved or guaranteed. These are rAF samples, not GPU timers. See PERFORMANCE.md for conditions and artifacts. Updated README, exploration-plan graphics controls, and in-game update notes.
+
+Region-connectivity prototype changes remain unfinished and paused; this pass does not claim all regions verified or ready. No staging, commit, push, or deployment.
+
+
+## 2026-10-17 — Even golden grass lighting
+
+Warmed both grass layers to a consistent golden-yellow palette, narrowed random patch brightness, and lifted root shading. Added a grass-only lighting fill blended with Lambert shading so shaded sides retain warmth while directional light and shadow differences remain visible. Uses the same geometry, density, wind, and canopy coverage; no bloom render pass or extra lights. Updated the in-game note.
+
+Validation: production build passed with the existing large-chunk warning (main 820.72 kB / 237.76 kB gzip); riverbank screenshot visually reviewed after the reload settled, with no captured page or console errors. The first screenshot attempt was interrupted by a development reload; the stable capture succeeded. Git whitespace check passed. This color pass has no new sustained FPS benchmark; the previous performance limits remain. Nothing staged or committed.
+
+
+## 2026-10-17 — Balanced/High grass optimization and commit notes
+
+Added smoothly faded blade ranks and three reusable near-detail geometry tiers. High retains 28 near blades, fades its upper extras over 24–40 m and middle extras over 40–64 m; Medium retains 18 near blades and fades extras over 28–48 m. Tiles skip only extras already fully faded across the footprint, based on the actual camera plus safety margin. Six base blades and the persistent matching canopy retain field volume; golden lighting, grass height/density and Balanced/High drawing-buffer resolution are unchanged by this pass. Kept geometry resources available for surface disposal even after switching presets.
+
+Same west-bank x160/z0, full-HD viewport, Shadows off: Balanced baseline 34.05 FPS, optimized 59.91 and 60.01 FPS; High baseline 22.96 FPS, optimized 41.49 and 48.02 FPS. Ten-second stationary rAF samples; not a walking, shadows-on or universal 60 FPS guarantee. Screenshot counter variation prompted a repeat, recorded alongside the first run. No page/console errors captured in after runs; reviewed High riverbank screenshot for full golden coverage.
+
+Validation: all 149 regression tests pass. The ten targeted grass/render-scale checks pass, including over one-third lower near-detail triangle work on High at the tested placement. Production build passes (main 821.73 kB / 238.14 kB gzip; existing large-chunk warning). Final copy-only release-note change passes syntax check; whitespace check passes. Updated README, exploration plan, in-game notes and performance documentation. Replaced COMMIT_NOTES_TEMP.md with current changes, measured results, validation and an explicit notice about the paused, unfinished region prototype sharing this working tree. Region unit tests pass; completed two-way region browser travel is still not claimed. No staging, commit, push or deployment.

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createRenderScale} from '../src/render-scale.js';
+import {createRenderScale,sceneRenderPixelRatio} from '../src/render-scale.js';
 test('sustained low FPS reduces resolution within a readable lower bound',()=>{
  const scale=createRenderScale();for(let i=0;i<1600;i++)scale.tick(i*25);
  assert.equal(scale.value,.7);
@@ -23,4 +23,13 @@ test('fixed quality presets hold their scale under load, and Auto can resume ada
  scale.setQuality('invalid');assert.equal(scale.quality,'auto');assert.equal(scale.value,1);
  assert.equal(createRenderScale('medium').value,.85);
  assert.equal(createRenderScale('invalid').quality,'auto');
+});
+
+
+test('Low bounds full-HD and high-density pixel work without reducing DOM resolution',()=>{
+ assert.equal(sceneRenderPixelRatio({width:1920,height:1080,pixelRatio:1,quality:'low',scale:.7}),.4);
+ assert.equal(sceneRenderPixelRatio({width:1920,height:1080,pixelRatio:2,quality:'low',scale:.7}),.4);
+ const ratio=sceneRenderPixelRatio({width:3840,height:2160,pixelRatio:2,quality:'low',scale:.7});assert.equal(ratio,.2);
+ assert.equal(sceneRenderPixelRatio({width:800,height:600,pixelRatio:1,quality:'low',scale:.7}),.7);
+ assert.equal(sceneRenderPixelRatio({width:1920,height:1080,pixelRatio:2,quality:'high',scale:1}),1.8);
 });

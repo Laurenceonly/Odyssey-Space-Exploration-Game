@@ -1,4 +1,6 @@
-import {createRenderScale} from './render-scale.js';
+import {getEarthRegion,earthRegionArrival,earthExitNear,validEarthRegion} from './earth-regions.js';
+import {earthRegionResume} from './earth-region-terrain.js';
+import {createRenderScale,sceneRenderPixelRatio} from './render-scale.js';
 import {createFrameRateMeter} from './frame-rate.js';
 import {createEarthMap} from './earth-map.js';
 import { setLoadingProgress, setLoadingFailure } from './loading-screen.js';
@@ -50,10 +52,10 @@ let savedGraphicsQuality='auto';
 try{savedGraphicsQuality=localStorage.getItem('odyssey-graphics-quality')||'auto';}catch{}
 const renderScale=createRenderScale(savedGraphicsQuality);
 function updateGraphicsQualityHint(){
-  const descriptions={auto:'Adapts resolution and grass detail for smoother play.',low:'Softer resolution and lighter grass detail. Best performance.',medium:'Balanced resolution and grass detail.',high:'Full resolution and the densest grass detail. More demanding.'};
+  const descriptions={auto:'Adapts resolution and grass detail for smoother play.',low:'Softer scenery and lighter detail for smoother play. Keeps the full grass canopy.',medium:'Balanced resolution and grass detail.',high:'Full resolution and the densest grass detail. More demanding.'};
   document.getElementById('graphicsQualityHint').textContent=descriptions[renderScale.quality]+' Applies immediately; saved in this browser.';
 }
-function scenePixelRatio(){return Math.min(window.devicePixelRatio||1,matchMedia('(pointer: coarse)').matches?1.25:1.8)*renderScale.value;}
+function scenePixelRatio(){return sceneRenderPixelRatio({width:innerWidth,height:innerHeight,pixelRatio:window.devicePixelRatio||1,coarse:matchMedia('(pointer: coarse)').matches,quality:renderScale.quality,scale:renderScale.value});}
 const shipAudio = createShipAudio();
 const shipPosition = new THREE.Vector3();
 const shipRotation = new THREE.Euler(0, 0, 0, 'YXZ');
@@ -297,19 +299,27 @@ function readObservations(){
   const items=new Set(Array.isArray(saved)?saved.filter(id=>getVisitSite(id)):[]);
   observationCache={mode:gameMode,items};return items;
 }
+function travelEarthRegion(to){
+  if(surfaceEntryPending||blockingModalOpen()||!earthSurface?.active||earthSurface.worldId!=='earth'||earthSurface.mode!=='walking'||earthSurface.factOpen||!validEarthRegion(to))return;
+  const from=earthSurface.regionId,position=earthSurface.position;
+  if(earthExitNear(from,position.x,position.z)?.to!==to)return;
+  const arrival=earthRegionArrival(to,from);if(!arrival)return;
+  const previous=earthSurface.snapshot();earthMap.close(false);keys.clear();
+  openLandingSite(earthRegionResume(to,from,arrival,previous));
+}
 function openLandingSite(resume=null) {
   if(!resume?.worldId)resume=null;
   const site=getVisitSite(resume?.worldId??selectedId);
-  if(!site||cabinActive||introActive||introDive||surfaceEntryPending||earthSurface?.active||modalOpen()||(!resume&&!canVisitDestination()))return;
+  if(!site||cabinActive||introActive||introDive||surfaceEntryPending||(earthSurface?.active&&!(resume?.worldId==='earth'&&earthSurface.worldId==='earth'&&getEarthRegion(resume.regionId).id!==earthSurface.regionId))||modalOpen()||(!resume&&!canVisitDestination()))return;
   keys.clear();resetMouseLook();velocity.set(0,0,0);boostAmount=0;discoveryDrift=false;
   endUnlockCinematic(true);saveFlightState();
   surfaceEntryPending=true;
   const curtain=document.getElementById('sceneCurtain');curtain.classList.add('covered');
   window.setTimeout(()=>{
     try{
-      if(earthSurface&&earthSurface.worldId!==site.id){earthSurface.dispose();earthSurface=null;}
+      if(earthSurface&&(earthSurface.worldId!==site.id||site.id==='earth'&&earthSurface.regionId!==getEarthRegion(resume?.regionId).id)){earthSurface.dispose();earthSurface=null;}
       if(!earthSurface)earthSurface=createEarthSurface({
-        ship:shipMesh,keys,reducedMotion,site,getPilotName:()=>pilotName,
+        ship:shipMesh,keys,reducedMotion,site,getPilotName:()=>pilotName,regionId:resume?.regionId||'fernlilt',onRegionTravel:travelEarthRegion,
         hasObservation:()=>readObservations().has(site.id),
         onEvent:(type,details={})=>{
           if(type==='observation'){
@@ -2695,6 +2705,7 @@ function setupControls() {
       if(editing)return;
       if(event.code==='Escape'||event.code==='KeyM'&&!event.ctrlKey&&!event.metaKey&&!event.altKey){event.preventDefault();if(!event.repeat)earthMap.close();return;}
       if(event.ctrlKey||event.metaKey||event.altKey)return;
+      if(event.code==='KeyE'&&!event.repeat){event.preventDefault();earthSurface?.activate();return;}
       if(['KeyW','KeyS','KeyA','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','ShiftLeft','ShiftRight','Space','KeyJ'].includes(event.code)){
         event.preventDefault();keys.add(event.code);
         if(['Space','KeyJ'].includes(event.code)&&!event.repeat)earthSurface?.requestJump(event.code);

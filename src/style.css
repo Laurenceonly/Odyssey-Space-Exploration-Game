@@ -938,3 +938,6 @@ body #app button:not(:disabled):not([aria-disabled="true"]):active{transition-du
 .topbar .fps-readout{margin-left:18px;margin-right:auto;flex-shrink:0}
 #app.surface-mode .settings-button{margin-left:0}
 @media(max-width:540px){.topbar .fps-readout{margin-left:10px}}
+
+/* Region routes use the existing atlas controls. */
+.earth-map-regions li button{grid-column:1/-1;justify-self:start;min-height:32px;margin-top:5px;padding:4px 9px;font:11px 'DM Sans',sans-serif}

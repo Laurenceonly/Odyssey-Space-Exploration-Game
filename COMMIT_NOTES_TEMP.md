@@ -1,36 +1,39 @@
-# Improve Fernlilt scenery, exploration maps, graphics settings, and FPS layout
+# Improve grass persistence, golden lighting, and rendering performance
 
 ## Changes
 
-- Rework Fernlilt with tall golden grass, varied meadow openings, rolling hills, distant ridges, sheltered groves, rocks, and wildflowers.
-- Add a shallow winding creek with walkable banks and wading crossings, preserving the existing swimmable pond.
-- Add winding meadow and stream-side paths, with soft trail edges, clear walking corridors, and matching map/minimap routes.
-- Improve grass wind, directional sunlight, ground lighting, and near-to-distant grass blending. Align distant placement, height, and colors with the detailed field.
-- Extend detailed grass to roughly 90 metres on High. Use lighter grass geometry and shorter detail blends on Low and Medium; retain the cheaper distant field.
-- Apply saved graphics presets to grass detail as well as render resolution. Auto adapts under sustained load.
-- Add a saved Shadows toggle that applies immediately.
-- Allow walking, running, and jumping while the Earth map is open. Follow the player until the map is panned; recentering restores following.
-- Stop movement during map coordinate editing, keep map gestures separate from camera movement, and preserve Settings pause behavior.
-- Keep terrain, water, trails, and map/minimap data consistent. Preserve map fog and session-local waypoints.
-- Show a centered Welcome to Earth greeting after touchdown, with normal expiry and reduced-motion support.
-- Position the original plain FPS counter beside Odyssey in both space and land views.
-- Hide the player name and profile icon from both headers while retaining saved-name editing in Settings.
-- Fix trailing whitespace in the map code.
-- Update in-game update history, the manual, README, exploration plan, roadmap, performance notes, validation record, and work log.
+- Remove camera-clearance grass shrinking and fading. Keep the tall curved blades and full canopy as the player approaches.
+- Bake the original blade silhouettes into a persistent distant canopy; align roots, height and color with nearby grass.
+- Improve coverage across the river with more even distant placement, terrain-conforming roots and multisample alpha coverage that retains fine filtered blades.
+- Keep distant coverage during landing and takeoff even without crossing a grass tile boundary.
+- Give nearby and distant grass a more even golden-yellow tone: warmer palette, lifted root/shaded-side lighting and gentler brightness variation. Preserve directional depth without an added bloom pass.
+- Stream ordinary walking tile refills across frames (128 placement candidates/frame), keeping unfinished tiles hidden.
+- Bound Low 3D rendering to a 768 × 432 pixel budget with viewport aspect ratio preserved and native-resolution interface text.
+- Optimize Balanced/Medium and High with smooth blade-detail distance tiers. Keep full nearby detail and the permanent canopy, then skip fully faded detail using reused tile geometries and actual camera position.
+- Compute distant tip backlighting per vertex and retain all reusable geometry references for surface cleanup.
+- Update in-game release notes, README, exploration plan, performance measurements, validation record and work log.
+
+## Measured performance
+
+Same riverbank view, 1920 × 1080 viewport, shadows off, 10-second stationary samples. Balanced and High resolution was unchanged for this comparison.
+
+| Quality | Before | Optimized runs |
+| --- | --- | --- |
+| Balanced/Medium | 34.05 FPS | 59.91 / 60.01 FPS |
+| High | 22.96 FPS | 41.49 / 48.02 FPS |
+
+These are local browser requestAnimationFrame measurements, not guaranteed displayed-frame rates. High is still below a stable 60 FPS target. These samples do not establish walking or shadows-on performance. Earlier Low river-route measurements were 56.41 FPS west-bank standing, 54.76 crossing/walking, and 47.78 east-bank standing before the Balanced/High tier pass.
 
 ## Validation
 
-- All 138 regression tests pass.
-- Audio scheduling, playlist, switching, and saved-choice checks pass.
-- Production build and Git whitespace checks pass.
-- Browser startup and flight checks reported no page errors; Chrome emitted expected audio-autoplay notices before interaction.
-- Full live-map browser verification remains incomplete after interrupted checks. Final header placement uses shared CSS; no completed final visual comparison is claimed.
-- Existing large-bundle warning remains. Device-specific performance is not guaranteed.
+- Ten targeted grass/render-scale tests pass, including a check that optimized High submits over one third less near-detail triangle work at the test placement.
+- Production build passes; the existing large-bundle warning remains.
+- Riverbank visual checks and after-optimization browser samples reported no captured page/console errors.
+- All 149 regression tests pass, including the region prototype’s unit tests. This does not replace its missing end-to-end browser verification.
+- Final release-note syntax and Git whitespace checks pass.
 
-## Scope and handoff
+## Existing unfinished work in this working tree
 
-Only Fernlilt is built among the eleven planned Earth regions. Other regions, new activities, regional audio, and multiplayer remain deferred.
+The working tree also contains an earlier, paused region-connectivity prototype: eleven Earth region definitions, bidirectional walking routes, region terrain/environment generation, region-aware saves and map fog/waypoints, and map/travel integration. It shares files with this grass work. End-to-end two-way region travel has not been browser-verified, and region readiness documentation is not complete. This prototype is not claimed release-ready; review or stage it separately if the intended commit is grass-only.
 
-All changes remain local and uncommitted. No staging, commit, push, or deployment has been performed. The creator will commit.
-
-This file is a temporary commit-message aid; omit it from staging if it should not be included in the repository.
+No staging, commit, push or deployment performed. The creator will commit. This file is a temporary commit-message aid.
