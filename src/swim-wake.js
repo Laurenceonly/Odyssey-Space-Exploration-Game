@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 
 export function createSwimWake(scene,level){
+  const waterHeight=(x,z)=>typeof level==='function'?(level(x,z)??0):level;
   const root=new THREE.Group();root.name='swim-wake';scene.add(root);
   const geometry=new THREE.RingGeometry(.82,1,48);
   const ripples=Array.from({length:16},()=>{
@@ -15,7 +16,7 @@ export function createSwimWake(scene,level){
   let cursor=0,distance=0,idle=0,wasActive=false;
   function spawn(x,z,strength){
     const p=ripples[cursor++%ripples.length];p.age=0;p.strength=strength;
-    p.mesh.position.set(x,level+.025,z);p.mesh.scale.setScalar(.35);p.mesh.visible=true;
+    p.mesh.position.set(x,waterHeight(x,z)+.025,z);p.mesh.scale.setScalar(.35);p.mesh.visible=true;
   }
   return {
     reset(){for(const p of ripples)p.mesh.visible=false;distance=idle=0;wasActive=false;},
@@ -23,7 +24,7 @@ export function createSwimWake(scene,level){
       dt=Math.min(.1,Math.max(0,dt));if(!dt)return;
       if(reduced){
         for(const p of ripples)p.mesh.visible=false;
-        const p=ripples[0];p.mesh.visible=active;p.mesh.position.set(x,level+.025,z);p.mesh.scale.setScalar(.75);p.mesh.material.uniforms.alpha.value=.16;
+        const p=ripples[0];p.mesh.visible=active;p.mesh.position.set(x,waterHeight(x,z)+.025,z);p.mesh.scale.setScalar(.75);p.mesh.material.uniforms.alpha.value=.16;
         wasActive=false;distance=idle=0;return;
       }
       if(active){

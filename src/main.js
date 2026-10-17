@@ -31,7 +31,9 @@ const speedCanvas = document.querySelector('#speedFx');
 const speedContext = speedCanvas.getContext('2d');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, matchMedia('(pointer: coarse)').matches ? 1.25 : 1.8));
-renderer.shadowMap.enabled=true;
+let shadowsEnabled=true;
+try{shadowsEnabled=localStorage.getItem('odyssey-shadows-enabled')!=='off';}catch{}
+renderer.shadowMap.enabled=shadowsEnabled;
 renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -48,7 +50,7 @@ let savedGraphicsQuality='auto';
 try{savedGraphicsQuality=localStorage.getItem('odyssey-graphics-quality')||'auto';}catch{}
 const renderScale=createRenderScale(savedGraphicsQuality);
 function updateGraphicsQualityHint(){
-  const descriptions={auto:'Adjusts the view for smoother play.',low:'A softer, vintage feel. Best performance.',medium:'A balance of softness and detail.',high:'The sharpest view. More demanding.'};
+  const descriptions={auto:'Adapts resolution and grass detail for smoother play.',low:'Softer resolution and lighter grass detail. Best performance.',medium:'Balanced resolution and grass detail.',high:'Full resolution and the densest grass detail. More demanding.'};
   document.getElementById('graphicsQualityHint').textContent=descriptions[renderScale.quality]+' Applies immediately; saved in this browser.';
 }
 function scenePixelRatio(){return Math.min(window.devicePixelRatio||1,matchMedia('(pointer: coarse)').matches?1.25:1.8)*renderScale.value;}
@@ -196,8 +198,9 @@ const cabinHoldPosition = new THREE.Vector3();
 const cabinOrientation = new THREE.Quaternion();
 let earthSurface = null;
 const earthMap=createEarthMap({getSurface:()=>earthSurface,getMode:()=>gameMode,
-  onOpen:()=>{for(const code of keys)menuHeldKeys.add(code);keys.clear();resetMouseLook();},
-  onClose:()=>{keys.clear();resetMouseLook();},
+  onOpen:()=>{keys.delete('KeyR');if(earthSurface?.factOpen)earthSurface.closeFact();resetMouseLook();},
+  onClose:()=>{resetMouseLook();},
+  onEdit:()=>{for(const code of keys)menuHeldKeys.add(code);keys.clear();},
 });
 let surfaceEntryPending = false;
 const visitApproaches=new Map();
@@ -205,9 +208,10 @@ let earthApproachReady=false;
 let earthApproachDistance=0;
 const menuHeldKeys=new Set();
 let settingsReturnFocus=null;
-function modalOpen() {
-  return earthMap.active || ['helpOverlay','logOverlay','voyageOverlay','settingsOverlay','exitOverlay','photoViewer'].some(id=>!document.getElementById(id).hidden);
+function blockingModalOpen(){
+  return ['helpOverlay','logOverlay','voyageOverlay','settingsOverlay','exitOverlay','photoViewer'].some(id=>!document.getElementById(id).hidden);
 }
+function modalOpen(){return earthMap.active||blockingModalOpen();}
 function canEnterCabin() {
   return !cabinActive && !introActive && !introDive && !returningToIntro &&
     !autopilotTarget && (!previewTarget || arrivalPreview) && !surfaceEntryPending && !earthSurface?.active && !modalOpen() &&
@@ -328,6 +332,7 @@ function openLandingSite(resume=null) {
           canvas.focus({preventScroll:true});saveFlightState();
         },
       });
+      earthSurface.setGraphicsQuality(renderScale.quality,renderScale.value);
       earthSurface.open(resume);
       canvas.setAttribute('aria-label',site.name+' exploration. WASD walk, drag to look, Space jump and press again for suit boost, hold R near a survey flag to scan, E board near the ship.');
     }catch(error){console.error('Visit could not start',error);photoFeedback('Could not start this visit. Try again.');}
@@ -348,7 +353,7 @@ function setupLandingControls() {
   document.getElementById('enterCabin').addEventListener('click', openShipCabin);
   document.getElementById('leaveCabin').addEventListener('click', closeShipCabin);
   document.querySelector('#landingSiteButton').addEventListener('click',openLandingSite);
-  const overlayObserver=new MutationObserver(()=>{if(modalOpen())keys.clear();});
+  const overlayObserver=new MutationObserver(()=>{if(blockingModalOpen()){earthMap.close(false);keys.clear();}});
   for(const id of ['helpOverlay','logOverlay','voyageOverlay','settingsOverlay','exitOverlay','photoViewer'])
     overlayObserver.observe(document.getElementById(id),{attributes:true,attributeFilter:['hidden']});
 }
@@ -2684,7 +2689,18 @@ function setupControls() {
     if(menuHeldKeys.has(event.code)){event.preventDefault();return;}
     if(document.getElementById('updatesDialog').open)return;
     if(surfaceEntryPending)return;
-    if(earthMap.active)return;
+    if(earthMap.active){
+      if(blockingModalOpen())return;
+      const editing=event.target instanceof HTMLInputElement||event.target instanceof HTMLSelectElement||event.target instanceof HTMLTextAreaElement||event.target.isContentEditable;
+      if(editing)return;
+      if(event.code==='Escape'||event.code==='KeyM'&&!event.ctrlKey&&!event.metaKey&&!event.altKey){event.preventDefault();if(!event.repeat)earthMap.close();return;}
+      if(event.ctrlKey||event.metaKey||event.altKey)return;
+      if(['KeyW','KeyS','KeyA','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','ShiftLeft','ShiftRight','Space','KeyJ'].includes(event.code)){
+        event.preventDefault();keys.add(event.code);
+        if(['Space','KeyJ'].includes(event.code)&&!event.repeat)earthSurface?.requestJump(event.code);
+      }
+      return;
+    }
     if(earthSurface?.active&&!modalOpen()&&event.code==='Escape'){
       if(earthSurface.factOpen){earthSurface.closeFact();return;}
       openExit();
@@ -2783,9 +2799,22 @@ function setupControls() {
   updateGraphicsQualityHint();
   document.querySelector('#graphicsQuality').addEventListener('change',event=>{
     renderScale.setQuality(event.target.value);
+    earthSurface?.setGraphicsQuality(renderScale.quality,renderScale.value);
     renderer.setPixelRatio(scenePixelRatio());
     updateGraphicsQualityHint();
     try{localStorage.setItem('odyssey-graphics-quality',renderScale.quality);}catch{}
+  });
+  const shadowsInput=document.querySelector('#shadowsEnabledInput');
+  shadowsInput.checked=shadowsEnabled;
+  shadowsInput.addEventListener('change',()=>{
+    shadowsEnabled=shadowsInput.checked;
+    renderer.shadowMap.enabled=shadowsEnabled;renderer.shadowMap.needsUpdate=true;
+    const materials=new Set();
+    for(const world of [scene,earthSurface?.scene,shipCabin?.scene])world?.traverse(object=>{
+      for(const material of (Array.isArray(object.material)?object.material:object.material?[object.material]:[]))materials.add(material);
+    });
+    for(const material of materials)material.needsUpdate=true;
+    try{localStorage.setItem('odyssey-shadows-enabled',shadowsEnabled?'on':'off');}catch{}
   });
   document.querySelector('#settingsButton').addEventListener('click',openSettings);
   document.querySelector('#closeSettings').addEventListener('click',closeSettings);
@@ -3213,14 +3242,14 @@ function animate() {
   requestAnimationFrame(animate);
   const fps=frameRateMeter.tick(performance.now(),document.hidden);
   if(fps!==null)fpsValue.textContent=String(fps);
-  const nextRenderScale=renderScale.tick(performance.now(),Boolean(earthSurface?.active)&&!document.hidden&&!modalOpen()&&!earthSurface.factOpen);
-  if(nextRenderScale!==null)renderer.setPixelRatio(scenePixelRatio());
+  const nextRenderScale=renderScale.tick(performance.now(),Boolean(earthSurface?.active)&&!document.hidden&&!blockingModalOpen()&&!earthSurface.factOpen);
+  if(nextRenderScale!==null){renderer.setPixelRatio(scenePixelRatio());earthSurface?.setGraphicsQuality(renderScale.quality,renderScale.value);}
   const frameDelta=clock.getDelta();
   const dt=Math.min(frameDelta,.05);
   const elapsed=clock.elapsedTime;
   earthMap.update();
   if(earthSurface?.active){
-    earthSurface.update(dt,modalOpen()||document.hidden||earthSurface.factOpen);
+    earthSurface.update(dt,blockingModalOpen()||document.hidden||earthSurface.factOpen);
     speedContext.clearRect(0,0,speedCanvas.width,speedCanvas.height);
     shipAudio.update(0,0,true,false);
     renderer.render(earthSurface.scene,earthSurface.camera);

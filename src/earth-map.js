@@ -1,6 +1,6 @@
 import {Vector3} from 'three';
 import {LAKE,SITE_RADIUS,terrainHeight,waterLevelAt} from './earth-physics.js';
-import {EARTH_LOOP,EARTH_RIDGE_ROUTE,earthMeadowCover,earthWoodland} from './earth-layout.js';
+import {EARTH_PATHS,earthMeadowCover,earthWoodland,earthGrassDryness} from './earth-layout.js';
 import {EARTH_REGIONS,MAP_EXTENT,MAP_CELL,MAP_GRID,createEarthMapState,earthMapStorageKey} from './earth-map-state.js';
 
 const SIZE=1024,SCALE=SIZE/(MAP_EXTENT*2);
@@ -9,12 +9,12 @@ const world=value=>value/SCALE-MAP_EXTENT;
 const element=id=>document.getElementById(id);
 const path=(ctx,points)=>{ctx.beginPath();points.forEach(([x,z],i)=>ctx[i?'lineTo':'moveTo'](screen(x),screen(z)));ctx.stroke();};
 
-export function createEarthMap({getSurface,getMode,onOpen=()=>{},onClose=()=>{}}){
+export function createEarthMap({getSurface,getMode,onOpen=()=>{},onClose=()=>{},onEdit=()=>{}}){
   const dialog=element('earthMapDialog'),button=element('surfaceMap'),canvas=element('earthMapCanvas'),ctx=canvas.getContext('2d');
   const waypointLabel=element('earthMapWaypoint'),clearButton=element('earthMapClear');
   const minimap=element('earthMinimap'),miniCanvas=element('earthMinimapCanvas'),mini=miniCanvas.getContext('2d');
   const worldMarker=element('surfaceMapWaypoint'),worldMarkerText=element('surfaceMapWaypointText'),markerArrow=element('surfaceMapWaypointArrow'),projected=new Vector3();
-  let lastMiniFrame=-Infinity,lastFogState=null,lastFogSize=-1;
+  let lastMiniFrame=-Infinity,lastMapFrame=-Infinity,lastFogState=null,lastFogSize=-1,followPlayer=true,restoreOnClose=true;
   const base=document.createElement('canvas');base.width=base.height=SIZE;
   const fog=document.createElement('canvas');fog.width=fog.height=SIZE;
   let mode=null,state=null,dirty=false,lastSaved=0,returnFocus=null,baseReady=false,zoom=1,centerX=0,centerZ=0,projection=null,drag=null,suppressClick=false;
@@ -37,12 +37,12 @@ export function createEarthMap({getSurface,getMode,onOpen=()=>{},onClose=()=>{}}
       const x=(ix+.5)*spacing-MAP_EXTENT,z=(iz+.5)*spacing-MAP_EXTENT;
       
       const height=terrainHeight(x,z),water=waterLevelAt(x,z);
-      if(water!==null){const depth=LAKE.level-height;c.fillStyle=depth<2?'#6d9292':depth<6?'#527a80':'#3e626f';}
+      if(water!==null){const depth=water-height;c.fillStyle=depth<2?'#6d9292':depth<6?'#527a80':'#3e626f';}
       else{
         const dx=(terrainHeight(x+.5,z)-terrainHeight(x-.5,z)),dz=(terrainHeight(x,z+.5)-terrainHeight(x,z-.5));
         const woods=earthWoodland(x,z),grain=Math.sin(x*1.7+z*.67)*Math.cos(z*1.3)*.8;
         const light=Math.max(25,Math.min(53,43+height*.5-dx*9-dz*7-woods*13+grain));
-        c.fillStyle='hsl('+(woods>.16?120:89)+' '+(16+earthMeadowCover(x,z)*9)+'% '+light+'%)';
+        c.fillStyle='hsl('+(woods>.16?100:54-earthGrassDryness(x,z)*10)+' '+(16+earthMeadowCover(x,z)*9)+'% '+light+'%)';
       }
       c.fillRect(ix*cell,iz*cell,cell+.5,cell+.5);
     }
@@ -64,8 +64,8 @@ export function createEarthMap({getSurface,getMode,onOpen=()=>{},onClose=()=>{}}
       c.stroke();
     }
     c.lineJoin='round';c.lineCap='round';
-    c.strokeStyle='#3b402b';c.lineWidth=5;path(c,EARTH_LOOP);path(c,EARTH_RIDGE_ROUTE);
-    c.strokeStyle='#c7bc91';c.lineWidth=2.5;path(c,EARTH_LOOP);path(c,EARTH_RIDGE_ROUTE);
+    c.strokeStyle='#3b402b';c.lineWidth=5;for(const trail of EARTH_PATHS)path(c,trail);
+    c.strokeStyle='#c7bc91';c.lineWidth=2.5;for(const trail of EARTH_PATHS)path(c,trail);
     c.restore();baseReady=true;
   }
   function buildFog(){
@@ -165,13 +165,13 @@ export function createEarthMap({getSurface,getMode,onOpen=()=>{},onClose=()=>{}}
     element('earthMapCoordinates').textContent=Math.round(Math.abs(position.x))+' m '+(position.x<0?'W':'E')+' / '+Math.round(Math.abs(position.z))+' m '+(position.z<0?'N':'S');
     canvas.setAttribute('aria-label','Fernlilt Grasslands map. '+(walking?'You are '+Math.round(Math.hypot(position.x,position.z-4))+' metres from your ship.':'You are aboard your parked ship.')+' Fog marks unexplored ground.');
   }
-  function changeZoom(next){zoom=Math.max(1,Math.min(8,next));if(zoom===1){centerX=0;centerZ=0;}render();}
-  function close(){if(dialog.open)dialog.close();}
+  function changeZoom(next){zoom=Math.max(1,Math.min(8,next));if(zoom===1){centerX=0;centerZ=0;followPlayer=false;}render();}
+  function close(restoreFocus=true){if(!dialog.open)return;restoreOnClose=restoreFocus!==false;dialog.close();}
   function open(){
     if(dialog.open)return;
     const surface=getSurface();if(!surface?.active||surface.worldId!=='earth'||!['walking','parked'].includes(surface.mode))return;
     load();if(surface.mode==='walking')dirty=state.visit(surface.position.x,surface.position.z)||dirty;
-    zoom=3;const p=surface.mode==='walking'?surface.position:{x:0,z:4};centerX=p.x;centerZ=p.z;returnFocus=document.activeElement;onOpen();dialog.showModal();element('earthMapRegionPanel').hidden=true;element('earthMapRegionsToggle').setAttribute('aria-expanded','false');element('earthMapPinControls').hidden=true;renderRegions();render();element('closeEarthMap').focus();save();
+    zoom=3;followPlayer=true;lastMapFrame=-Infinity;const p=surface.mode==='walking'?surface.position:{x:0,z:4};centerX=p.x;centerZ=p.z;returnFocus=document.activeElement;onOpen();dialog.show();element('earthMapRegionPanel').hidden=true;element('earthMapRegionsToggle').setAttribute('aria-expanded','false');element('earthMapPinControls').hidden=true;renderRegions();render();element('closeEarthMap').focus();save();
   }
   function toggle(){if(dialog.open)close();else open();}
   function place(x,z){
@@ -186,7 +186,7 @@ export function createEarthMap({getSurface,getMode,onOpen=()=>{},onClose=()=>{}}
   canvas.addEventListener('pointerdown',event=>{if(event.button!==0)return;drag={x:event.clientX,y:event.clientY,centerX,centerZ,moved:false};canvas.setPointerCapture?.(event.pointerId);});
   canvas.addEventListener('pointermove',event=>{
     if(!drag||!projection)return;const dx=event.clientX-drag.x,dz=event.clientY-drag.y;
-    if(Math.hypot(dx,dz)>4)drag.moved=true;if(!drag.moved)return;
+    if(Math.hypot(dx,dz)>4)drag.moved=true;if(!drag.moved)return;followPlayer=false;
     const rect=canvas.getBoundingClientRect();centerX=Math.max(-SITE_RADIUS,Math.min(SITE_RADIUS,drag.centerX-dx/rect.width*projection.width/projection.scale));centerZ=Math.max(-SITE_RADIUS,Math.min(SITE_RADIUS,drag.centerZ-dz/rect.height*projection.height/projection.scale));render();
   });
   canvas.addEventListener('pointerup',()=>{suppressClick=drag?.moved===true;drag=null;});
@@ -194,7 +194,7 @@ export function createEarthMap({getSurface,getMode,onOpen=()=>{},onClose=()=>{}}
   canvas.addEventListener('wheel',event=>{event.preventDefault();changeZoom(zoom+(event.deltaY<0?.25:-.25));},{passive:false});
   element('earthMapZoomIn').addEventListener('click',()=>changeZoom(zoom+.5));
   element('earthMapZoomOut').addEventListener('click',()=>changeZoom(zoom-.5));
-  element('earthMapCenter').addEventListener('click',()=>{const surface=getSurface(),p=surface.mode==='walking'?surface.position:{x:0,z:4};centerX=p.x;centerZ=p.z;zoom=2;render();});
+  element('earthMapCenter').addEventListener('click',()=>{const surface=getSurface(),p=surface.mode==='walking'?surface.position:{x:0,z:4};centerX=p.x;centerZ=p.z;zoom=2;followPlayer=true;render();});
   window.addEventListener('resize',()=>{if(dialog.open)render();});
   element('earthMapRegionsToggle').addEventListener('click',()=>{const panel=element('earthMapRegionPanel');panel.hidden=!panel.hidden;element('earthMapRegionsToggle').setAttribute('aria-expanded',String(!panel.hidden));});
   minimap.addEventListener('click',open);
@@ -204,13 +204,18 @@ export function createEarthMap({getSurface,getMode,onOpen=()=>{},onClose=()=>{}}
   element('earthMapPlacePin').addEventListener('click',()=>{
     const x=element('earthMapPinX').valueAsNumber,z=element('earthMapPinZ').valueAsNumber;place(x,z);
   });
+  const isEditing=target=>target instanceof HTMLInputElement||target?.isContentEditable||['SELECT','TEXTAREA'].includes(target?.tagName);
+  dialog.addEventListener('focusin',event=>{if(isEditing(event.target))onEdit();});
   dialog.addEventListener('keydown',event=>{
-    event.stopPropagation();
-    const editing=event.target instanceof HTMLInputElement;
-    if(event.code==='Escape'||event.code==='KeyM'&&!editing&&!event.ctrlKey&&!event.metaKey&&!event.altKey){event.preventDefault();if(!event.repeat)close();}
+    const editing=isEditing(event.target);
+    if(editing&&event.code!=='Escape'){event.stopPropagation();return;}
+    if(event.code==='Escape'||event.code==='KeyM'&&!event.ctrlKey&&!event.metaKey&&!event.altKey){
+      event.stopPropagation();event.preventDefault();if(!event.repeat)close();
+    }
+    // Movement keys bubble to the game; mouse gestures remain map-only.
   });
   dialog.addEventListener('click',event=>{const r=dialog.getBoundingClientRect();if(event.target===dialog&&(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom))close();});
-  dialog.addEventListener('close',()=>{save();onClose();if(returnFocus?.isConnected&&!returnFocus.hidden)returnFocus.focus({preventScroll:true});else element('universe').focus({preventScroll:true});});
+  dialog.addEventListener('close',()=>{save();onClose();if(!restoreOnClose){restoreOnClose=true;return;}if(returnFocus?.isConnected&&!returnFocus.hidden)returnFocus.focus({preventScroll:true});else element('universe').focus({preventScroll:true});});
   window.addEventListener('pagehide',save);
   return {
     open,close,toggle,get active(){return dialog.open;},
@@ -218,9 +223,15 @@ export function createEarthMap({getSurface,getMode,onOpen=()=>{},onClose=()=>{}}
       const surface=getSurface();const available=surface?.active&&surface.worldId==='earth'&&['walking','parked'].includes(surface.mode);
       button.hidden=!available;minimap.hidden=!available||dialog.open;worldMarker.hidden=true;if(!available){close();save();return;}
       load();
-      if(surface.mode==='walking'&&!dialog.open)dirty=state.visit(surface.position.x,surface.position.z)||dirty;
+      if(surface.mode==='walking')dirty=state.visit(surface.position.x,surface.position.z)||dirty;
       if(dirty&&Date.now()-lastSaved>1000)save();
-      if(!dialog.open){updateWaypoint(surface);const now=Date.now();if(now-lastMiniFrame>250){drawMinimap(surface);lastMiniFrame=now;}} 
+      const now=Date.now();
+      if(dialog.open){
+        if(now-lastMapFrame>250){
+          if(followPlayer&&surface.mode==='walking'){centerX=surface.position.x;centerZ=surface.position.z;}
+          render();lastMapFrame=now;
+        }
+      }else{updateWaypoint(surface);if(now-lastMiniFrame>250){drawMinimap(surface);lastMiniFrame=now;}}
     },
     reset(resetMode){if(resetMode===mode){dirty=false;state=createEarthMapState();}try{localStorage.removeItem(earthMapStorageKey(resetMode));}catch{}},
   };

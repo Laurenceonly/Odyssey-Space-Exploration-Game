@@ -45,3 +45,14 @@ Local artifacts are under `output/playwright/` and excluded from Git.
 GitHub `main` received commit `3e68224` (analytics initialization, Field Guide scrolling, and development documentation). The live site then served the expected `/assets/index-J5_xYZU1.js` production bundle with HTTP 200. Its analytics script loaded with HTTP 200 and SDK version 2.0.1; the hosted page had no page errors.
 
 No page-view POST was observed in Chromium automation. Inspection of Vercel's served script confirmed an early return when `navigator.webdriver` is true or the user agent contains `Headless`. The test did not bypass that filter or manufacture visitor data. SDK deployment and script availability are verified; dashboard ingestion remains unverified because no normal visitor or authenticated dashboard was available in the connected tools. To confirm counts, visit the [live game](https://odyssey-explorer-psi.vercel.app) in a normal browser and check the project's Web Analytics dashboard.
+
+
+## 2026-10-17 — Fernlilt and header review
+
+- Full regression suite: 138 passed, zero failed. Coverage includes grass placement and quality switching, scenic route traversal, creek banks and crossings, map state, and existing movement/flight behavior.
+- Audio scheduling, playlist switching, and saved-choice checks: passed.
+- Production build and Git whitespace checks: passed after the final FPS correction. Existing large-chunk warning remains.
+- Browser startup and flight checks: no page errors observed. Chrome emitted expected audio-autoplay warnings before user interaction.
+- The original plain FPS counter now uses one shared placement beside Odyssey in both scene headers; profile name/icon are hidden.
+- Full live-map browser verification was interrupted. The final rendered land/space header comparison was also interrupted; these checks are not recorded as completed. Automated geometry, movement, and map tests do not establish visual quality or device-specific frame rate.
+- Changes are local and uncommitted. No push or deployment was performed.

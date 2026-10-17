@@ -5,6 +5,7 @@ import {earthMapStorageKey} from '../src/earth-map-state.js';
 
 test('map opens from its button, saves fog, closes with M, and keeps other planets out',()=>{
   const previous={document:globalThis.document,window:globalThis.window,localStorage:globalThis.localStorage,HTMLInputElement:globalThis.HTMLInputElement};
+  const originalNow=Date.now;let now=1000;Date.now=()=>now;
   const elements=new Map(),storage=new Map();let focused=null,mode='discovery',opens=0,closes=0;
   const calls=[];
   const context=new Proxy({}, {get:(_,key)=> (...args)=>{if(key==='drawImage')calls.push(args);if(key==='createRadialGradient')return {addColorStop(){}};}});
@@ -17,7 +18,8 @@ test('map opens from its button, saves fog, closes with M, and keeps other plane
     append(...items){this.children.push(...items);}
     setAttribute(name,value){this[name]=value;}
     getBoundingClientRect(){return {left:0,top:0,right:768,bottom:768,width:768,height:768};}
-    showModal(){this.open=true;}
+    showModal(){this.open=true;this.modal=true;}
+    show(){this.open=true;this.modal=false;}
     close(){this.open=false;this.emit('close');}
     focus(){focused=this;}
   }
@@ -31,6 +33,13 @@ test('map opens from its button, saves fog, closes with M, and keeps other plane
     const map=createEarthMap({getSurface:()=>surface,getMode:()=>mode,onOpen:()=>opens++,onClose:()=>closes++});
     map.update();assert.equal(get('surfaceMap').hidden,false);
     get('surfaceMap').emit('click');assert.equal(map.active,true);assert.equal(opens,1);
+    assert.equal(get('earthMapDialog').modal,false,'the live map does not make gameplay inert');
+    let stopped=false;
+    get('earthMapDialog').emit('keydown',{code:'KeyW',target:get('closeEarthMap'),stopPropagation(){stopped=true;},preventDefault(){}});
+    assert.equal(stopped,false,'walking keys must reach the gameplay handler');
+    surface.position={x:24,z:32};now+=500;map.update();
+    assert.match(get('earthMapCoordinates').textContent,/24 m E \/ 32 m S/,'map position refreshes while open');
+    surface.position={x:6,z:7};now+=500;map.update();
     assert.equal(get('earthMapRegions').children.length,11);
     get('earthMapRegionPanel').hidden=true;get('earthMapRegionsToggle').emit('click');assert.equal(get('earthMapRegionPanel').hidden,false);assert.equal(get('earthMapRegionsToggle')['aria-expanded'],'true');
     get('earthMapRegionsToggle').emit('click');assert.equal(get('earthMapRegionPanel').hidden,true);
@@ -50,5 +59,5 @@ test('map opens from its button, saves fog, closes with M, and keeps other plane
     map.reset('discovery');assert.equal(storage.has(earthMapStorageKey('discovery')),false);assert.equal(storage.has(earthMapStorageKey('exploration')),true);
     surface.worldId='moon';map.update();assert.equal(get('surfaceMap').hidden,true);map.open();assert.equal(map.active,false);
     surface.worldId='earth';surface.mode='ascending';map.update();assert.equal(get('surfaceMap').hidden,true);
-  }finally{for(const [key,value]of Object.entries(previous)){if(value===undefined)delete globalThis[key];else globalThis[key]=value;}}
+  }finally{Date.now=originalNow;for(const [key,value]of Object.entries(previous)){if(value===undefined)delete globalThis[key];else globalThis[key]=value;}}
 });

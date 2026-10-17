@@ -925,3 +925,16 @@ body #app button:not(:disabled):not([aria-disabled="true"]):active{transition-du
 .earth-map-dialog button svg{display:block;flex:none;pointer-events:none}
 .earth-map-footer button,.earth-map-header button{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;padding:0}
 .earth-map-tools #earthMapCenter{margin-left:12px;padding:0}
+
+/* Touchdown greeting stays centered while surface controls remain usable. */
+#app.surface-mode .earth-welcome[data-destination="earth"]{top:40%;bottom:auto;left:50%;transform:translate(-50%,-50%);font:500 clamp(28px,3.5vw,48px)/1.2 'Oxanium',sans-serif;letter-spacing:.025em;text-shadow:0 2px 22px #161b20,0 1px 4px #0009;pointer-events:none}
+
+/* The live map sits above surface controls and below menus that pause play. */
+.earth-map-dialog{z-index:15}
+
+/* The usual frame counter sits beside Odyssey in both scenes. */
+.topbar .brand{flex-shrink:0}
+#app .topbar .profile-readout{display:none}
+.topbar .fps-readout{margin-left:18px;margin-right:auto;flex-shrink:0}
+#app.surface-mode .settings-button{margin-left:0}
+@media(max-width:540px){.topbar .fps-readout{margin-left:10px}}

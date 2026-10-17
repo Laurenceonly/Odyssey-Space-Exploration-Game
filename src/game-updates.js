@@ -1,5 +1,24 @@
 export const gameUpdates = [
   {
+    "date": "2026-10-17",
+    "title": "Wild grasslands",
+    "summary": "Explore Fernlilt’s tall golden grass, winding trails, and shallow stream, with a live walking map and adjustable graphics.",
+    "notes": [
+      "Improved: Tall golden grass, broad hills, layered ridges, sheltered groves, rocks, and wildflowers give Fernlilt more variety beneath a blue daylight sky.",
+      "Added: Winding meadow and stream-side trails connect tall-grass passages, open meadows, clearings, and viewpoints. Paths and the landing area stay clear, with softer trail edges.",
+      "Added: A shallow winding stream with walkable banks and wading crossings. The map and minimap show the same water and trails used during exploration; the existing pond remains swimmable.",
+      "Improved: Detailed grass reaches about 90 metres on High, blending into a matching distant field without shrinking into the ground.",
+      "Improved: Broad wind gusts, warmer directional sunlight, softer sky fill, moving ground light, and backlit grass tips add depth. Reduced motion keeps cyclic scenery still.",
+      "Improved: Graphics quality controls grass detail as well as resolution. Low and Medium use fewer blades and shorter detail ranges, while Auto adapts for smoother play.",
+      "Added: A saved Shadows setting lets you switch shadows off for lighter graphics without changing the selected grass detail.",
+      "Improved: Walk, run, or jump with the Earth map open. The map follows you until you pan; use Center map on you to resume following.",
+      "Improved: Editing map coordinates stops movement, map dragging stays separate from camera looking, and Settings still pauses play.",
+      "Added: A centered Welcome to Earth greeting appears after touchdown and fades away during play.",
+      "Improved: The original plain FPS counter sits beside Odyssey in the same position on land and in space.",
+      "Removed: The player name and profile icon from the space and surface header. Your saved name remains editable in Settings."
+    ]
+  },
+  {
     "date": "2026-10-15",
     "title": "A place on every world",
     "summary": "Explore all eight planets and the Moon, swim on Earth, climb rocks, and resume your visit after refresh.",

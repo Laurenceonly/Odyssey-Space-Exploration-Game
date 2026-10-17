@@ -35,3 +35,15 @@ An asteroid impact was logged during the forward-flight sample. These are reques
 3. Check hosted loading under realistic network conditions before choosing texture compression, deferred loading, or code splitting.
 
 This pass establishes a baseline. It does not change visual quality or particle counts based on one desktop result. Raw measurements and test scripts are in the Git-ignored `output/playwright/` folder.
+
+
+## Creator device target — October 17, 2026
+
+The creator reports an Acer TravelMate P215-55 with an Intel Core 5 120U. Intel lists Intel Graphics for this processor: https://www.intel.com/content/www/us/en/products/sku/236796/intel-core-5-processor-120u-12m-cache-up-to-5-00-ghz/specifications.html . Exact laptop RAM configuration, GPU driver and operating power mode have not been verified. Use this reported integrated-graphics laptop as the target for grass distance and Auto rendering-quality tuning; the local browser samples in the work log are not confirmed benchmarks of this exact configuration. High uses a detailed grass range of approximately 90 m, with a cheaper matching field beyond it.
+
+
+## Current graphics controls — October 17, 2026
+
+Graphics presets now reduce geometry as well as resolution. High uses 28 near blades and four distant blades per patch, Medium 18/3, and Low 10/2; the detailed blend ends at 88/72/56 m respectively. Reused instance buffers and the cheaper distant field are retained. Auto selects Medium or Low grass detail alongside adaptive drawing-buffer scaling. A separate Shadows setting is saved and applies immediately; toggling shadows does not change grass detail. DOM interface text keeps its native resolution.
+
+No new device benchmark was completed during the final bug review. The earlier work-log samples remain measurements of those specific runs. The latest production build retains the existing large-chunk warning (main approximately 804 kB before gzip and 231.5 kB gzip).

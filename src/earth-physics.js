@@ -1,4 +1,4 @@
-import {earthRidgeHeight} from './earth-layout.js';
+import {earthRidgeHeight,earthStreamAt} from './earth-layout.js';
 import {containsCollider,supportAt} from './surface-collision.js';
 export const EARTH_GRAVITY = 9.81;
 export const FAST_SWIM_SECONDS = 12;
@@ -12,15 +12,28 @@ export function terrainHeight(x,z){
   const lakeDistance=Math.hypot(x-LAKE.x,z-LAKE.z);
   const basin=Math.max(0,1-lakeDistance/(LAKE.radius+8));
   const outerT=Math.min(1,Math.max(0,(distance-104)/90)),outerBlend=outerT*outerT*(3-2*outerT);
-  const broadHills=Math.sin(x*.009)*Math.cos(z*.011)*3.3+Math.sin((x+z)*.017)*1.4;
+  // Long shoulders and shallow valleys replace the repeating little hill field.
+  const broadHills=Math.sin(x*.007)*Math.cos(z*.006)*8+Math.sin((x+z)*.010)*3.5
+    +11*Math.exp(-(((x+280)/145)**2+((z+180)/210)**2))
+    +8*Math.exp(-(((x-325)/165)**2+((z+260)/190)**2));
   const floor=hills*(1-outerBlend)+broadHills*outerBlend+earthRidgeHeight(x,z)-basin*basin*12;
   const smooth=(a,b,value)=>{const t=Math.min(1,Math.max(0,(value-a)/(b-a)));return t*t*(3-2*t);};
   // A continuous bank encloses the lake. The broad dry rim also covers the
   // water mesh edge between the terrain's 2.2-metre grid vertices.
   const bank=smooth(22,30,lakeDistance)*(1-smooth(34,40,lakeDistance));
-  return floor+Math.max(0,LAKE.level+.9-floor)*bank;
+  const ground=floor+Math.max(0,LAKE.level+.9-floor)*bank;
+  const stream=earthStreamAt(x,z);
+  if(!stream)return ground;
+  const channel=1-smooth(stream.width+8,stream.width+23,stream.distance);
+  const creekFloor=stream.level-.48+1.5*smooth(stream.width-1,stream.width+8,stream.distance);
+  return ground+(creekFloor-ground)*channel*stream.envelope;
 }
-export function waterLevelAt(x,z){return Math.hypot(x-LAKE.x,z-LAKE.z)<32&&terrainHeight(x,z)<LAKE.level?LAKE.level:null;}
+export function waterLevelAt(x,z){
+  const ground=terrainHeight(x,z);
+  if(Math.hypot(x-LAKE.x,z-LAKE.z)<32&&ground<LAKE.level)return LAKE.level;
+  const stream=earthStreamAt(x,z);
+  return stream&&stream.distance<stream.width+8&&ground<stream.level?stream.level:null;
+}
 // Surface exploration has no underwater camera mode: keep the near plane dry.
 export function waterCameraHeight(x,z,y,clearance=.3){
   const water=waterLevelAt(x,z);return Number.isFinite(water)?Math.max(y,water+clearance):y;

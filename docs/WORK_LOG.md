@@ -705,3 +705,60 @@ Validation: affected map test, production build, and whitespace checks pass. Nat
 ## 2026-10-16 — Session wrap and commit handoff
 
 Stopped feature work at creator request. Corrected README survey controls to hold R within 3 m, Fernlilt radius to 560 m, current name/HUD behavior, minimap/waypoint controls, and saved graphics presets. Final verification on the complete working tree: all 134 tests pass, production build passes, git diff --check passes. Centered map browser measurement is 1120 × 740 in a 1440 × 960 viewport, with transform/clip-path both none. Screenshot inspected. Build retains the existing main-chunk size warning. Performance remains device-dependent; creator reported roughly 40 FPS standing before the latest quality changes, so no live-device 60 FPS claim is made. Other ten Earth regions, new activities, region soundtracks, and space audio changes remain future work. No staging, commit, push, or deployment performed.
+
+
+## 2026-10-17 — Fernlilt wild grassland scenery
+
+Started from the creator’s committed update, 3920a01, with a clean working tree. Reworked Fernlilt after feedback that the small, repeated grass bunches looked planted. The final direction supersedes the initial patchy/meadow interpretation: nearly continuous tall golden grass, with the main canopy approximately 2.3–2.6 m, above the astronaut. Roots are spread across overlapping areas instead of radiating from identical bunch centers; local ground-plane fitting keeps roots on hills. Varied height, spread, color and wind soften repetition. Paths and the landing area remain clear, with a narrower low edge beside trails. Near detail streams through reused buffers; distant grass shares the palette and coverage field.
+
+The creator supplied tussock and savanna photographs, then requested more volume and taller growth. Updated the lighting to a clear blue daytime sky and pale warm sun over earthy ground, replacing the previous green meadow/orange sunset treatment. Broad rolling shoulders, layered distant ridges, sparse sheltered trees, grouped weathered rocks, and loose wildflower colonies give Fernlilt more landscape structure.
+
+Added a shallow winding creek east of the landing loop. Shared terrain and water queries drive the rendered banks, walking/wading, camera water clearance, map/minimap, and ripple heights. The existing pond and swimming remain. New tests sample buried ribbon edges, rendered bank-grid corners, and bidirectional creek crossings at 30/60/120 FPS. Existing landing pad, dry route, swimming, save, and other-planet regressions remain supported. README and player-facing update notes describe the changes. Only Fernlilt is built; other Earth regions, activities, regional audio and multiplayer remain deferred.
+
+Validation is completed below. Local changes only; no staging, commit, push or deployment performed in this session.
+
+### Cinematic pathway follow-up
+
+Added a long winding meadow loop and a stream-side trail following the creator’s request. Smoothed the compact pond/ridge paths, routing the first bend safely around the parked hull. The longer loop moves through hills and a sheltered grove toward the stream; the bank-side branch offers open water views. Variable worn widths and feathered soil/grass edges keep paths narrow and irregular. Map and minimap draw the same sampled routes. Indexed nearby trail segments keep vegetation-clearance queries inexpensive as the routes grow. New bidirectional 30/60 FPS walking checks cover both scenic trails without forced jumping or swimming.
+
+### Final validation
+
+All 137 tests pass; the final production build passes (main 798.16 kB / 229.30 kB gzip), retaining the existing chunk-size warning. Browser checks exercised the tall field, creek, map, and scenic paths; the final path review restored a real trail position 147 m from the ship and reported no page errors. Screenshots in output/playwright include grassland-final.png, grassland-stream.png, grassland-cinematic-path.png, and grassland-scenic-map.png. A local stationary grassland sample before the pathway follow-up measured about 59.5 FPS over 120 frames (17.1 ms p95) with adaptive resolution; final path screenshots show roughly 58–60 FPS. These short local checks do not guarantee performance on the creator’s device. No staging, commit, push or deployment.
+
+
+## 2026-10-17 — Broad passages and meadow openings
+
+Implemented the approved mix of wide paths, selected towering-grass corridors and lower open meadows. The trail half-width is now 2.5–3.5 m with additional root clearance for blades spreading into the path. Four passage zones lift nearby growth, while six softer openings preserve arrival space, ridge/hillside views, grove space and stream outlooks. Near and distant grass share height/clearance rules; trees, rocks and flowers respect the broader walking corridors. Grass immediately around the camera lowers smoothly to prevent foreground blades blocking the chase view. Updated README, exploration plan and player update notes.
+
+Validation: all 137 tests pass, including expanded grass-root clearance checks; production build passes with the existing bundle-size warning (main 798.92 kB, 229.67 kB gzip). Browser passage/map checks at a real location 103 m from the ship reported no page errors. Inspected grassland-wide-passage.png after correcting camera foreground obstruction. No new geometry batches or extra grass instances were introduced.
+
+Creator feedback asks whether the width is excessive. Assessment: current broad paths can read as cleared roads; recommend 3–4 m for ordinary stretches and 5–6 m only at clearings/junctions. That recommendation has not been applied yet. Changes remain local and uncommitted; no push/deployment.
+
+
+## 2026-10-17 — Grass view distance, atmospheric light and Earth welcome
+
+Applied the creator’s requested grass transition/path refinements, wind and sunlight feel, and Earth landing greeting. Narrowed ordinary path half-width to about 1.7 m plus soft variation, widening near the six openings. Improved wind into broad coherent gusts with small flutter, transformed into the same world direction across differently rotated grass patches. Earth has warmer lower-angle sun, lower sky fill, a softer sun halo, subtle moving ground-light modulation and backlit grass tips. Shadow coverage follows the astronaut.
+
+Creator feedback during the pass identified that sparse distant grass and bare ground were spoiling the view. Aligned the distant field to a deterministic subset of near-patch origins, including heights and colors. Kept the ground/horizon grass-colored; replaced geometry shrinking and a visibly grainy screen-door transition with multisample alpha coverage. The browser confirms four framebuffer samples. Four inexpensive blades per distant patch preserve roughly the former distant triangle budget while avoiding doubled placement/memory costs. Indexed trail queries now compare squared distances before one square root.
+
+At the creator’s explicit follow-up, expanded detailed coverage from about 50 m to roughly 90 m: 49 reusable tiles, full detail through 56 m and a blend ending at 88 m. Distant silhouettes continue to about 480 m. Maximum allocated near-patch instances increase from 27,500 to 53,900; this quality increase has a device-dependent rendering cost. Existing graphics presets/adaptive render resolution remain available.
+
+Earth touchdown now shows the exact Welcome to Earth text centered in the scene for 5.5 active-play seconds. It fades using the existing transition and reduced-motion behavior, expires naturally, and does not replay when boarding or restoring an already parked visit. Browser checks confirmed text, centered bounds, and expiration; reduced-motion rendering also completed without page errors.
+
+Validation: all 137 tests pass, including stable far/near placement, route clearance, buffer reuse, water exclusions and saved movement behavior. Final production build passes (main 801.07 kB / 230.45 kB gzip), retaining the existing large-chunk warning. Final extended-range browser results follow below. No staging, commit, push or deployment.
+
+Final extended-range browser verification completed with no page/console errors. Walking changed the ship-distance readout from 206 m to 200 m, with before/after screenshots in output/playwright/grassland-distance-before.png and grassland-distance-after.png. Four multisample framebuffer samples were active. A subsequent 180-frame stationary sample averaged 56.0 FPS, p95 interval 33.4 ms, with a 1344×693 drawing buffer in the 1920×991 browser viewport. This is a short local sample with adaptive resolution, not a device-independent performance guarantee. Earth welcome evidence is in welcome-to-earth.png; atmosphere/reduced-motion captures are also in output/playwright.
+
+
+## 2026-10-17 — Bug review and consistent FPS header
+
+Reviewed the pending Fernlilt scenery, creek/trails, live map movement and graphics changes. The final header uses the original plain FPS counter directly beside Odyssey, with matching placement in space and on land. Player name and profile icon are hidden in both headers; saved names remain editable in Settings. Removed trailing whitespace from earth-map.js. Updated README and player-facing notes.
+
+Validation: all 138 regression tests and audio checks pass. Production build and git diff --check pass, including a final build after the header correction. The existing large-chunk warning remains. Browser startup and flight checks reported no page errors; Chrome emitted expected autoplay notices before user interaction. Final header CSS uses one shared style; full live-map browser checks were interrupted and are not claimed complete. No staging, commit, push or deployment; creator will commit.
+
+
+## 2026-10-17 — Commit notes and release documentation
+
+Replaced COMMIT_NOTES_TEMP.md with the complete commit summary, validation results, remaining limits, and creator-managed commit handoff. Rewrote the latest in-game update entry to cover scenery, creek/trails, live map movement, graphics detail, Shadows, Earth greeting, final plain FPS placement, and hidden header profile. Updated the intro summary and in-game manual. Corrected stale green-meadow/golden-hour, named-welcome, paused-map, and resolution-only graphics descriptions in README and the exploration plan. Updated the roadmap, performance notes, and validation record; historical work-log entries and generated commit history remain historical.
+
+Validation: update-module syntax, production build, and git diff --check pass after these documentation/copy changes. The earlier full 138-test and audio-check results remain recorded; no gameplay code changed in this documentation pass. Existing large-bundle warning remains. No staging, commit, push, or deployment; creator will commit.

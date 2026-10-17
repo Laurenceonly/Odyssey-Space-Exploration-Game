@@ -1,7 +1,7 @@
-import {earthPathDistance,earthWoodland} from './earth-layout.js';
+import {earthPathDistance,earthTrailWidth,earthWoodland} from './earth-layout.js';
 import * as THREE from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
-import {LAKE} from './earth-physics.js';
+import {waterLevelAt,SITE_RADIUS} from './earth-physics.js';
 
 export function createEarthFlowers(scene,terrainHeight,random){
   const capacity=160;
@@ -47,9 +47,12 @@ export function createEarthFlowers(scene,terrainHeight,random){
   const centers=make('flower-centers',centerGeometry,0xd6aa49);
   const meshes=[stems,leaves,petals,centers],dummy=new THREE.Object3D(),color=new THREE.Color();
   let count=0;
-  for(let i=0;i<250&&count<capacity;i++){
-    const x=(random(i,40)-.5)*110,z=(random(i,41)-.5)*110,y=terrainHeight(x,z);
-    if(y<LAKE.level+.8||Math.hypot(x,z)<10||earthPathDistance(x,z)<1.1||earthWoodland(x,z)>.45)continue;
+  for(let i=0;i<1600&&count<capacity;i++){
+    // Loose colonies punctuate quiet ground instead of evenly scattered flowers.
+    const colonies=[[-24,-34],[-48,28],[18,42],[-160,-110],[205,-95],[-260,165],[65,240],[300,180]];
+    const [cx,cz]=colonies[i%colonies.length];
+    const x=cx+(random(i,40)-.5)*36,z=cz+(random(i,41)-.5)*30,y=terrainHeight(x,z);
+    if(waterLevelAt(x,z)!==null||Math.hypot(x,z)>SITE_RADIUS||Math.hypot(x,z)<10||earthPathDistance(x,z)<earthTrailWidth(x,z)+1.2||earthWoodland(x,z)>.45)continue;
     // Bury the root slightly so triangulated ground cannot expose the stem base.
     dummy.position.set(x,y-.05,z);dummy.rotation.set(0,random(i,42)*Math.PI*2,0);
     dummy.scale.setScalar(.30+random(i,43)*.20);dummy.updateMatrix();

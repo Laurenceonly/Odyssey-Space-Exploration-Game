@@ -1,5 +1,5 @@
 import {createSurfaceNotice} from './surface-notice.js';
-import {earthPathDistance,earthWoodland,earthMeadowCover,earthRegionAt,clearEarthResumePosition,EARTH_SUMMIT} from './earth-layout.js';
+import {earthPathDistance,earthTrailWidth,earthWoodland,earthMeadowCover,earthRegionAt,clearEarthResumePosition,EARTH_SUMMIT,EARTH_STREAM,earthStreamAt,earthGrassDryness,earthGrassDensity} from './earth-layout.js';
 import * as THREE from 'three';
 import { LAKE, terrainHeight as earthHeight, stepAstronaut as stepBody, walkableAt as earthWalkable, waterLevelAt as earthWater, waterCameraHeight } from './earth-physics.js';
 import { createSurfaceCollider, supportAt } from './surface-collision.js';
@@ -16,24 +16,25 @@ import { buildPlanetEnvironment, buildSurveyBeacon } from './planet-environment.
 
 export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, reducedMotion, site=getVisitSite('earth'), hasObservation=()=>false }) {
   const isEarth=site.id==='earth';
-  const notes={mercury:'Illustrative terrain; extreme-temperature suit protection is fictional.',venus:'Fictional shielding makes this walk possible. Real spacesuits could not protect you here.',earth:'Open grasslands, scattered trees, and quiet water inspired by Earth.',moon:'Illustrative lunar terrain and equipment, with the Moon’s low gravity.',mars:'A reconstructed landscape inspired by ancient Martian waterways.'};
+  const notes={mercury:'Illustrative terrain; extreme-temperature suit protection is fictional.',venus:'Fictional shielding makes this walk possible. Real spacesuits could not protect you here.',earth:'Wind-swept grasses, sheltered groves, and a winding stream beneath an open sky.',moon:'Illustrative lunar terrain and equipment, with the Moon’s low gravity.',mars:'A reconstructed landscape inspired by ancient Martian waterways.'};
   const terrainHeight=isEarth?earthHeight:(x,z)=>visitTerrainHeight(site,x,z);
   const walkableAt=isEarth?earthWalkable:(x,z,obstacles=[])=>Math.hypot(x,z)>visitRadius(site)?'boundary':obstacles.some(o=>Math.hypot(x-o.x,z-o.z)<o.radius+.35)?'obstacle':null;
   const stepAstronaut=(body,input,dt,obstacles)=>stepBody(body,input,dt,obstacles,{terrainHeight,walkableAt,gravity:site.gravity,waterLevelAt:isEarth?earthWater:()=>null});
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(isEarth?0xe5d9bd:site.sky);
-  scene.fog = isEarth?new THREE.FogExp2(0xe6d8b8,.0009):site.fog?new THREE.FogExp2(site.sky,site.fog):null;
+  scene.background = new THREE.Color(isEarth?0xd6e2e9:site.sky);
+  scene.fog = isEarth?new THREE.FogExp2(0xc4d5df,.0005):site.fog?new THREE.FogExp2(site.sky,site.fog):null;
   const camera = new THREE.PerspectiveCamera(58, 1, .1, isEarth?5000:650);
-  scene.add(new THREE.HemisphereLight(isEarth?0xffdfba:0xc4d2dc,isEarth?0x91a375:0x393230,isEarth?2.8:site.kind==='imagined'?1.5:.85));
-  const sun = new THREE.DirectionalLight(isEarth?0xffba68:site.id==='venus'?0xffcf89:0xfff4e4,isEarth?3.15:site.light??2.2);
-  sun.position.set(...(site.id==='mercury'?[-95,25,-180]:site.id==='moon'?[-85,40,-60]:site.id==='uranus'?[100,25,-70]:site.id==='neptune'?[-65,35,-90]:isEarth?[-200,42,-110]:[-65,100,-48]));
+  scene.add(new THREE.HemisphereLight(isEarth?0xd6e6fa:0xc4d2dc,isEarth?0x8b7858:0x393230,isEarth?1.55:site.kind==='imagined'?1.5:.85));
+  const sun = new THREE.DirectionalLight(isEarth?0xffe3b5:site.id==='venus'?0xffcf89:0xfff4e4,isEarth?2.8:site.light??2.2);
+  sun.position.set(...(site.id==='mercury'?[-95,25,-180]:site.id==='moon'?[-85,40,-60]:site.id==='uranus'?[100,25,-70]:site.id==='neptune'?[-65,35,-90]:isEarth?[-200,95,-110]:[-65,100,-48]));
   sun.castShadow = true;
   sun.shadow.mapSize.set(1024, 1024);
   sun.shadow.camera.left = sun.shadow.camera.bottom = -65;
   sun.shadow.camera.right = sun.shadow.camera.top = 65;
-  sun.shadow.camera.far = 240;
+  sun.shadow.camera.far = isEarth?420:240;
   sun.shadow.normalBias = .08;
   scene.add(sun);
+  const earthSunOffset=sun.position.clone();if(isEarth)scene.add(sun.target);
   const random = (n, seed = 0) => { const v = Math.sin(n * 127.1 + seed * 311.7) * 43758.5453; return v - Math.floor(v); };
   const dummy = new THREE.Object3D(), color = new THREE.Color(), obstacles = [];
   const material = (color, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness: .92, ...extra });
@@ -56,25 +57,29 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
       'varying vec3 skyDirection;uniform vec3 sunDirection;',
       'void main(){vec3 d=normalize(skyDirection);float h=pow(max(0.,d.y),.8);',
       'float sunward=pow(max(0.,dot(normalize(vec3(d.x,.08,d.z)),normalize(vec3(sunDirection.x,.08,sunDirection.z)))),5.);',
-      'vec3 horizon=mix(vec3(.94,.85,.66),vec3(1.,.66,.30),sunward*.8);',
-      'vec3 sky=mix(horizon,vec3(.43,.64,.79),h);',
-      'float a=max(0.,dot(d,sunDirection));float halo=pow(a,700.);sky+=vec3(.16,.085,.015)*halo;',
-      'float disk=smoothstep(cos(.018),cos(.015),a);vec3 sunColor=mix(vec3(1.,.50,.12),vec3(1.,.86,.42),smoothstep(cos(.016),cos(.006),a));',
+      'vec3 horizon=mix(vec3(.77,.85,.91),vec3(.95,.87,.72),sunward*.25);',
+      'vec3 sky=mix(horizon,vec3(.19,.43,.69),h);',
+      'float a=max(0.,dot(d,sunDirection));float halo=pow(a,380.);sky+=vec3(.11,.10,.07)*halo;',
+      'float disk=smoothstep(cos(.018),cos(.015),a);vec3 sunColor=mix(vec3(1.,.95,.77),vec3(1.,.99,.91),smoothstep(cos(.016),cos(.006),a));',
       'sky=mix(sky,sunColor,disk);gl_FragColor=vec4(sky,1.);}',
     ].join('\n'),
     toneMapped:false,
   });
-  const sky=mesh(new THREE.SphereGeometry(3800,48,24),skyMaterial);sky.name='golden-hour-sky';sky.castShadow=sky.receiveShadow=false;
+  const sky=mesh(new THREE.SphereGeometry(3800,48,24),skyMaterial);sky.name='grassland-daylight-sky';sky.castShadow=sky.receiveShadow=false;
   const groundGeometry = new THREE.PlaneGeometry(1280,1280,256,256);
   groundGeometry.rotateX(-Math.PI / 2);
   const positions = groundGeometry.attributes.position, colors = [];
-  const green = new THREE.Color(0x46763d),meadowGreen=new THREE.Color(0x386d30),woodlandGreen=new THREE.Color(0x344c32),ridgeGreen=new THREE.Color(0x637450),trailSoil=new THREE.Color(0x827655);
+  const straw=new THREE.Color(0xb6a170),green = new THREE.Color(0xa49362),meadowGreen=new THREE.Color(0xaf9c64),woodlandGreen=new THREE.Color(0x5d6444),ridgeGreen=new THREE.Color(0x637450),trailSoil=new THREE.Color(0x827655);
   function terrainColor(x,z,y){
     const shore=Math.hypot(x-LAKE.x,z-LAKE.z)<32?THREE.MathUtils.smoothstep(y,LAKE.level+.1,LAKE.level+1.25):1;
-    color.set(0xa89c79).lerp(green,shore).lerp(meadowGreen,earthMeadowCover(x,z)*shore*.7).lerp(woodlandGreen,earthWoodland(x,z)*.4);
+    color.set(0xa89c79).lerp(green,shore).lerp(meadowGreen,earthMeadowCover(x,z)*shore*.45)
+      .lerp(straw,earthGrassDryness(x,z)*.65).lerp(new THREE.Color(0x827158),(1-earthGrassDensity(x,z))*.24).lerp(woodlandGreen,earthWoodland(x,z)*.5);
+    const creek=earthStreamAt(x,z);
+    if(creek)color.lerp(new THREE.Color(0x8b8767),(1-THREE.MathUtils.smoothstep(creek.distance,creek.width,creek.width+5))*creek.envelope*.65);
     const trailDistance=Math.min(surveyRouteDistance(site,x,z),earthPathDistance(x,z));
-    const trail=1-THREE.MathUtils.smoothstep(trailDistance,.4,1.45+.15*Math.sin(x*.7+z*.3));
-    color.lerp(trailSoil,trail*.54).multiplyScalar(.96+random(x*.47+z*.13,8)*.08);
+    const width=earthTrailWidth(x,z);
+    const trail=1-THREE.MathUtils.smoothstep(trailDistance,width*.65,width+1.2);
+    color.lerp(trailSoil,trail*.43).multiplyScalar(.96+random(x*.47+z*.13,8)*.08);
   }
   for(let i=0;i<positions.count;i++){
     const x=positions.getX(i),z=positions.getZ(i),y=terrainHeight(x,z);positions.setY(i,y);terrainColor(x,z,y);colors.push(color.r,color.g,color.b);
@@ -84,7 +89,7 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
   for(let i=0;i<groundGeometry.index.count;i+=3){
     const a=groundGeometry.index.getX(i),b=groundGeometry.index.getX(i+1),c=groundGeometry.index.getX(i+2);
     const x=(positions.getX(a)+positions.getX(b)+positions.getX(c))/3,z=(positions.getZ(a)+positions.getZ(b)+positions.getZ(c))/3;
-    if(x<=-60||x>=120||z<=-120||z>=60)groundIndices.push(a,b,c);
+    if((x<=-60||x>=120||z<=-120||z>=60)&&(x<=100||x>=260||z<=-280||z>=280))groundIndices.push(a,b,c);
   }
   groundGeometry.setIndex(groundIndices);groundGeometry.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));groundGeometry.computeVertexNormals();
   const pondGroundGeometry=new THREE.PlaneGeometry(180,180,72,72);pondGroundGeometry.rotateX(-Math.PI/2);pondGroundGeometry.translate(30,0,-30);
@@ -92,16 +97,22 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
   for(let i=0;i<pondPositions.count;i++){
     const x=pondPositions.getX(i),z=pondPositions.getZ(i),y=terrainHeight(x,z);pondPositions.setY(i,y);terrainColor(x,z,y);pondColors.push(color.r,color.g,color.b);pondUv.setXY(i,(x+640)/1280,(640-z)/1280);
   }
+  const pondIndices=[];
+  for(let i=0;i<pondGroundGeometry.index.count;i+=3){
+    const ids=[0,1,2].map(j=>pondGroundGeometry.index.getX(i+j));
+    if(ids.reduce((s,j)=>s+pondPositions.getX(j),0)/3<100)pondIndices.push(...ids);
+  }
+  pondGroundGeometry.setIndex(pondIndices);
   pondGroundGeometry.setAttribute('color',new THREE.Float32BufferAttribute(pondColors,3));pondGroundGeometry.computeVertexNormals();
   const textureCanvas = document.createElement('canvas');
   textureCanvas.width = textureCanvas.height = 256;
   const ctx = textureCanvas.getContext('2d');
-  ctx.fillStyle='#b9b9b0';ctx.fillRect(0,0,256,256);
+  ctx.fillStyle='#ddd8c6';ctx.fillRect(0,0,256,256);
   // Fine interwoven strokes give distant ground a continuous grassy grain.
   // Neutral tones retain the green/sand/trail colors of the terrain vertices.
   for(let i=0;i<20000;i++){
     const x=random(i,3)*256,y=random(i,4)*256,length=1.5+random(i,5)*5;
-    ctx.strokeStyle=i%3?'rgba(65,72,50,.16)':'rgba(255,255,230,.34)';
+    ctx.strokeStyle=i%3?'rgba(90,86,58,.11)':'rgba(255,255,230,.28)';
     ctx.lineWidth=.45+random(i,6)*.45;ctx.beginPath();ctx.moveTo(x,y);
     ctx.quadraticCurveTo(x+length*.35,y-length*.4,x+length*.65,y-length);ctx.stroke();
   }
@@ -115,18 +126,29 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
     shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nmeadowGroundWorld=(modelMatrix*vec4(position,1.)).xyz;');
     shader.fragmentShader='varying vec3 meadowGroundWorld;uniform float meadowGroundTime;\n'+shader.fragmentShader;
     shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',
-      '#include <color_fragment>\nfloat meadowGrain=sin(meadowGroundWorld.x*3.1+sin(meadowGroundWorld.z*4.7))*sin(meadowGroundWorld.z*2.8);\nfloat meadowWave=sin(meadowGroundWorld.x*.055+meadowGroundWorld.z*.032-meadowGroundTime*.6);\nfloat distantMeadow=smoothstep(35.,140.,length(cameraPosition-meadowGroundWorld));\ndiffuseColor.rgb*=mix(1.,.96+.055*meadowGrain+.025*meadowWave,distantMeadow);');
+      '#include <color_fragment>\nfloat meadowGrain=sin(meadowGroundWorld.x*3.1+sin(meadowGroundWorld.z*4.7))*sin(meadowGroundWorld.z*2.8);\nfloat meadowWave=sin(meadowGroundWorld.x*.032+meadowGroundWorld.z*.018-meadowGroundTime*.65);float cloudShade=.94+.06*smoothstep(-.4,.7,sin(meadowGroundWorld.x*.008+meadowGroundTime*.022)+.6*sin(meadowGroundWorld.z*.011-meadowGroundTime*.016));\nfloat distantMeadow=smoothstep(35.,140.,length(cameraPosition-meadowGroundWorld));\ndiffuseColor.rgb*=cloudShade*mix(1.,.96+.055*meadowGrain+.045*meadowWave,distantMeadow);');
   };
   groundMaterial.customProgramCacheKey=()=> 'odyssey-continuous-meadow-ground-v1';
 
   const ground=mesh(groundGeometry,groundMaterial);ground.castShadow=false;ground.name='fernlilt-ground';
   const pondGround=mesh(pondGroundGeometry,groundMaterial);pondGround.castShadow=false;pondGround.name='pond-bank-ground';
+  // Fine channel banks agree with the water and walking surface.
+  const creekGroundGeometry=new THREE.PlaneGeometry(160,560,80,280);
+  creekGroundGeometry.rotateX(-Math.PI/2);creekGroundGeometry.translate(180,0,0);
+  const creekVertices=creekGroundGeometry.attributes.position,creekColors=[],creekUv=creekGroundGeometry.attributes.uv;
+  for(let i=0;i<creekVertices.count;i++){
+    const x=creekVertices.getX(i),z=creekVertices.getZ(i),y=terrainHeight(x,z);
+    creekVertices.setY(i,y);terrainColor(x,z,y);creekColors.push(color.r,color.g,color.b);
+    creekUv.setXY(i,(x+640)/1280,(640-z)/1280);
+  }
+  creekGroundGeometry.setAttribute('color',new THREE.Float32BufferAttribute(creekColors,3));creekGroundGeometry.computeVertexNormals();
+  const creekGround=mesh(creekGroundGeometry,groundMaterial);creekGround.name='stream-bank-ground';creekGround.castShadow=false;
   // A coarse outer ring carries the landscape to the atmospheric horizon.
   const horizonGeometry=new THREE.PlaneGeometry(6000,6000,300,300);horizonGeometry.rotateX(-Math.PI/2);
   const horizonPosition=horizonGeometry.attributes.position,horizonColors=[],horizonIndices=[];
   for(let i=0;i<horizonPosition.count;i++){
     const x=horizonPosition.getX(i),z=horizonPosition.getZ(i);horizonPosition.setY(i,terrainHeight(x,z));
-    color.copy(green).lerp(meadowGreen,earthMeadowCover(x,z)*.6);horizonColors.push(color.r,color.g,color.b);
+    color.copy(green).lerp(meadowGreen,earthMeadowCover(x,z)*.4).lerp(straw,earthGrassDryness(x,z)*.65);horizonColors.push(color.r,color.g,color.b);
   }
   for(let i=0;i<horizonGeometry.index.count;i+=3){
     const indices=[0,1,2].map(j=>horizonGeometry.index.getX(i+j));
@@ -150,7 +172,7 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
       'vec3 c=mix(vec3(.035,.15,.16),vec3(.28,.45,.53),fresnel*.85);',
       'c+=wave*.012+shine*.35;',
       'float mist=1.-exp(-length(cameraPosition-world)*.0009);',
-      'gl_FragColor=vec4(mix(c,vec3(.90,.85,.72),mist),1.);',
+      'gl_FragColor=vec4(mix(c,vec3(.77,.84,.88),mist),1.);',
       '#include <tonemapping_fragment>',
       '#include <colorspace_fragment>',
       '}',
@@ -160,15 +182,24 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
   const water = mesh(new THREE.CircleGeometry(32, 96), waterMaterial, [LAKE.x, LAKE.level, LAKE.z]);
   water.rotation.x = -Math.PI / 2; water.castShadow = water.receiveShadow = false;
 
+  const creekPoints=[],creekIndices=[];
+  for(let i=0;i<=270;i++){
+    const z=EARTH_STREAM.start+i*2,s=earthStreamAt(0,z);
+    creekPoints.push(s.center-s.width-8,s.level,z,s.center+s.width+8,s.level,z);
+    if(i<270){const a=i*2;creekIndices.push(a,a+2,a+1,a+1,a+2,a+3);}
+  }
+  const creekGeometry=new THREE.BufferGeometry();creekGeometry.setAttribute('position',new THREE.Float32BufferAttribute(creekPoints,3));creekGeometry.setIndex(creekIndices);creekGeometry.computeVertexNormals();
+  const creek=mesh(creekGeometry,waterMaterial);creek.name='fernlilt-stream';creek.castShadow=creek.receiveShadow=false;
+
   const trunks = new THREE.InstancedMesh(new THREE.CylinderGeometry(.24, .48, 1, 7), material(0x665141), 64);
   const leaves = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 2), material(0x53703b), 320);
   let treeCount = 0, leafCount = 0;
   for (let i = 0; i < 9000 && treeCount < 64; i++) {
     const x = (random(i, 10) - .5) * 1120, z = (random(i, 11) - .5) * 1120, y = terrainHeight(x, z);
     const lakeRange=Math.hypot(x-LAKE.x,z-LAKE.z);
-    if (Math.hypot(x,z)<19||earthWater(x,z)!==null||lakeRange<34||surveyRouteDistance(site,x,z)<3||earthPathDistance(x,z)<3||Math.hypot(x-visitFeaturePosition(site).x,z-visitFeaturePosition(site).z)<6)continue;
+    if (Math.hypot(x,z)<19||earthWater(x,z)!==null||lakeRange<34||surveyRouteDistance(site,x,z)<3||earthPathDistance(x,z)<earthTrailWidth(x,z)+1||Math.hypot(x-visitFeaturePosition(site).x,z-visitFeaturePosition(site).z)<6)continue;
     const forest=earthWoodland(x,z);
-    if(random(i,18)>(forest>.18?.25*forest:.002)||x< -45&&Math.abs(z+9)<36)continue;
+    if(random(i,18)>(forest>.18?.36*forest:.0007)||x< -45&&Math.abs(z+9)<36)continue;
     const height = 6 + random(i,12)*5 + earthWoodland(x,z)*3;
     dummy.position.set(x, y + height / 2, z); dummy.rotation.set(0, 0, 0); dummy.scale.set(1, height, 1); dummy.updateMatrix();
     trunks.setMatrixAt(treeCount++, dummy.matrix); obstacles.push({ x, z, radius: .55 });
@@ -191,13 +222,15 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
     stonePosition.setXYZ(i, x * scale, y * scale, z * scale);
   }
   stoneGeometry.computeVertexNormals();
-  const rocks = new THREE.InstancedMesh(stoneGeometry, material(0x7b8270), 36);
+  const rocks = new THREE.InstancedMesh(stoneGeometry, material(0x898677), 64);
   let rockCount = 0;
-  for (let i = 0; i < 140 && rockCount < 36; i++) {
-    const x = (random(i, 20) - .5) * 200, z = (random(i, 21) - .5) * 200, y = terrainHeight(x, z);
-    if(Math.hypot(x,z)<13||earthWater(x,z)!==null||surveyRouteDistance(site,x,z)<3||earthPathDistance(x,z)<2.8||Math.hypot(x-visitFeaturePosition(site).x,z-visitFeaturePosition(site).z)<6)continue;
+  for (let i = 0; i < 1600 && rockCount < 64; i++) {
+    const groups=[[-65,-28],[-235,-145],[285,-240],[110,150],[340,90],[-300,240]];
+    const [cx,cz]=groups[i%groups.length];
+    const x=cx+(random(i,20)-.5)*48,z=cz+(random(i,21)-.5)*40,y=terrainHeight(x,z);
+    if(Math.hypot(x,z)<13||earthWater(x,z)!==null||surveyRouteDistance(site,x,z)<3||earthPathDistance(x,z)<earthTrailWidth(x,z)+3.2||Math.hypot(x-visitFeaturePosition(site).x,z-visitFeaturePosition(site).z)<6)continue;
     if(random(i,27)>.42)continue;
-    const size = .25 + random(i,22)*1.3;
+    const size = .35 + Math.pow(random(i,22),2)*2.6;
     dummy.position.set(x, y + size * .28, z); dummy.rotation.set(random(i, 24), random(i, 23) * 6, random(i, 25));
     dummy.scale.set(size, size * .7, size * .85); dummy.updateMatrix(); rocks.setMatrixAt(rockCount, dummy.matrix);
     rocks.setColorAt(rockCount++, color.setHSL(.12, .05, .26 + random(i, 26) * .17));
@@ -226,11 +259,27 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
   }
   massifGeometry.setAttribute('color',new THREE.Float32BufferAttribute(massifColors,3));massifGeometry.computeVertexNormals();
   const massif=mesh(massifGeometry,material(0xffffff,{vertexColors:true}));massif.name='keltrond-distant-massif';massif.castShadow=false;
-  const cloudMaterial = new THREE.MeshBasicMaterial({color:0xffecd1,transparent:true,opacity:.42,depthWrite:false});
-  for (let i = 0; i < 20; i++) {
+  // Two offset ridge lines create depth without enclosing the meadow in a wall.
+  const ridgeMaterial=material(0xffffff,{vertexColors:true});
+  for(let layer=0;layer<2;layer++){
+    const ridgeGeometry=new THREE.PlaneGeometry(3000,520,150,26);ridgeGeometry.rotateX(-Math.PI/2);
+    const p=ridgeGeometry.attributes.position,shades=[];
+    for(let i=0;i<p.count;i++){
+      const x=p.getX(i),localZ=p.getZ(i),z=localZ-850-layer*850;
+      const backbone=45+35*Math.sin(x*.003+layer)+22*Math.sin(x*.008-layer*.7)+12*Math.sin(x*.017+layer);
+      const shoulder=Math.exp(-((localZ/145)**2));
+      const y=terrainHeight(x,z)-18+Math.max(18,backbone)*shoulder;
+      p.setXYZ(i,x,y,z);
+      color.set(layer?0x81949a:0x697d70).multiplyScalar(.94+.06*Math.sin(x*.013));shades.push(color.r,color.g,color.b);
+    }
+    ridgeGeometry.setAttribute('color',new THREE.Float32BufferAttribute(shades,3));ridgeGeometry.computeVertexNormals();
+    const ridge=mesh(ridgeGeometry,ridgeMaterial);ridge.name='grassland-distant-ridge-'+layer;ridge.castShadow=false;
+  }
+  const cloudMaterial = new THREE.MeshBasicMaterial({color:0xf6f7f1,transparent:true,opacity:.42,depthWrite:false});
+  for (let i = 0; i < 12; i++) {
     const group = new THREE.Group();
     group.position.set((random(i,60)-.5)*1500,140+random(i,61)*80,(random(i,62)-.5)*1500);
-    for (let j=0;j<4;j++) {const cloud=mesh(new THREE.SphereGeometry(1,12,8),cloudMaterial,[j*8,Math.sin(j)*2,0],[22,4.5,12],group);cloud.castShadow=cloud.receiveShadow=false;}
+    for (let j=0;j<4;j++) {const cloud=mesh(new THREE.SphereGeometry(1,12,8),cloudMaterial,[j*14,Math.sin(j)*2,0],[26+random(i+j,63)*20,2.5+random(i+j,64)*3,13],group);cloud.castShadow=cloud.receiveShadow=false;}
     scene.add(group);
   }
 
@@ -240,7 +289,7 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
   const scanUI=document.getElementById('surfaceScanner'),scanTitle=document.getElementById('surfaceScanTitle');
   const scanMeter=document.getElementById('surfaceScanMeter'),scanFill=document.getElementById('surfaceScanFill');
   let animatedWater=null; if(isEarth)scene.traverse(o=>{if(o.material?.uniforms?.time)animatedWater=o.material;});
-  const wake=isEarth?createSwimWake(scene,LAKE.level):null;
+  const wake=isEarth?createSwimWake(scene,earthWater):null;
   const landedShip=ship.clone(true);
   landedShip.name='landed-ship';
   landedShip.rotation.set(0,0,0);landedShip.scale.setScalar(1.8);
@@ -286,6 +335,7 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
   shipLocator.addEventListener('click',locateShip);
   const app=document.getElementById('app');
   const welcome=document.getElementById('earthWelcome'),pilotLabel=document.getElementById('pilotLabel'),pilotReadout=document.getElementById('surfacePilot');
+  welcome.dataset.destination=site.id;
   const title=document.getElementById('surfaceTitle');
   const objective=document.getElementById('surfaceObjective');
   const factPanel=document.getElementById('surfaceFact'),factTitle=document.getElementById('surfaceFactTitle');
@@ -335,7 +385,7 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
     status.classList.toggle('visible',Boolean(status.textContent));
         text(pilotReadout,getPilotName());
     pilotReadout.hidden=mode!=='walking'||viewMode!=='first-person';
-    if(welcomeUntil>elapsed)text(welcome,('Welcome to '+site.name+', ')+getPilotName());
+    if(welcomeUntil>elapsed)text(welcome,isEarth?'Welcome to Earth':('Welcome to '+site.name+', ')+getPilotName());
     welcome.classList.toggle('visible',welcomeUntil>elapsed&&!['closed','ascending','departing'].includes(mode));
     text(pilotLabel,getPilotName());
     for(const button of cameraButtons){
@@ -357,7 +407,7 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
     blendCamera();
     if(next==='parked'&&previous==='descending'){
       touchdownAt=elapsed;
-      welcomeUntil=elapsed+4.5;
+      welcomeUntil=elapsed+5.5;
       onEvent('landing');
     }else if(next==='walking'&&!sessionExplored){
       sessionExplored=true;onEvent('explore');
@@ -435,6 +485,11 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
     if(animatedWater)animatedWater.uniforms.time.value=reducedMotion.matches?0:elapsed;
     if(earthGrass)earthGrass.userData.update(body.x,body.z,elapsed,reducedMotion.matches);
     meadowGroundTime.value=reducedMotion.matches?0:elapsed;
+    if(isEarth){
+      const texel=130/1024;
+      sun.target.position.set(Math.round(body.x/texel)*texel,terrainHeight(body.x,body.z),Math.round(body.z/texel)*texel);
+      sun.position.copy(sun.target.position).add(earthSunOffset);
+    }
     environment?.update(reducedMotion.matches?0:step);
     orbitYaw=THREE.MathUtils.damp(orbitYaw,targetYaw,18,step);
     orbitPitch=THREE.MathUtils.damp(orbitPitch,targetPitch,18,step);
@@ -475,7 +530,7 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
     swimStamina.hidden=mode!=='walking'||!(body.swimming||body.running||body.swimStamina<.999||body.swimExhausted);
     swimMeter.value=body.swimStamina??1;text(swimPercent,Math.round((body.swimStamina??1)*100)+'%');
     wake?.update(step,{active:mode==='walking'&&(body.swimming||body.wading),x:body.x,z:body.z,speed:motion.speed,swimming:body.swimming,reduced:reducedMotion.matches});
-    rig.update(step,{...motion,grounded:body.grounded,swimming:body.swimming===true,vy:body.vy,time:elapsed,waterDepth:isEarth?LAKE.level-terrainHeight(body.x,body.z):0,reduced:reducedMotion.matches,groundHeight:(x,z)=>supportAt(x,z,body.y+.18,obstacles,terrainHeight,body.support).height});
+    rig.update(step,{...motion,grounded:body.grounded,swimming:body.swimming===true,vy:body.vy,time:elapsed,waterDepth:isEarth?(earthWater(body.x,body.z)??terrainHeight(body.x,body.z))-terrainHeight(body.x,body.z):0,reduced:reducedMotion.matches,groundHeight:(x,z)=>supportAt(x,z,body.y+.18,obstacles,terrainHeight,body.support).height});
     astronaut.updateWorldMatrix(true,true);
     boostSmoke.update(step,boostNozzles,body,reducedMotion.matches);
     const walking=mode==='walking';
@@ -544,6 +599,7 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
   }
   return {
     scene,camera,open,close,update,activate,setView,observe,closeFact,
+    setGraphicsQuality(quality,scale){earthGrass?.userData.setQuality(quality,scale);},
     snapshot(){if(mode==='closed'||mode==='departing')return null;return {worldId:site.id,mode,position:{x:body.x,y:body.y,z:body.z,vy:body.vy,grounded:body.grounded,swimming:body.swimming,wading:body.wading,boostReady:body.boostReady===true,swimStamina:body.swimStamina,swimExhausted:body.swimExhausted===true},yaw:targetYaw,pitch:targetPitch,viewMode,facing:astronaut.rotation.y,explored:sessionExplored,transitionTime,elapsed};},
     requestJump(code='KeyJ'){if(mode==='walking'&&!this.factOpen&&jumpPresses.length<2)jumpPresses.push(code);},
     get factOpen(){return !factPanel.hidden;},

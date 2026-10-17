@@ -1,42 +1,36 @@
-# Expand Fernlilt exploration, improve movement, and add maps and graphics settings
+# Improve Fernlilt scenery, exploration maps, graphics settings, and FPS layout
 
 ## Changes
 
-- Improve astronaut walking, foot planting, turning, jump poses, rounded boots, suit detailing, and simple gloves. Increase cabin movement speed.
-- Add one double-Space airborne suit boost per jump with soft smoke from backpack thrusters.
-- Add head-up normal swimming, Shift front crawl, buoyancy, gliding, and wake ripples. Disable jumping and boosting while swimming.
-- Share stamina between running and fast swimming, with the meter centered above camera controls: 24 seconds running, 12 seconds fast swimming, and eight-second recovery.
-- Enclose pond banks and keep cameras above the water to prevent floating-water edges and views beneath the surface.
-- Expand Fernlilt to a 560 m playable radius (1.12 km across, approximately 0.985 km²).
-- Add greener curved grass, improved rooted wildflowers, gentler hills, distant scenery, and orange/yellow golden-hour lighting.
-- Add a centered exploration map window and circular minimap with terrain, trails, exploration fog, zoom/pan, ship/player markers, and session-local waypoints.
-- Add in-world waypoint direction and distance guidance. Preserve map exploration separately by game mode and migrate older map saves.
-- Simplify map colors and icon controls. Use a quick fade for the final windowed map transition, with reduced-motion support.
-- Keep the region name and short description at upper left. Show other surface guidance briefly at lower center.
-- Add an FPS counter, cheaper grass lighting, reusable grass tiles, terrain optimizations, and cached minimap fog.
-- Add saved Auto, Low (soft/vintage), Medium, and High graphics presets. Auto reduces 3D render resolution under sustained low frame rates while keeping interface text sharp.
-- Use hold-R survey scanning within three metres, with reset on release, leaving range, or opening menus.
-- Update the manual, README, Earth exploration plan, region-layout diagram, roadmap, and work log.
-
-## Scope
-
-Only Fernlilt is playable. Its pond, groves, and rises belong to Fernlilt and do not unlock other named regions.
-
-The other ten Earth regions, new activities, region soundtracks, and space-audio changes remain planned work.
+- Rework Fernlilt with tall golden grass, varied meadow openings, rolling hills, distant ridges, sheltered groves, rocks, and wildflowers.
+- Add a shallow winding creek with walkable banks and wading crossings, preserving the existing swimmable pond.
+- Add winding meadow and stream-side paths, with soft trail edges, clear walking corridors, and matching map/minimap routes.
+- Improve grass wind, directional sunlight, ground lighting, and near-to-distant grass blending. Align distant placement, height, and colors with the detailed field.
+- Extend detailed grass to roughly 90 metres on High. Use lighter grass geometry and shorter detail blends on Low and Medium; retain the cheaper distant field.
+- Apply saved graphics presets to grass detail as well as render resolution. Auto adapts under sustained load.
+- Add a saved Shadows toggle that applies immediately.
+- Allow walking, running, and jumping while the Earth map is open. Follow the player until the map is panned; recentering restores following.
+- Stop movement during map coordinate editing, keep map gestures separate from camera movement, and preserve Settings pause behavior.
+- Keep terrain, water, trails, and map/minimap data consistent. Preserve map fog and session-local waypoints.
+- Show a centered Welcome to Earth greeting after touchdown, with normal expiry and reduced-motion support.
+- Position the original plain FPS counter beside Odyssey in both space and land views.
+- Hide the player name and profile icon from both headers while retaining saved-name editing in Settings.
+- Fix trailing whitespace in the map code.
+- Update in-game update history, the manual, README, exploration plan, roadmap, performance notes, validation record, and work log.
 
 ## Validation
 
-- All 134 tests pass.
-- Production build passes.
-- Git whitespace checks pass.
-- Browser checks cover map and minimap interactions, waypoint guidance, notification expiry, graphics controls, and the centered map layout.
-- Existing production bundle-size warning remains.
-- Performance varies by device; 60 FPS on the creator's live device is not confirmed.
+- All 138 regression tests pass.
+- Audio scheduling, playlist, switching, and saved-choice checks pass.
+- Production build and Git whitespace checks pass.
+- Browser startup and flight checks reported no page errors; Chrome emitted expected audio-autoplay notices before interaction.
+- Full live-map browser verification remains incomplete after interrupted checks. Final header placement uses shared CSS; no completed final visual comparison is claimed.
+- Existing large-bundle warning remains. Device-specific performance is not guaranteed.
 
-## Local handoff
+## Scope and handoff
 
-No staging, commit, push, or deployment has been performed.
+Only Fernlilt is built among the eleven planned Earth regions. Other regions, new activities, regional audio, and multiplayer remain deferred.
 
-Include the new untracked source, test, and documentation files when staging.
+All changes remain local and uncommitted. No staging, commit, push, or deployment has been performed. The creator will commit.
 
-This file is a temporary copy aid. Delete it before committing if you do not want it included in the repository.
+This file is a temporary commit-message aid; omit it from staging if it should not be included in the repository.

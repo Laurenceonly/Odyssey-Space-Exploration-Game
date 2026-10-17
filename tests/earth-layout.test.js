@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {EARTH_LOOP,EARTH_RIDGE_ROUTE,earthRegionAt,earthWoodland,earthMeadowCover,clearEarthResumePosition} from '../src/earth-layout.js';
+import {EARTH_LOOP,EARTH_RIDGE_ROUTE,EARTH_MEADOW_TRAIL,EARTH_STREAM_TRAIL,earthRegionAt,earthWoodland,earthMeadowCover,clearEarthResumePosition,earthStreamAt} from '../src/earth-layout.js';
 import {SITE_RADIUS,terrainHeight,waterLevelAt,stepAstronaut,walkableAt} from '../src/earth-physics.js';
 
 const obstacles=[{x:0,z:4,radius:3.5},{x:-3.1,z:5,radius:1.2},{x:3.1,z:5,radius:1.2}];
@@ -62,5 +62,51 @@ test('Fernlilt has almost one square kilometre and broad dry walking routes beyo
       assert.equal(motion.blocked,null);assert.ok(Number.isFinite(body.y));
     }
     assert.ok(Math.hypot(body.x-target[0],body.z-target[1])<.3,'far meadow is reachable');
+  }
+});
+
+
+test('creek water is enclosed by dry banks and tapers beneath terrain at both ends',()=>{
+  for(let z=-270;z<=270;z+=.5){
+    const s=earthStreamAt(0,z);
+    for(const sign of [-1,1]){
+      const edge=s.center+sign*(s.width+8);
+      assert.ok(terrainHeight(edge,z)>=s.level,'water ribbon edge must be buried');
+      // The rendered two-metre bank grid must also cover the water edge.
+      const x0=100+Math.floor((edge-100)/2)*2,z0=-280+Math.floor((z+280)/2)*2;
+      const heights=[[x0,z0],[x0+2,z0],[x0,z0+2],[x0+2,z0+2]].map(([x,z])=>terrainHeight(x,z));
+      assert.ok(Math.min(...heights)>s.level,'no floating edge between mesh vertices');
+    }
+    if(Math.abs(z)<220){assert.equal(waterLevelAt(s.center,z),s.level);assert.ok(s.level-terrainHeight(s.center,z)<.6,'shallow wading water');}
+    if(Math.abs(z)===270)assert.equal(waterLevelAt(s.center,z),null);
+  }
+});
+test('shallow creek can be crossed in both directions without jumping at different frame rates',()=>{
+  for(const fps of [30,60,120])for(const z of [-200,-90,0,100,200])for(const direction of [-1,1]){
+    const s=earthStreamAt(0,z),start=s.center-direction*30,target=s.center+direction*30;
+    const body={x:start,z,y:terrainHeight(start,z),vy:0,grounded:true};let sawWater=false;
+    for(let frame=0;frame<fps*45&&Math.abs(body.x-target)>.2;frame++){
+      const motion=stepAstronaut(body,{x:direction,z:0},1/fps);
+      assert.equal(motion.blocked,null);assert.equal(motion.swimming,false);
+      sawWater||=motion.wading;
+    }
+    assert.ok(sawWater,'crossing enters shallow water');assert.ok(Math.abs(body.x-target)<.2,'opposite bank remains reachable');
+  }
+});
+
+
+test('long scenic trails stay inside Fernlilt and can be walked both ways',()=>{
+  for(const fps of [30,60])for(const original of [EARTH_MEADOW_TRAIL,EARTH_STREAM_TRAIL])for(const reverse of [false,true]){
+    const route=reverse?[...original].reverse():original;
+    const body={x:route[0][0],z:route[0][1],y:terrainHeight(...route[0]),vy:0,grounded:true};
+    for(const [x,z] of route.slice(1)){
+      assert.ok(Math.hypot(x,z)<SITE_RADIUS);let frames=0;
+      while(Math.hypot(x-body.x,z-body.z)>.18&&frames++<fps*12){
+        const dx=x-body.x,dz=z-body.z,length=Math.hypot(dx,dz);
+        const motion=stepAstronaut(body,{x:dx/length,z:dz/length},1/fps,obstacles);
+        assert.equal(motion.swimming,false);assert.equal(motion.blocked,null);
+      }
+      assert.ok(Math.hypot(x-body.x,z-body.z)<=.18,'scenic bend reachable at '+[x,z]);
+    }
   }
 });

@@ -109,4 +109,26 @@ The earlier compact multi-region labels are superseded. The current landing patc
 
 ## Local map implementation — October 16
 
-Press M or choose Map while walking on Earth or aboard its parked ship. The map uses current terrain heights and water coverage, a zoom-aware 100 m / 50 m scale bar, player position/facing, ship marker, explored-ground fog, and local waypoints. Exploration progress persists separately for Discovery and Exploration; New game clears Discovery map progress. All 11 names are listed as distinct large destinations. Only Fernlilt is currently available, and its entire 560 m radius playable area remains one region. The other ten are explicitly not yet available rather than falsely presented as reachable locked areas. The player map currently covers Fernlilt, not a finished whole-region or whole-planet map. Waypoints are local to the current session. Native modal behavior pauses movement and supports M/Escape and keyboard waypoint placement.
+Press M or choose Map while walking on Earth or aboard its parked ship. The map uses current terrain heights and water coverage, a zoom-aware 100 m / 50 m scale bar, player position/facing, ship marker, explored-ground fog, and local waypoints. Exploration progress persists separately for Discovery and Exploration; New game clears Discovery map progress. All 11 names are listed as distinct large destinations. Only Fernlilt is currently available, and its entire 560 m radius playable area remains one region. The other ten are explicitly not yet available rather than falsely presented as reachable locked areas. The player map currently covers Fernlilt, not a finished whole-region or whole-planet map. Waypoints are local to the current session. The non-modal map supports walking, running, and jumping while open, with M/Escape closing and keyboard waypoint placement. It follows the player until panned; recentering resumes following. Coordinate editing clears held movement, while Settings and other blocking menus close the map and pause gameplay.
+
+
+## Current scenery direction — October 17
+
+The creator’s photographic references and follow-up feedback supersede the earlier short green meadow and orange/yellow golden-hour treatment. Fernlilt now uses a nearly continuous tall golden grass field, earthy ground, clear blue daylight and pale warm sunlight. The main grass canopy rises above the astronaut (approximately 2.3–2.6 m); paths and landing clearance remain lower. Individually spread roots and overlapping growth replace visibly separate, identical planted-looking bunches. Broader hills, distant ridges and a shallow winding creek add structure. This scenery update stays within Fernlilt and does not build or discover any of the other ten regions.
+
+
+### Passage and opening balance
+
+The creator approved broad walking corridors with selected maze-like enclosed stretches, balanced by open grassland. Ordinary paths now provide roughly 3–4 m of walking width, widening around openings, with root margins accounting for spread-out blades. Four soft passage areas raise growth along bends to roughly 3.5–4.5 m; six low meadow openings preserve arrival space, ridge views, a hillside clearing, grove space, a stream outlook, and a southern view. Near and distant grass share these height and clearance rules. Trees, rocks, and flowers respect the broader corridors. This is freely explorable scenery, not a compulsory maze or a new quest system.
+
+
+### Atmosphere and longer grass range — October 17
+
+Ordinary paths are now approximately 3–4 m across, widening around the existing meadow openings. On High, detailed grass uses a 7×7 reusable tile pool and blends between 56 and 88 m; the cheaper field continues to roughly 480 m. The distant layer samples the same placement, height and palette as the detailed field. Multisample coverage blending replaces visible height shrinking and screen-door noise. The grass-colored ground and horizon remain present beneath both layers.
+
+Broad gusts move in a consistent world direction, with smaller blade flutter. Warmer directional sunlight, lower sky fill, subtle drifting ground-light variations and backlit tips provide depth while keeping the blue daytime sky. Reduced motion freezes the cyclic field animation. Sun shadows follow the astronaut’s location. No regional audio or weather gameplay was added. A centered Welcome to Earth greeting appears after touchdown for 5.5 active-play seconds, then fades out.
+
+
+### Graphics and header follow-up — October 17
+
+Saved graphics presets adjust resolution and grass geometry together. High draws 28 blades per near patch and four per distant patch, Medium uses 18/3, and Low uses 10/2. Detail blends end at 88/72/56 m respectively; the distant field remains. Auto chooses lighter detail under sustained load. A saved Shadows toggle applies independently. The original plain FPS counter sits beside Odyssey in both space and surface views; the header player name and profile icon are hidden. Saved names remain editable in Settings.
