@@ -1,8 +1,14 @@
 # Odyssey — Earth exploration plan
 
-Updated: 2026-10-16 (Asia/Manila).
+Updated: 2026-10-29 (Asia/Manila).
 
-Status: design record from the conversation. A Fernlilt landing prototype and its local exploration map are implemented locally; browser visual review is pending. The other ten large regions, centered discovery notifications, and regional audio remain planned. Local ponds, groves, and hills do not represent those other regions. This is not authorization to build every feature immediately.
+Status: Fernlilt and its local exploration map are playable. Twelve other destinations, including Cirelune Marsh and Dorynth Volcanic Fields, are shown as closed portals and cannot currently be entered. Earlier sections below preserve dated design discussions; where they differ, this status and the October 29 update take precedence. Local ponds, groves, and hills do not represent those larger regions.
+
+## Current direction — October 29
+
+The map has thirteen named destinations, with themed icons on the map and minimap and matching colored entrance-route branches on the full map. The eastern routes lead to two newly agreed places: **Cirelune Marsh**, a peat bog with dark still pools, copper moss, low mist, and small patches of firm ground; and **Dorynth Volcanic Fields**, an open landscape of cooled black lava, steam vents, and warm springs. These are concepts, not playable terrain. Their portals are closed, like the other non-Fernlilt entrances. All portals are large, destination-themed landmarks with animated colored surfaces and in-world signs; only the closest nearby sign is shown and normal depth prevents names showing through scenery.
+
+The astronaut has a non-modal backpack and an equipable hoverboard. Press B for the backpack and H to equip or put away the board; use movement keys, Shift for speed, and double Space for a board boost. Board sound responds to speed and the board is put away in water. Earth has surface movement sounds, quiet wind, and Solar Sails on touchdown, subject to the player's sound settings. The user has reported landing and surface FPS drops; graphics presets and lighter distant grass remain available, and actual performance varies by device.
 
 ## Agreed experience
 
@@ -27,6 +33,8 @@ The creator accepted this revised set after requesting different starting letter
 | Coast | Teshora Coast | teh-SHOR-ah |
 | Snow | Hyskrum Tundra | HISS-kroom |
 | Ocean | Uloqai Ocean | oo-lo-KAI |
+| Marsh | Cirelune Marsh | Not yet specified |
+| Volcanic fields | Dorynth Volcanic Fields | Not yet specified |
 
 Names superseded by this revision: Mount Auldrissen, Tiderosse Coast, Rimeossel Tundra, and Aumethra Ocean. Earlier candidates are not additional regions.
 
@@ -49,6 +57,8 @@ The creator accepted the cinematic exploration direction. These scenery and soun
 | Teshora | Rose-colored cliffs, sheltered beaches, tide pools, sea arches and surf | A hidden beach revealed around a headland | Surf, seabirds and tide pools | Gentle guitar and piano |
 | Hyskrum | Frosted grass, snowdrifts, frozen lakes, scattered trees, clear-night auroras | Blue ice across a frozen basin and a sheltered overlook | Muffled steps, snow and ice creaking | Quiet crystalline tones |
 | Uloqai | Turquoise shallows deepening to blue, seabed light and remote islands | Reefs, underwater arches and island silhouettes | Waves above; muted water ambience below | Slow flowing ambient music |
+| Cirelune | Dark peat pools, copper moss, low mist, and small firm islands | A path across the bog's firm ground | Not yet selected | Not yet selected |
+| Dorynth | Cooled black lava, weathered formations, steam vents, and warm springs | An open volcanic field shaped by old eruptions | Not yet selected | Not yet selected |
 
 ## Connected exploration
 
@@ -99,7 +109,7 @@ Review the connected grasslands/forest/lake layout, map scale, visual targets, d
 
 ## Spatial layout draft
 
-See [Earth region layout](EARTH_REGION_LAYOUT.md) for the complete 11-region arrangement, arrival view, first walking loop, and schematic. This is a design artifact, not an implemented player map.
+See [Earth region layout](EARTH_REGION_LAYOUT.md) for the current thirteen-region direction and the earlier eleven-region schematic. The schematic is historical, not the implemented player map.
 
 ## Creator correction — large independent regions
 
@@ -109,7 +119,7 @@ The earlier compact multi-region labels are superseded. The current landing patc
 
 ## Local map implementation — October 16
 
-Press M or choose Map while walking on Earth or aboard its parked ship. The map uses current terrain heights and water coverage, a zoom-aware 100 m / 50 m scale bar, player position/facing, ship marker, explored-ground fog, and local waypoints. Exploration progress persists separately for Discovery and Exploration; New game clears Discovery map progress. All 11 names are listed as distinct large destinations. Only Fernlilt is currently available, and its entire 560 m radius playable area remains one region. The other ten are explicitly not yet available rather than falsely presented as reachable locked areas. The player map currently covers Fernlilt, not a finished whole-region or whole-planet map. Waypoints are local to the current session. The non-modal map supports walking, running, and jumping while open, with M/Escape closing and keyboard waypoint placement. It follows the player until panned; recentering resumes following. Coordinate editing clears held movement, while Settings and other blocking menus close the map and pause gameplay.
+Press M or choose Map while walking on Earth or aboard its parked ship. The map uses current terrain heights and water coverage, a zoom-aware 100 m / 50 m scale bar, player position/facing, ship marker, explored-ground fog, and local waypoints. Exploration progress persists separately for Discovery and Exploration; New game clears Discovery map progress. Thirteen destinations are listed; Fernlilt is the playable region, and the other twelve entrances are closed for now. The map covers Fernlilt, not a finished whole-region or whole-planet map. Waypoints are local to the current session. The non-modal map supports walking, running, and jumping while open, with M/Escape closing and keyboard waypoint placement. It follows the player until panned; recentering resumes following. Coordinate editing clears held movement, while Settings and other blocking menus close the map and pause gameplay.
 
 
 ## Current scenery direction — October 17

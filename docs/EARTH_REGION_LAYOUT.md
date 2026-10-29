@@ -2,9 +2,11 @@
 
 Created: 2026-10-16 (Asia/Manila).
 
-Status: proposed spatial layout for the selected regions. The schematic is a design artifact, not an implemented player map or surveyed geography. North is up; distances and region extents are not to scale. See [exploration plan](EARTH_EXPLORATION_PLAN.md).
+Status: proposed spatial layout. The original schematic below predates Cirelune and Dorynth; it is a design artifact, not the current player map or surveyed geography. North is up; distances and region extents are not to scale. The current in-game map shows all thirteen destinations and closed portals. See [exploration plan](EARTH_EXPLORATION_PLAN.md).
 
 ![Earth region layout](images/earth-region-layout.svg)
+
+*Historical October 16 diagram: it does not include the two destinations added on October 29. Use the in-game map for the current portal positions.*
 
 ## Arrival and first journey
 
@@ -29,6 +31,8 @@ A second route branches west from Fernlilt toward Vaelcren. Its gradual ascent p
 | Ashqarin Desert | Southeast dry basin | Fernlilt through dry grassland and scrub; eastern Teshora through sandstone bluffs and sandy shore |
 | Teshora Coast | Southern shoreline | Fernlilt, Ossamber, and Ashqarin approaches; beaches and headlands open toward Uloqai |
 | Uloqai Ocean | South/east beyond shoreline | Teshora shallows, reefs, then deeper water; do not imply the full ocean is safely traversable with current swimming stamina |
+| Cirelune Marsh | East/northeast of Fernlilt, between the lake and desert entrances | Planned peat bog; its closed entrance is marked on Fernlilt's map |
+| Dorynth Volcanic Fields | East/southeast of Fernlilt, between Cirelune and the desert entrance | Planned cooled-lava landscape; its closed entrance is marked on Fernlilt's map |
 
 Caves occupy an underground layer, not a flat surface biome patch. Rivers and minor paths can remain unnamed connective features. The map is an invented Earth-inspired region, not a claim that these biomes border one another in a real geographic location.
 
@@ -39,8 +43,9 @@ Caves occupy an underground layer, not a flat surface biome patch. Rivers and mi
 - Make the first journey a loop, with optional branches rather than a corridor or maze.
 - Use terrain and vegetation to compose reveals, without invisible restrictions around ordinary scenery.
 - Blend audio, ground cover, and lighting across shared edges; avoid abrupt rectangular biome borders.
-- Do not pack all regions into Fernlilt. Its playable radius is now 560 metres; dimensions and travel times for the other ten regions remain uncommitted.
-- No quests, unlock requirements, extra named regions, or new special-event systems are added by this layout.
+- Do not pack all regions into Fernlilt. Its playable radius is 560 metres; dimensions and travel times for the other twelve regions remain uncommitted.
+- The in-game map and minimap use themed destination icons; the full map colors the entrance-route branches to match.
+- Cirelune and Dorynth were added after the original eleven-region schematic; their portals are closed and their destination terrain has not been built.
 
 ## Map disclosure
 

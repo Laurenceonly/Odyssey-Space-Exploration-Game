@@ -787,3 +787,88 @@ Added smoothly faded blade ranks and three reusable near-detail geometry tiers. 
 Same west-bank x160/z0, full-HD viewport, Shadows off: Balanced baseline 34.05 FPS, optimized 59.91 and 60.01 FPS; High baseline 22.96 FPS, optimized 41.49 and 48.02 FPS. Ten-second stationary rAF samples; not a walking, shadows-on or universal 60 FPS guarantee. Screenshot counter variation prompted a repeat, recorded alongside the first run. No page/console errors captured in after runs; reviewed High riverbank screenshot for full golden coverage.
 
 Validation: all 149 regression tests pass. The ten targeted grass/render-scale checks pass, including over one-third lower near-detail triangle work on High at the tested placement. Production build passes (main 821.73 kB / 238.14 kB gzip; existing large-chunk warning). Final copy-only release-note change passes syntax check; whitespace check passes. Updated README, exploration plan, in-game notes and performance documentation. Replaced COMMIT_NOTES_TEMP.md with current changes, measured results, validation and an explicit notice about the paused, unfinished region prototype sharing this working tree. Region unit tests pass; completed two-way region browser travel is still not claimed. No staging, commit, push or deployment.
+
+## 2026-10-29 � Earth grass performance
+
+- Shortened the detailed grass fade ranges on each graphics preset while retaining the existing distant canopy. Grass tests passed; FPS improvement remains to be measured on the player's device.
+
+
+- Matched High's Earth grass detail to Medium while retaining High's full rendering resolution; the frame loop remains uncapped.
+
+
+- Reduced Medium's Earth grass detail and range after player testing with shadows off, keeping its 3D resolution unchanged. FPS improvement remains to be measured on the player's device.
+
+
+## 2026-10-29 — Earth music and movement sounds
+
+- Solar Sails starts on Earth touchdown and when resuming an Earth visit, without overwriting the saved music selection; the prior selection returns on departure unless the player changes it.
+- Added distance-based footstep and water movement sounds plus jump, boost, water entry and landing effects. Sound mute is respected.
+- Validation: audio and Earth physics tests passed (30 tests); production build passed.
+
+
+- Increased the audibility of surface movement effects and added a low impact tone to footsteps and jumps after player feedback. Audio and physics tests and production build passed; listening verification is pending player feedback.
+
+
+- Replaced synthesized footsteps and water movement with CC0 recordings, varied left/right steps, and softened the boost sound. Added source credits, sample playback tests, and verified the production build. Player listening feedback remains needed.
+
+
+- Corrected water sound playback to skip the silent lead-in, prioritize splashes when in water, and avoid dry landing sounds there; added gentle Earth wind ambience. Audio and Earth physics tests passed (31 tests); production build passed. Listening feedback remains needed.
+
+
+- Reduced surface footsteps, splashes, suit boost and Earth wind levels after player feedback; softened boost filtering. Audio tests and production build passed; listening feedback remains needed.
+
+
+## 2026-10-29 — Map close and running smoothness
+
+- The map close button now completes an opacity fade before closing; keyboard closing remains immediate and reduced motion uses a shorter fade.
+- Reduced abrupt running hip-height corrections while retaining planted foot contacts. Added regression checks for both changes.
+- Validation: 55 map, animation, audio and Earth physics tests passed; production build passed. In a local browser test, landed on Earth, opened and closed the map, and exercised walking, running and jumps. Reported FPS was 42 walking and 48 running in the automated session; these are not representative of the player's device. Swimming was covered by automated physics/audio tests rather than a full interactive playtest.
+
+
+## 2026-10-29 — Earth rendering performance
+
+- Reduced distant grass from three projected canopy cards to two perpendicular cards beyond 320 metres; nearby canopy and full landscape coverage remain. Eliminated duplicate path-distance evaluation during grass tile generation and repeated map canvas resizing.
+- Validation: grass and map tests passed, including a check that distant canopy geometry is reduced by at least 15%; production build passed. Actual FPS and the appearance of the distant transition need player verification.
+- Started the optimized production preview on port 5174 and stopped the polling development server to avoid background file-watcher overhead during performance testing.
+
+
+- Reduced individual grass rendering in elevated Earth views and smoothly restored detail during descent; the far canopy remains visible. Grass tests and production build passed; landing FPS and appearance need player verification.
+
+
+- Reduced high-altitude grass patches to about 25% of the ground count, widening projected canopy at altitude and restoring full density progressively on descent. Grass tests and production build passed; real-device landing FPS and appearance require verification.
+
+
+## 2026-10-29 — Backpack and compass
+
+- Added a wearable field pack and non-modal B-key inventory panel with responsive empty slots and smooth, reduced-motion-aware transitions. The player can move while it is open. The map, backpack, Log and camera controls share the same base colors.
+- Added north, east, south and west to Earth’s map and minimap; removed introductory empty-state copy per feedback. Item collection remains future work.
+- Validation: backpack, map and astronaut tests passed; production build passed. A separate browser session confirmed the backpack stayed open while the ship distance changed during walking, B closed it, and the map displayed all four directions. Screenshots checked at a short desktop viewport.
+
+
+## 2026-10-29 — Equipable hoverboard
+
+- Added a lightweight visible hoverboard to the backpack. It travels at 8 m/s, or 12 m/s with Shift, keeps surface collisions and jumps, does not use running stamina, and is put away automatically in water or on boarding. Equipped state survives same-tab refresh and regional travel.
+- Validation: 53 physics, backpack, astronaut and regional tests passed; production build passed. A browser playtest equipped and rendered the board, moved about 15.8 metres, and confirmed equipped state after refresh. Captured a visual check of the board.
+
+
+- Refined the hoverboard after player feedback: a simple off-white and gray suit-matched deck replaces the glowing details. The rider stands sideways with feet at opposite ends, bends slightly, and turns their head and shoulders toward travel; board heading survives refresh and region transitions. Riding pose and movement tests passed; production build passed, and the revised pose was checked in the browser.
+
+
+## 2026-10-29 — Hoverboard controls and audio
+
+- Added H to equip or put away the board, including while the Earth map is open. Double-jump exhaust originates beneath the board while riding and remains on the suit on foot. Added a quiet speed-responsive riding sound.
+- Kept equip prompts short and fixed old discovery notices reappearing after temporary messages.
+- Validation: 36 relevant notice, audio, boost and movement tests passed; production build passed. Browser playtest verified H equips and stows, double jump, and H with the map open. Listening feedback on the new sound remains needed.
+
+
+## 2026-10-29 — Earth destination portals
+
+- Added ten large closed portals around Fernlilt with destination-specific tree, cave, mountain, desert, water, coast and ice-inspired forms, colors and animated surfaces. Each has an in-world themed name sign; grass clears around the entrance. Region travel through portals is disabled, and older saves outside Fernlilt can return to orbit.
+- Validation: portal, grass, map and region tests passed; production build passed. Browser checks confirmed the forest portal renders, the physical sign is visible from the approach, and pressing E leaves the player in Fernlilt. Real-device performance and the other visual designs still need player review.
+
+
+## 2026-10-29 - Earth map and new destinations
+
+- Added Cirelune Marsh and Dorynth Volcanic Fields as closed, themed entrances east of Fernlilt, with approaches routed around the creek. Their destination terrain remains planned.
+- Updated the map and minimap with destination-themed icons; the full map colors entrance-route branches and spaces labels. Portal signs show at the nearest nearby entrance and respect scenery depth.
+- Updated the Earth planning notes and README; the older eleven-place schematic remains historical. Validation: 23 grass, map, portal and region tests passed, the production build passed, and a browser check showed all thirteen destination names and the updated full map.

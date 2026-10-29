@@ -28,6 +28,8 @@ Independent multiplayer travel was discussed: one person could explore Mars whil
 
 ## Planets, landing, and learning
 
+October 29: Earth now has thirteen named destinations. Cirelune Marsh is planned as a dark-water peat bog with copper moss and firm islands; Dorynth Volcanic Fields is planned as cooled lava, steam vents, and warm springs. Their map markers and destination-themed portals are visible, but their regions and all other non-Fernlilt portals are closed for now. The player requested distinctive large entrances with in-world names that do not crowd the surroundings.
+
 Make every planetary destination explorable, using believable fictional technology when necessary. Giant planets have no solid walking surface; fictional stations, atmospheric platforms, probes, or nearby moons can support visits. Clearly distinguish real science from invented technology in the Field Guide.
 
 Different destinations should have different places, activities, gravity experiences, and environmental conditions. The creator expressed interest in situational weather. Weather should affect decisions and offer activities rather than simply forcing players to wait. The Moon has no ordinary atmospheric weather; sunlight, shadows, and temperature can vary its experience instead.
