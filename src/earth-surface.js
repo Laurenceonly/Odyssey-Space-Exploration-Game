@@ -301,7 +301,7 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, onMotion=()=>{
   const wake=isEarth?createSwimWake(scene,surfaceWater):null;
   const landedShip=ship.clone(true);
   landedShip.name='landed-ship';
-  landedShip.rotation.set(0,0,0);landedShip.scale.setScalar(1.8);
+  landedShip.rotation.set(0,0,0);landedShip.scale.setScalar(2);
   // Surface metres keep the original astronaut-sized hull and lighting.
   const hullLight=landedShip.getObjectByName('ship-hull-light');
   if(hullLight){hullLight.intensity=18;hullLight.distance=9;}
