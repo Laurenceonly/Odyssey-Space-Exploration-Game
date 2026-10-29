@@ -3,6 +3,8 @@ import {Vector3} from 'three';
 import {LAKE,SITE_RADIUS,terrainHeight as fernHeight,waterLevelAt as fernWater} from './earth-physics.js';
 import {EARTH_PATHS,earthMeadowCover,earthWoodland,earthGrassDryness} from './earth-layout.js';
 import {EARTH_REGIONS,MAP_EXTENT,MAP_CELL,MAP_GRID,createEarthMapState,earthMapStorageKey} from './earth-map-state.js';
+import {drawEarthDestinationIcon,earthDestinationColor} from './earth-map-icons.js';
+import {layoutEarthMapLabels} from './earth-map-labels.js';
 
 const SIZE=1024,SCALE=SIZE/(MAP_EXTENT*2);
 const screen=value=>(value+MAP_EXTENT)*SCALE;
@@ -21,7 +23,7 @@ export function createEarthMap({getSurface,getMode,onOpen=()=>{},onClose=()=>{},
   let lastMiniFrame=-Infinity,lastMapFrame=-Infinity,lastFogState=null,lastFogSize=-1,followPlayer=true,restoreOnClose=true;
   const base=document.createElement('canvas');base.width=base.height=SIZE;
   const fog=document.createElement('canvas');fog.width=fog.height=SIZE;
-  let mode=null,state=null,dirty=false,lastSaved=0,returnFocus=null,baseReady=false,zoom=1,centerX=0,centerZ=0,projection=null,drag=null,suppressClick=false;
+  let mode=null,state=null,dirty=false,lastSaved=0,returnFocus=null,baseReady=false,zoom=1,centerX=0,centerZ=0,projection=null,drag=null,suppressClick=false,closeTimer=null;
   function load(){
     const nextMode=getMode();
     if(mode!==nextMode||!state){save();mode=nextMode;let saved=null;try{saved=JSON.parse(localStorage.getItem(earthMapStorageKey(mode))||'null');}catch{}state=createEarthMapState(saved);dirty=false;lastFogState=null;baseReady=false;}
@@ -70,6 +72,10 @@ export function createEarthMap({getSurface,getMode,onOpen=()=>{},onClose=()=>{},
     c.lineJoin='round';c.lineCap='round';
     c.strokeStyle='#3b402b';c.lineWidth=5;for(const trail of paths())path(c,trail);
     c.strokeStyle='#c7bc91';c.lineWidth=2.5;for(const trail of paths())path(c,trail);
+    // Shared trails stay neutral; the final branch carries the destination's color.
+    c.lineWidth=2.4;c.setLineDash([7,5]);
+    for(const exit of earthRegionExits(state.regionId)){c.strokeStyle=earthDestinationColor(exit.to);path(c,exit.path.slice(-2));}
+    c.setLineDash([]);
     c.restore();baseReady=true;
   }
   function buildFog(){
@@ -84,10 +90,11 @@ export function createEarthMap({getSurface,getMode,onOpen=()=>{},onClose=()=>{},
     buildBase();buildFog();
     const size=320,range=160,p=surface.mode==='walking'?surface.position:{x:0,z:4},scale=size/(range*2);
     const sx=x=>size/2+(x-p.x)*scale,sz=z=>size/2+(z-p.z)*scale;
-    miniCanvas.width=miniCanvas.height=size;mini.fillStyle='#29312d';mini.fillRect(0,0,size,size);
+    if(miniCanvas.width!==size||miniCanvas.height!==size){miniCanvas.width=size;miniCanvas.height=size;}
+    mini.fillStyle='#29312d';mini.fillRect(0,0,size,size);
     for(const layer of [base,fog])mini.drawImage(layer,sx(-MAP_EXTENT),sz(-MAP_EXTENT),MAP_EXTENT*2*scale,MAP_EXTENT*2*scale);
     if(state.regionId==='fernlilt'){mini.strokeStyle='#bdcddd';mini.fillStyle='#233d44';mini.lineWidth=3;mini.beginPath();mini.moveTo(sx(0),sz(4)-7);mini.lineTo(sx(0)+7,sz(4));mini.lineTo(sx(0),sz(4)+7);mini.lineTo(sx(0)-7,sz(4));mini.closePath();mini.fill();mini.stroke();}
-    mini.fillStyle='#e6c792';for(const exit of earthRegionExits(state.regionId)){const dx=exit.x-p.x,dz=exit.z-p.z,k=Math.min(1,135/Math.max(1,Math.hypot(dx,dz)));mini.fillRect(size/2+dx*k-3,size/2+dz*k-3,6,6);}
+    for(const exit of earthRegionExits(state.regionId)){const dx=exit.x-p.x,dz=exit.z-p.z,k=Math.min(1,135/Math.max(1,Math.hypot(dx,dz)));drawEarthDestinationIcon(mini,exit.to,size/2+dx*k,size/2+dz*k,20);}
     if(state.waypoint){
       const w=state.waypoint;mini.strokeStyle='#f4ca81';mini.lineWidth=2;mini.setLineDash([5,5]);mini.beginPath();mini.moveTo(size/2,size/2);mini.lineTo(sx(w.x),sz(w.z));mini.stroke();mini.setLineDash([]);
       const dx=w.x-p.x,dz=w.z-p.z,factor=Math.min(1,140/Math.max(1,Math.hypot(dx,dz)));mini.fillStyle='#f4ca81';mini.beginPath();mini.arc(size/2+dx*factor,size/2+dz*factor,5,0,Math.PI*2);mini.fill();
@@ -114,7 +121,7 @@ export function createEarthMap({getSurface,getMode,onOpen=()=>{},onClose=()=>{},
     const list=element('earthMapRegions');list.replaceChildren();
     for(const region of EARTH_REGIONS){
       const li=document.createElement('li'),name=document.createElement('strong'),status=document.createElement('span');
-      const here=region.id===state.regionId;name.textContent=region.name;status.textContent=here?'You are here':state.visited.has(region.id)?'Visited':'Unexplored';
+      const here=region.id===state.regionId;name.textContent=region.name;status.textContent=here?'You are here':'Portal coming soon';
       li.className=here?'earth-map-current':'';li.append(name,status);
       if(!here){const next=earthNextRegion(state.regionId,region.id),exit=earthRegionExits(state.regionId).find(e=>e.to===next);if(exit){const route=document.createElement('button');route.type='button';route.textContent=next===region.id?'Mark route':'Via '+getEarthRegion(next).name;route.addEventListener('click',()=>{state.setWaypoint(exit.x,exit.z);render();});li.append(route);}}
       list.append(li);
@@ -125,7 +132,7 @@ export function createEarthMap({getSurface,getMode,onOpen=()=>{},onClose=()=>{},
     if(!dialog.open)return;const surface=getSurface();if(!surface)return;
     const rect=canvas.getBoundingClientRect(),ratio=Math.min(window.devicePixelRatio||1,1.5);
     const width=Math.max(1,Math.round(rect.width*ratio)),height=Math.max(1,Math.round(rect.height*ratio));
-    canvas.width=width;canvas.height=height;
+    if(canvas.width!==width||canvas.height!==height){canvas.width=width;canvas.height=height;}
     const scale=Math.min(width,height)/(MAP_EXTENT*2)*zoom;
     const sx=x=>width/2+(x-centerX)*scale,sz=z=>height/2+(z-centerZ)*scale;
     projection={scale,width,height,sx,sz};
@@ -140,8 +147,7 @@ export function createEarthMap({getSurface,getMode,onOpen=()=>{},onClose=()=>{},
     };
     const walking=surface.mode==='walking',position=walking?surface.position:{x:0,z:4};
     // Geographic labels sit on the terrain; local landmarks aren't separate regions.
-    ctx.font='500 '+Math.round(27*ratio)+'px "Oxanium",sans-serif';ctx.textAlign='center';ctx.fillStyle='#e5e8cf85';
-    ctx.fillText(getEarthRegion(state.regionId).name,sx(-45),sz(-155));ctx.textAlign='left';
+    if(zoom>1.5){ctx.font='500 '+Math.round(27*ratio)+'px "Oxanium",sans-serif';ctx.textAlign='center';ctx.fillStyle='#e5e8cf85';ctx.fillText(getEarthRegion(state.regionId).name,sx(-45),sz(-155));ctx.textAlign='left';}
     if(zoom>=2&&state.regionId==='fernlilt'){label('Pond',sx(LAKE.x),sz(LAKE.z)-25*scale,'center');}
     if(walking){
       ctx.save();ctx.translate(sx(position.x),sz(position.z));ctx.rotate(-(surface.heading??0));
@@ -150,7 +156,24 @@ export function createEarthMap({getSurface,getMode,onOpen=()=>{},onClose=()=>{},
     // Ship and player use different silhouettes and labels, even near touchdown.
     if(state.regionId==='fernlilt'){ctx.save();ctx.translate(sx(0),sz(4));ctx.scale(ratio,ratio);ctx.strokeStyle='#a9c5b8';ctx.fillStyle='#182c2b';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(0,-7);ctx.lineTo(7,0);ctx.lineTo(0,7);ctx.lineTo(-7,0);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();
     label('Your ship',sx(0)-12*ratio,sz(4)+24*ratio,'right');}
-    for(const exit of earthRegionExits(state.regionId)){ctx.fillStyle='#f1d39d';ctx.strokeStyle='#273027';ctx.lineWidth=2*ratio;ctx.beginPath();ctx.arc(sx(exit.x),sz(exit.z),5*ratio,0,Math.PI*2);ctx.fill();ctx.stroke();label(exit.name,sx(exit.x),sz(exit.z)-12*ratio,'center');}
+    const exitLabels=[];
+    for(const exit of earthRegionExits(state.regionId)){
+      const px=sx(exit.x),pz=sz(exit.z);if(px<0||pz<0||px>width||pz>height)continue;
+      drawEarthDestinationIcon(ctx,exit.to,px,pz,22*ratio);
+      ctx.font=12*ratio+'px "DM Sans",sans-serif';
+      exitLabels.push({text:exit.name,x:px,y:pz,width:ctx.measureText(exit.name)?.width??exit.name.length*7*ratio});
+    }
+    const reserved=exitLabels.map(item=>({left:item.x-12*ratio,right:item.x+12*ratio,top:item.y-12*ratio,bottom:item.y+12*ratio}));
+    if(walking)reserved.push({left:sx(position.x)-18*ratio,right:sx(position.x)+105*ratio,top:sz(position.z)-24*ratio,bottom:sz(position.z)+14*ratio});
+    if(state.regionId==='fernlilt')reserved.push({left:sx(0)-85*ratio,right:sx(0)+10*ratio,top:sz(4)+10*ratio,bottom:sz(4)+30*ratio});
+    for(const item of layoutEarthMapLabels(exitLabels,width,height,ratio,reserved)){
+      const anchorX=Math.max(item.left,Math.min(item.left+item.width,item.x));
+      const anchorY=item.baseline-5*ratio;
+      if(Math.hypot(anchorX-item.x,anchorY-item.y)>22*ratio){
+        ctx.strokeStyle='#c8d7ce80';ctx.lineWidth=ratio;ctx.beginPath();ctx.moveTo(item.x,item.y);ctx.lineTo(anchorX,anchorY);ctx.stroke();
+      }
+      label(item.text,item.left,item.baseline);
+    }
     const waypoint=state.waypoint;
     if(waypoint){
       const px=sx(waypoint.x),pz=sz(waypoint.z);
@@ -171,10 +194,19 @@ export function createEarthMap({getSurface,getMode,onOpen=()=>{},onClose=()=>{},
     element('earthMapZoomLabel').textContent=zoom.toFixed(1)+'×';element('earthMapZoomOut').disabled=zoom<=1;element('earthMapZoomIn').disabled=zoom>=8;
     element('earthMapLocation').textContent=walking?getEarthRegion(state.regionId).name:'Your ship · Fernlilt';
     element('earthMapCoordinates').textContent=Math.round(Math.abs(position.x))+' m '+(position.x<0?'W':'E')+' / '+Math.round(Math.abs(position.z))+' m '+(position.z<0?'N':'S');
-    canvas.setAttribute('aria-label',getEarthRegion(state.regionId).name+' map. '+(walking?(state.regionId==='fernlilt'?'You are '+Math.round(Math.hypot(position.x,position.z-4))+' metres from your ship.':'Follow a marked route to continue exploring or return toward Fernlilt.'):'You are aboard your parked ship.')+' Fog marks unexplored ground.');
+    canvas.setAttribute('aria-label',getEarthRegion(state.regionId).name+' map. '+(walking?(state.regionId==='fernlilt'?'You are '+Math.round(Math.hypot(position.x,position.z-4))+' metres from your ship.':'Region portals are coming soon.'):'You are aboard your parked ship.')+' Fog marks unexplored ground.');
   }
   function changeZoom(next){zoom=Math.max(1,Math.min(8,next));if(zoom===1){centerX=0;centerZ=0;followPlayer=false;}render();}
-  function close(restoreFocus=true){if(!dialog.open)return;restoreOnClose=restoreFocus!==false;dialog.close();}
+  function close(restoreFocus=true,animate=false){
+    if(!dialog.open)return;
+    restoreOnClose=restoreFocus!==false;
+    if(closeTimer!==null){clearTimeout(closeTimer);closeTimer=null;}
+    if(animate){
+      dialog.classList.add('is-closing');
+      const duration=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches?80:200;
+      closeTimer=setTimeout(()=>{closeTimer=null;dialog.close();dialog.classList.remove('is-closing');},duration);
+    }else{dialog.close();dialog.classList.remove('is-closing');}
+  }
   function open(){
     if(dialog.open)return;
     const surface=getSurface();if(!surface?.active||surface.worldId!=='earth'||!['walking','parked'].includes(surface.mode))return;
@@ -206,7 +238,7 @@ export function createEarthMap({getSurface,getMode,onOpen=()=>{},onClose=()=>{},
   window.addEventListener('resize',()=>{if(dialog.open)render();});
   element('earthMapRegionsToggle').addEventListener('click',()=>{const panel=element('earthMapRegionPanel');panel.hidden=!panel.hidden;element('earthMapRegionsToggle').setAttribute('aria-expanded',String(!panel.hidden));});
   minimap.addEventListener('click',open);
-  button.addEventListener('click',toggle);canvas.addEventListener('click',onMapClick);element('closeEarthMap').addEventListener('click',close);
+  button.addEventListener('click',toggle);canvas.addEventListener('click',onMapClick);element('closeEarthMap').addEventListener('click',()=>close(true,true));
   clearButton.addEventListener('click',()=>{state.clearWaypoint();render();});
   element('earthMapPin').addEventListener('click',()=>{const panel=element('earthMapPinControls');panel.hidden=!panel.hidden;if(!panel.hidden){const p=getSurface().position;element('earthMapPinX').value=Math.round(p.x);element('earthMapPinZ').value=Math.round(p.z);element('earthMapPinX').focus();}});
   element('earthMapPlacePin').addEventListener('click',()=>{

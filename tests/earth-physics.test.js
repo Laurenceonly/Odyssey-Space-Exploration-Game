@@ -3,6 +3,18 @@ import assert from 'node:assert/strict';
 import { EARTH_GRAVITY, LAKE, SITE_RADIUS, terrainHeight, walkableAt, stepAstronaut, waterCameraHeight, FAST_SWIM_SECONDS, SWIM_RECOVERY_SECONDS, RUN_SECONDS } from '../src/earth-physics.js';
 
 const bodyAt=(x=0,z=0)=>({x,z,y:terrainHeight(x,z),vy:0,grounded:true});
+test('hoverboard travels faster without consuming running stamina and keeps normal collisions',()=>{
+  const environment={terrainHeight:()=>0,waterLevelAt:()=>null,walkableAt:()=>null},make=()=>({x:0,y:0,z:0,vy:0,grounded:true,swimStamina:1});
+  const walk=make(),ride=make(),fast=make();
+  for(let i=0;i<120;i++){
+    stepAstronaut(walk,{x:1,z:0},1/60,[],environment);
+    stepAstronaut(ride,{x:1,z:0,hoverboard:true},1/60,[],environment);
+    stepAstronaut(fast,{x:1,z:0,hoverboard:true,run:true},1/60,[],environment);
+  }
+  assert.ok(ride.x>walk.x*2.5);assert.ok(fast.x>ride.x*1.4);assert.equal(fast.swimStamina,1);
+  const blocked=make();for(let i=0;i<120;i++)stepAstronaut(blocked,{x:1,z:0,hoverboard:true,run:true},1/60,[{x:4,z:0,radius:.5}],environment);
+  assert.ok(blocked.x<4,'the board cannot pass through obstacles');
+});
 test('Earth jump rises, falls, and lands without sinking into the ground',()=>{
   const body=bodyAt();let apex=0;
   assert.equal(EARTH_GRAVITY,9.81);

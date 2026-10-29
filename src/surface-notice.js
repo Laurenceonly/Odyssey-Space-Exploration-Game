@@ -3,9 +3,9 @@ export function createSurfaceNotice(){
  let previous=null,message='',until=0;
  return {
   reset(){previous=null;message='';until=0;},
-  update(now,key,text,duration=3){
+  update(now,key,text,duration=3,override=''){
    if(key!==previous){previous=key;if(text){message=text;until=now+duration;}}
-   return now<until?message:'';
+   return override||(now<until?message:'');
   },
  };
 }

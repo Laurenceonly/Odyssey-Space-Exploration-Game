@@ -3,6 +3,7 @@ import {earthPathDistance,earthTrailWidth,earthGrassHeightScale,earthGrassDensit
 import * as THREE from 'three';
 import {LAKE,SITE_RADIUS,waterLevelAt} from './earth-physics.js';
 import {surveyRouteDistance} from './visit-sites.js';
+import {earthRegionExits} from './earth-regions.js';
 
 export function createEarthGrass(scene,site,terrainHeight,random){
   // The main field rises above the astronaut; paths and landing clearance stay low.
@@ -38,9 +39,10 @@ export function createEarthGrass(scene,site,terrainHeight,random){
     shader.uniforms.meadowAerial=aerialView;
     shader.uniforms.meadowDetailFade=detailFade;shader.uniforms.meadowTierFade=tierFade;
     shader.uniforms.meadowLayer={value:far?1:0};
-    shader.vertexShader=(far?'':'attribute float meadowBladeRank;varying float meadowRank;')+'uniform float meadowTime;varying float meadowDistance;varying float meadowTip;varying vec3 meadowPosition;varying float meadowBacklight;\n'+shader.vertexShader;
+    shader.vertexShader=(far?'uniform float meadowAerial;':'attribute float meadowBladeRank;varying float meadowRank;')+'uniform float meadowTime;varying float meadowDistance;varying float meadowTip;varying vec3 meadowPosition;varying float meadowBacklight;\n'+shader.vertexShader;
     shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',[
       '#include <begin_vertex>',
+      ...(far?['transformed.xz*=mix(1.,1.45,meadowAerial);']:[]),
       ...(far?[]:['meadowRank=meadowBladeRank;']),
       'vec3 meadowWorld=(modelMatrix*instanceMatrix*vec4(position,1.)).xyz;',
       'float tip=clamp(position.y/1.6,0.,1.);meadowTip=tip;meadowPosition=meadowWorld;',
@@ -61,6 +63,7 @@ export function createEarthGrass(scene,site,terrainHeight,random){
       '#include <clipping_planes_fragment>',
       'float coverage=meadowLayer<.5?1.-smoothstep(meadowDetailFade.x,meadowDetailFade.y,meadowDistance):1.-smoothstep(mix(540.,1100.,meadowAerial),mix(680.,1300.,meadowAerial),meadowDistance);',
       ...(far?[]:[
+        'coverage*=1.-smoothstep(.15,.8,meadowAerial);',
         'if(meadowRank>=18.)coverage*=1.-smoothstep(meadowTierFade.x,meadowTierFade.y,meadowDistance);',
         'else if(meadowRank>=6.)coverage*=1.-smoothstep(meadowTierFade.z,meadowTierFade.w,meadowDistance);',
       ]),
@@ -84,6 +87,9 @@ export function createEarthGrass(scene,site,terrainHeight,random){
   material.customProgramCacheKey=()=> 'odyssey-meadow-tiered-golden-v3';
   const root=new THREE.Group();root.name='meadow-grass';root.userData.geometries=[geometry,mediumGeometry,outerGeometry];scene.add(root);
   const dummy=new THREE.Object3D(),color=new THREE.Color(),tileSize=32,capacity=1100;
+  const portals=earthRegionExits('fernlilt');
+  const portalsNearTile=(cx,cz)=>portals.filter(portal=>Math.abs(portal.x-cx*tileSize)<tileSize/2+14&&Math.abs(portal.z-cz*tileSize)<tileSize/2+14);
+  const nearPortal=(near,x,z)=>near.some(portal=>Math.hypot(x-portal.x,z-portal.z)<14);
   const fresh=new THREE.Color(0xcbb154),dry=new THREE.Color(0xe0bd5c);
   const patchPoint=new THREE.Vector2();
   function patchOrigin(cx,cz,i,seed){
@@ -114,6 +120,9 @@ export function createEarthGrass(scene,site,terrainHeight,random){
     farIndices.push(base,base+1,base+2,base+1,base+3,base+2);
   }
   const farGeometry=new THREE.BufferGeometry();farGeometry.setAttribute('position',new THREE.Float32BufferAttribute(farPoints,3));farGeometry.setAttribute('color',new THREE.Float32BufferAttribute(farColors,3));farGeometry.setAttribute('uv',new THREE.Float32BufferAttribute(farUvs,2));farGeometry.setIndex(farIndices);farGeometry.setDrawRange(0,24);farGeometry.computeVertexNormals();
+  // At long range two perpendicular canopy cards retain coverage while avoiding
+  // a third layer of overdraw across most of the distant field.
+  const horizonGeometry=farGeometry.clone();horizonGeometry.setIndex([...farIndices.slice(0,6),...farIndices.slice(12,18)]);horizonGeometry.setDrawRange(0,12);
   const farMaterial=material.clone();farMaterial.map=canopyTexture;farMaterial.alphaTest=0;
   farMaterial.onBeforeCompile=shader=>compileGrass(shader,true);
   farMaterial.customProgramCacheKey=()=> 'odyssey-matched-golden-canopy-v5';
@@ -123,10 +132,10 @@ export function createEarthGrass(scene,site,terrainHeight,random){
     let count=0;
     // The underlayer uses a stable subset of the detailed field's patch origins.
     for(let dx=-2;dx<=2;dx++)for(let dz=-2;dz<=2;dz++){
-      const nx=cx*5+dx,nz=cz*5+dz,seed=nx*1931+nz*7919;
+      const nx=cx*5+dx,nz=cz*5+dz,seed=nx*1931+nz*7919,near=portalsNearTile(nx,nz);
       for(let i=0;i<capacity;i+=6){
         const p=patchOrigin(nx,nz,i,seed),x=p.x,z=p.y;
-        if(Math.hypot(x,z)>790||waterLevelAt(x,z)!==null||Math.hypot(x,z-4)<6||random(i+seed,34)>earthGrassDensity(x,z))continue;
+        if(Math.hypot(x,z)>790||waterLevelAt(x,z)!==null||Math.hypot(x,z-4)<6||nearPortal(near,x,z)||random(i+seed,34)>earthGrassDensity(x,z))continue;
         const y=terrainHeight(x,z),trail=Math.min(surveyRouteDistance(site,x,z),earthPathDistance(x,z));
         if(trail<earthTrailWidth(x,z)+1.7+random(i+seed,36)*.2||Math.hypot(x-LAKE.x,z-LAKE.z)<32&&y<LAKE.level+.45)continue;
         const rolling=.5+.5*Math.sin(x*.017+Math.sin(z*.012))*Math.cos(z*.019);
@@ -140,7 +149,17 @@ export function createEarthGrass(scene,site,terrainHeight,random){
         farMesh.setMatrixAt(count,dummy.matrix);farMesh.setColorAt(count++,grassColor(x,z,random(i+seed,39)));
       }
     }
-    farMesh.count=count;farMesh.instanceMatrix.needsUpdate=true;if(farMesh.instanceColor)farMesh.instanceColor.needsUpdate=true;
+    // Interleave evenly spread patch samples so reducing instance count at
+    // altitude thins the entire tile instead of clearing one side of it.
+    const matrixData=farMesh.instanceMatrix.array,matrixCopy=matrixData.slice(0,count*16);
+    const colorData=farMesh.instanceColor?.array,colorCopy=colorData?.slice(0,count*3);
+    let write=0;
+    for(let group=0;group<4;group++)for(let read=group;read<count;read+=4){
+      matrixData.set(matrixCopy.subarray(read*16,read*16+16),write*16);
+      if(colorData)colorData.set(colorCopy.subarray(read*3,read*3+3),write*3);
+      write++;
+    }
+    farMesh.count=count;farMesh.userData.fullCount=count;farMesh.instanceMatrix.needsUpdate=true;if(farMesh.instanceColor)farMesh.instanceColor.needsUpdate=true;
     if(count){farMesh.computeBoundingSphere();farMesh.boundingSphere.radius+=.9;}else farMesh.boundingSphere=new THREE.Sphere(new THREE.Vector3(cx*160,0,cz*160),0);
     distant.add(farMesh);
   }
@@ -149,19 +168,19 @@ export function createEarthGrass(scene,site,terrainHeight,random){
     tile.x=cx;tile.z=cz;tile.nextIndex=tile.fillCount=0;tile.pending=true;tile.mesh.visible=false;tile.mesh.count=0;
   }
   function fillBatch(tile,budget=capacity){
-    const {mesh,x:cx,z:cz}=tile,seed=cx*1931+cz*7919,end=Math.min(capacity,tile.nextIndex+budget);let count=tile.fillCount;
+    const {mesh,x:cx,z:cz}=tile,seed=cx*1931+cz*7919,end=Math.min(capacity,tile.nextIndex+budget),near=portalsNearTile(cx,cz);let count=tile.fillCount;
     for(let i=tile.nextIndex;i<end;i++){
       const p=patchOrigin(cx,cz,i,seed),x=p.x,z=p.y;
       if(Math.hypot(x,z)>SITE_RADIUS)continue;
       const y=terrainHeight(x,z),lakeshore=Math.hypot(x-LAKE.x,z-LAKE.z)<32&&y<LAKE.level+.45;
-      if(waterLevelAt(x,z)!==null||lakeshore||Math.hypot(x,z-4)<6||Math.min(surveyRouteDistance(site,x,z),earthPathDistance(x,z))<earthTrailWidth(x,z)+1.7+random(i+seed,36)*.2)continue;
+      const trail=Math.min(surveyRouteDistance(site,x,z),earthPathDistance(x,z));
+      if(waterLevelAt(x,z)!==null||lakeshore||Math.hypot(x,z-4)<6||nearPortal(near,x,z)||trail<earthTrailWidth(x,z)+1.7+random(i+seed,36)*.2)continue;
       const cover=earthGrassDensity(x,z);
       if(random(i+seed,34)>cover)continue;
       const rollingMeadow=.5+.5*Math.sin(x*.017+Math.sin(z*.012))*Math.cos(z*.019);
       const shelter=THREE.MathUtils.clamp(1-Math.max(0,y-8)*.008,.92,1);
       const height=(1.52+rollingMeadow*.12+random(i+seed,33)*.10)*shelter;
       dummy.position.set(x,y-.08,z);dummy.rotation.set(0,random(i+seed,32)*Math.PI*2,0);
-      const trail=Math.min(surveyRouteDistance(site,x,z),earthPathDistance(x,z));
       const edgeHeight=earthGrassHeightScale(x,z,trail);
       const spread=.95+random(i+seed,37)*.45;
       dummy.scale.set(spread,height*edgeHeight*(.93+random(i+seed,35)*.12),spread*(.7+random(i+seed,38)*.6));dummy.updateMatrix();
@@ -177,7 +196,9 @@ export function createEarthGrass(scene,site,terrainHeight,random){
   }
   root.userData.setQuality=(quality,scale=1)=>{
     const preset=quality==='auto'?(scale<=.8?'low':'medium'):quality;
-    const profiles={low:{blades:6,farBlades:3,fade:[32,56],tiers:[24,40,28,48]},medium:{blades:18,farBlades:3,fade:[44,72],tiers:[24,40,28,48]},high:{blades:28,farBlades:4,fade:[56,88],tiers:[24,40,40,64]}};
+    // Fade expensive individual blades sooner; the matching canopy still fills
+    // the landscape beyond them, without streaming as many detailed tiles.
+    const profiles={low:{blades:6,farBlades:3,fade:[24,42],tiers:[18,30,22,36]},medium:{blades:12,farBlades:3,fade:[28,50],tiers:[18,30,22,38]},high:{blades:18,farBlades:3,fade:[32,56],tiers:[18,30,24,42]}};
     const profile=profiles[preset]||profiles.medium;
     geometry.setDrawRange(0,profile.blades*9);
     farGeometry.setDrawRange(0,Math.max(3,profile.farBlades)*6);
@@ -192,7 +213,12 @@ export function createEarthGrass(scene,site,terrainHeight,random){
   root.userData.update=(x,z,time,reduced=false,altitude=0,viewX=x,viewZ=z)=>{
     lastPlayerX=x;lastPlayerZ=z;lastAltitude=altitude;lastViewX=viewX;lastViewZ=viewZ;
     aerialView.value=THREE.MathUtils.smoothstep(altitude,10,45);
-    for(const mesh of distant.children)mesh.visible=Math.hypot(mesh.userData.tileX-x,mesh.userData.tileZ-z)<800+500*aerialView.value;
+    for(const mesh of distant.children){
+      const distance=Math.hypot(mesh.userData.tileX-viewX,mesh.userData.tileZ-viewZ);
+      mesh.visible=distance<800+500*aerialView.value;
+      mesh.geometry=distance>320?horizonGeometry:farGeometry;
+      mesh.count=Math.ceil(mesh.userData.fullCount*(1-.75*aerialView.value));
+    }
     windTime.value=reduced?0:time;
     const cx=Math.floor((x+tileSize/2)/tileSize),cz=Math.floor((z+tileSize/2)/tileSize);
     if(cx!==lastX||cz!==lastZ){
@@ -206,7 +232,7 @@ export function createEarthGrass(scene,site,terrainHeight,random){
     // Limit generation to 128 candidates per frame instead of seven full tiles.
     const pending=tiles.filter(tile=>tile.pending).reduce((best,tile)=>!best||Math.hypot(tile.x*tileSize-x,tile.z*tileSize-z)<Math.hypot(best.x*tileSize-x,best.z*tileSize-z)?tile:best,null);if(pending)fillBatch(pending,128);
     for(const tile of tiles){
-      tile.mesh.visible=!tile.pending&&Math.hypot(tile.x*tileSize-x,tile.z*tileSize-z)<detailRadius;
+      tile.mesh.visible=aerialView.value<.8&&!tile.pending&&Math.hypot(tile.x*tileSize-x,tile.z*tileSize-z)<detailRadius;
       // Cull only detail already fully faded across the entire tile footprint.
       // A two-metre margin covers blade spread, wind and the previous camera frame.
       const nearest=Math.hypot(Math.max(0,Math.abs(tile.x*tileSize-viewX)-18),Math.max(0,Math.abs(tile.z*tileSize-viewZ)-18));

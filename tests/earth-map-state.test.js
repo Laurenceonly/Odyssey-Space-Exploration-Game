@@ -3,11 +3,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {EARTH_REGIONS,MAP_GRID,createEarthMapState,earthMapStorageKey} from '../src/earth-map-state.js';
 
-test('all 11 names represent separate destinations, and all eleven reachable through connected walking routes',()=>{
-  assert.equal(EARTH_REGIONS.length,11);
-  assert.equal(new Set(EARTH_REGIONS.map(r=>r.id)).size,11);
-  assert.equal(new Set(EARTH_REGIONS.map(r=>r.name.replace(/^(Mount|Lake) /,'')[0])).size,11);
+test('all 13 names represent separate destinations with distinct initial letters',()=>{
+  assert.equal(EARTH_REGIONS.length,13);
+  assert.equal(new Set(EARTH_REGIONS.map(r=>r.id)).size,13);
+  assert.equal(new Set(EARTH_REGIONS.map(r=>r.name.replace(/^(Mount|Lake) /,'')[0])).size,13);
+  assert.equal(new Set(EARTH_REGIONS.map(r=>r.name[0])).size,13);
   assert.equal(EARTH_REGIONS.filter(r=>r.available).length,11);
+  assert.ok(EARTH_REGIONS.filter(r=>['cirelune','dorynth'].includes(r.id)).every(r=>!r.available),'new destination interiors remain unbuilt');
 });
 test('visiting local scenery reveals nearby ground without discovering other destinations',()=>{
   const state=createEarthMapState();assert.equal(state.explored.size,0);assert.equal(state.visited.size,0);

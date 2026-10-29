@@ -29,5 +29,5 @@ export function earthRegionWater(id,x,z){
 export function earthRegionWalkable(id,x,z){return !Number.isFinite(x)||!Number.isFinite(z)||Math.hypot(x,z)>EARTH_REGION_RADIUS?'boundary':null;}
 export function earthRegionResume(to,from,arrival,previous={}){
  const p={x:arrival.x,z:arrival.z,y:earthRegionHeight(to,arrival.x,arrival.z),vy:0,grounded:true,swimming:false,wading:false,boostReady:false,swimStamina:previous.position?.swimStamina??1};
- return {worldId:'earth',regionId:getEarthRegion(to).id,entryFrom:from,mode:'walking',position:p,yaw:arrival.yaw,pitch:.18,facing:arrival.yaw,viewMode:previous.viewMode||'chase',explored:true};
+ return {worldId:'earth',regionId:getEarthRegion(to).id,entryFrom:from,mode:'walking',hoverboard:previous.hoverboard===true,boardHeading:arrival.yaw,position:p,yaw:arrival.yaw,pitch:.18,facing:arrival.yaw+(previous.hoverboard?Math.PI/2:0),viewMode:previous.viewMode||'chase',explored:true};
 }

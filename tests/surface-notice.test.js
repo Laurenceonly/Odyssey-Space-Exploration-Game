@@ -7,3 +7,8 @@ test('surface messages expire despite repeated frame updates and appear again on
  notice.update(5,'walk','');assert.equal(notice.update(6,'swim','Swimming'),'Swimming');
  notice.reset();assert.equal(notice.update(0,'swim','Swimming'),'Swimming');
 });
+test('temporary equipment notices do not replay an old discovery message',()=>{
+ const notice=createSurfaceNotice();assert.equal(notice.update(0,'studied','Discovery saved.'),'Discovery saved.');
+ assert.equal(notice.update(5,'studied','Discovery saved.',3,'Hoverboard equipped'),'Hoverboard equipped');
+ assert.equal(notice.update(8,'studied','Discovery saved.'),'');
+});

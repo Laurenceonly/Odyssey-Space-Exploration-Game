@@ -2,6 +2,7 @@ import {createSurfaceCollider} from './surface-collision.js';
 import * as THREE from 'three';
 import {getEarthRegion,earthRegionExits,earthRouteDistance} from './earth-regions.js';
 import {earthRegionWater} from './earth-region-terrain.js';
+import {createEarthPortal} from './earth-portals.js';
 
 export function buildEarthRegionEnvironment({scene,regionId,terrainHeight,mesh,material,obstacles}){
  const region=getEarthRegion(regionId),color=new THREE.Color(),base=new THREE.Color(region.ground),dummy=new THREE.Object3D();
@@ -76,15 +77,39 @@ export function buildEarthRegionEnvironment({scene,regionId,terrainHeight,mesh,m
  return {update(){}};
 }
 
-export function buildEarthExitSigns(scene,regionId,terrainHeight){
+const portalSignStyles={
+ fernlilt:{background:'#3d3c29',border:'#d1bb78',font:'Georgia, serif'},
+ rainselve:{background:'#233c29',border:'#b3ce91',font:'Georgia, serif'},
+ evrathen:{background:'#294c53',border:'#a8d2ce',font:'"DM Sans", sans-serif'},
+ vaelcren:{background:'#464a45',border:'#d2cbb6',font:'Georgia, serif'},
+ ossamber:{background:'#174735',border:'#a9d198',font:'Georgia, serif'},
+ ashqarin:{background:'#754a32',border:'#f0c893',font:'Georgia, serif'},
+ nacreloom:{background:'#354a56',border:'#c5e0df',font:'"Oxanium", sans-serif'},
+ keltrond:{background:'#49585b',border:'#e4ede7',font:'"Oxanium", sans-serif'},
+ teshora:{background:'#706253',border:'#f1dbc4',font:'Georgia, serif'},
+ hyskrum:{background:'#45646c',border:'#e2f4f2',font:'"DM Sans", sans-serif'},
+ uloqai:{background:'#225b58',border:'#afe0ce',font:'"DM Sans", sans-serif'},
+ cirelune:{background:'#4b4933',border:'#dbc899',font:'Georgia, serif'},
+ dorynth:{background:'#49342e',border:'#e3aa79',font:'"Oxanium", sans-serif'},
+};
+export function buildEarthExitSigns(scene,regionId,terrainHeight,obstacles=[]){
  const group=new THREE.Group();group.name='earth-region-routes';
+ const portalTime={value:0};group.userData.portalTime=portalTime;
  for(const exit of earthRegionExits(regionId)){
-  const canvas=document.createElement('canvas');canvas.width=768;canvas.height=128;const ctx=canvas.getContext('2d');
-  ctx.fillStyle='#18211ef2';ctx.fillRect(0,0,768,128);ctx.strokeStyle='#e2e6db';ctx.lineWidth=3;ctx.strokeRect(5,5,758,118);
-  ctx.fillStyle='#f4f4eb';ctx.font='500 38px sans-serif';ctx.textAlign='center';ctx.fillText(exit.name,384,57);ctx.font='24px sans-serif';ctx.fillText('Approach and press E',384,99);
+  const height=terrainHeight(exit.x,exit.z),portal=createEarthPortal(exit.to,portalTime);
+  portal.position.set(exit.x,height,exit.z);portal.rotation.y=Math.atan2(exit.x,exit.z);portal.scale.setScalar(2.4);
+  const style=portalSignStyles[exit.to]||portalSignStyles.fernlilt;
+  const canvas=document.createElement('canvas');canvas.width=1024;canvas.height=192;const ctx=canvas.getContext('2d');
+  ctx.fillStyle=style.background;ctx.fillRect(0,0,1024,192);ctx.strokeStyle=style.border;ctx.lineWidth=5;ctx.strokeRect(5,5,1014,182);
+  ctx.fillStyle='#f7f5ea';ctx.textAlign='center';ctx.font='600 62px '+style.font;ctx.fillText(exit.name,512,83,960);
+  ctx.fillStyle=style.border;ctx.font='500 26px '+style.font;ctx.fillText('COMING SOON',512,145,960);
   const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;
-  const sign=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,depthTest:true}));sign.position.set(exit.x,terrainHeight(exit.x,exit.z)+4.5,exit.z);sign.scale.set(18,3,1);sign.name='route-to-'+exit.to;group.add(sign);
-  const post=new THREE.Mesh(new THREE.CylinderGeometry(.12,.15,3.5,6),new THREE.MeshLambertMaterial({color:0x77664e}));post.position.set(exit.x,terrainHeight(exit.x,exit.z)+1.75,exit.z);post.castShadow=true;group.add(post);
+  const sign=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,depthTest:true,depthWrite:false}));
+  // Mount at the top of the opening itself, keeping the name visible as the
+  // much taller canopy or rockwork extends above the camera view.
+  sign.name='portal-sign-'+exit.to;sign.position.set(0,6.5,-2.1);sign.scale.set(5.8,1.09,1);sign.visible=false;portal.userData.signIndex=portal.children.length;portal.add(sign);
+  group.add(portal);
+  obstacles.push({x:exit.x,z:exit.z,radius:8.2});
  }
  scene.add(group);return group;
 }

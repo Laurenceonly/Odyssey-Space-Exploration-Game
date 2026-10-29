@@ -794,6 +794,28 @@ body #app button:not(:disabled):not([aria-disabled="true"]):active{transition-du
 .surface-map-button[hidden]{display:none}
 .surface-map-button kbd{font:inherit;color:var(--text-muted);border:1px solid #ffffff35;padding:2px 5px}
 .surface-mode .surface-map-button{position:static;transform:none;flex-shrink:0;height:44px;box-sizing:border-box;margin:0}
+.backpack-toggle[hidden]{display:none}
+.surface-mode .backpack-toggle{position:static;flex:none;display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;padding:0;border:1px solid var(--control-border);border-radius:8px;background:var(--button-shade);color:var(--text-primary)}
+.surface-mode .backpack-toggle[hidden]{display:none}
+#app.surface-mode .surface-map-button,#app.surface-mode .backpack-toggle{background:var(--button-shade);border-color:var(--control-border);color:var(--text-primary)}
+.backpack-panel{position:absolute;z-index:14;right:32px;top:100px;width:min(320px,calc(100vw - 40px));box-sizing:border-box;color:#ecece4;background:rgba(22,27,27,.95);border:1px solid rgba(223,225,211,.22);border-radius:12px;box-shadow:0 18px 48px #0006;opacity:0;visibility:hidden;transform:translate3d(14px,0,0);pointer-events:none;transition:opacity var(--panel-duration) var(--ease-out),transform var(--panel-duration) var(--ease-out),visibility 0s linear var(--panel-duration)}
+.backpack-panel.is-open{opacity:1;visibility:visible;transform:translate3d(0,0,0);pointer-events:auto;transition:opacity var(--panel-duration) var(--ease-out),transform var(--panel-duration) var(--ease-out),visibility 0s}
+.backpack-heading{display:flex;align-items:flex-start;justify-content:space-between;padding:24px 24px 19px}
+.backpack-heading h2{margin:0;font:500 25px/1.1 'Oxanium',sans-serif;letter-spacing:-.025em}
+.backpack-footer{font:600 10px/1 'DM Sans',sans-serif;letter-spacing:.13em;color:#abb4a9}
+.backpack-heading button{display:grid;place-items:center;width:36px;height:36px;margin:-5px -7px 0 0;padding:0;border:0;border-radius:6px;background:transparent;color:#e9ece5}
+.backpack-divider{height:1px;margin:0 24px;background:#ffffff20}
+.backpack-slots{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;padding:20px 24px 24px}
+.backpack-slots span{display:block;aspect-ratio:1;border:1px solid #ffffff25;border-radius:6px;background:#ffffff08}
+.backpack-slots .backpack-item{display:flex;flex-direction:column;align-items:center;justify-content:center;aspect-ratio:1;min-width:0;padding:2px;border:1px solid #d1dcd255;border-radius:6px;background:#ffffff10;color:#e7efea}
+.backpack-item svg{width:70%;height:65%}.backpack-item strong{font:500 9px/1 'DM Sans',sans-serif;letter-spacing:0}
+#app .backpack-item[aria-pressed="true"]{border-color:#9bd2ca;background:#9bd2ca20}
+.backpack-footer{display:flex;justify-content:flex-end;align-items:center;padding:15px 24px;border-top:1px solid #ffffff18;font-size:9px}
+.backpack-footer kbd{font:inherit;color:#e9ece4;border:1px solid #ffffff40;border-radius:3px;padding:3px 5px;margin-right:5px}
+@media(hover:hover) and (pointer:fine){.backpack-heading button:hover{background:#ffffff15}}
+@media(max-width:650px){.backpack-panel{right:20px;top:78px;width:min(300px,calc(100vw - 40px))}.backpack-heading{padding:20px 20px 15px}.backpack-slots{padding:16px 20px 20px}.backpack-footer{padding:13px 20px}}
+@media(max-height:620px){.backpack-panel{top:68px;width:min(250px,calc(100vw - 40px));max-height:calc(100dvh - 140px);overflow:auto}.backpack-heading{padding:16px 20px 12px}.backpack-slots{gap:6px;padding:12px 20px}.backpack-footer{padding:10px 20px}}
+@media(prefers-reduced-motion:reduce){.backpack-panel,.backpack-panel.is-open{transform:none;transition:opacity 80ms linear,visibility 0s}.backpack-panel:not(.is-open){transition:opacity 80ms linear,visibility 0s linear 80ms}}
 .earth-map-dialog{--atlas-ink:#f1f0e7;--atlas-muted:#b6bcb1;position:fixed;inset:0;width:100%;height:100dvh;max-width:none;max-height:none;margin:0;padding:0;border:0;border-radius:0;background:#29312d;color:var(--atlas-ink);overflow:hidden;box-sizing:border-box}
 .earth-map-dialog[open]{display:grid;grid-template-rows:80px minmax(0,1fr) 56px}
 .earth-map-dialog::backdrop{background:#18201d}
@@ -874,9 +896,10 @@ body #app button:not(:disabled):not([aria-disabled="true"]):active{transition-du
   inset:0;margin:auto;width:min(1120px,calc(100vw - 80px));height:min(740px,calc(100dvh - 96px));max-width:calc(100vw - 32px);max-height:calc(100dvh - 32px);
   border:1px solid #d8dfca35;border-radius:10px;box-shadow:0 18px 65px #0005;
   opacity:0;transform:none;clip-path:none;
-  transition:opacity var(--control-feedback-duration) ease,display var(--control-feedback-duration) allow-discrete,overlay var(--control-feedback-duration) allow-discrete;
+  transition:opacity 200ms cubic-bezier(0.23,1,0.32,1);
 }
 .earth-map-dialog[open]{opacity:1;transform:none;clip-path:none}
+.earth-map-dialog[open].is-closing{opacity:0;pointer-events:none}
 .earth-map-dialog::backdrop{
   background:#0b110c44;opacity:0;
   transition:opacity var(--control-feedback-duration) ease,display var(--control-feedback-duration) allow-discrete,overlay var(--control-feedback-duration) allow-discrete;
@@ -917,6 +940,17 @@ body #app button:not(:disabled):not([aria-disabled="true"]):active{transition-du
 .earth-map-waypoint button{background:#303a30e8;border-color:#ffffff25}
 .earth-map-north{right:28px;top:20px;font-size:11px}
 .earth-map-north svg{height:22px;width:14px}
+.earth-map-north{display:block;width:58px;height:58px}
+.earth-map-north span{position:absolute;line-height:1}
+.earth-map-north .compass-n{top:0;left:50%;transform:translateX(-50%)}
+.earth-map-north .compass-s{bottom:0;left:50%;transform:translateX(-50%)}
+.earth-map-north .compass-e{right:0;top:50%;transform:translateY(-50%)}
+.earth-map-north .compass-w{left:0;top:50%;transform:translateY(-50%)}
+.earth-map-north svg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}
+.minimap-east,.minimap-south,.minimap-west{position:absolute;font:600 11px 'DM Sans',sans-serif;text-shadow:0 1px 3px #000;pointer-events:none}
+.minimap-east{right:9px;top:50%;transform:translateY(-50%)}
+.minimap-west{left:9px;top:50%;transform:translateY(-50%)}
+.minimap-south{bottom:9px;left:50%;transform:translateX(-50%)}
 @media(max-width:650px){.earth-map-dialog[open]{grid-template-rows:58px minmax(0,1fr) 50px}.earth-map-header{padding:0 18px}.earth-map-header h2{font-size:22px}.earth-map-location{left:18px}.earth-map-waypoint{left:18px}.earth-map-footer{padding:0 12px;gap:8px}.earth-map-tools #earthMapCenter{margin-left:4px;padding:0 8px}.earth-map-footer .earth-map-return{font-size:10px}.earth-map-pin-controls{bottom:15px}}
 
 /* A single icon per control, with accessible names and hover labels. */

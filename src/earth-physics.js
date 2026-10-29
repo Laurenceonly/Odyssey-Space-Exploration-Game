@@ -51,17 +51,18 @@ export function stepAstronaut(body,input,dt,obstacles=[],environment={}){
   const startX=body.x,startZ=body.z;let blocked=null,landed=false,landingSpeed=0;
   const magnitude=Math.hypot(input.x,input.z),water=waterAt(body.x,body.z);
   const immersed=Number.isFinite(water)&&body.y<water-.15;
+  const riding=input.hoverboard===true&&!immersed&&!body.swimming&&!body.wading;
   if(!input.run&&body.swimStamina>=.3)body.swimExhausted=false;
   // Existing swim stamina save fields now hold the shared exertion budget.
   const exerting=magnitude>.1&&input.run===true&&!body.swimExhausted&&body.swimStamina>0;
   const fastSwimming=body.swimming===true&&exerting;
-  const running=!immersed&&!body.swimming&&exerting;
+  const running=!riding&&!immersed&&!body.swimming&&exerting;
   if(fastSwimming||running){
     body.swimStamina=Math.max(0,body.swimStamina-dt/(fastSwimming?FAST_SWIM_SECONDS:RUN_SECONDS));
     if(body.swimStamina===0)body.swimExhausted=true;
   }else body.swimStamina=Math.min(1,body.swimStamina+dt/SWIM_RECOVERY_SECONDS);
   body.fastSwimming=fastSwimming;body.running=running;
-  const speed=immersed?(fastSwimming?2.7:1.9):(running?5.8:2.4);
+  const speed=immersed?(fastSwimming?2.7:1.9):riding?(input.run?12:8):(running?5.8:2.4);
   const targetX=input.x/Math.max(1,magnitude)*speed,targetZ=input.z/Math.max(1,magnitude)*speed;
   const steps=Math.max(1,Math.ceil(dt*120)),h=dt/steps;
   let boosted=false;

@@ -21,13 +21,17 @@ export function createAstronaut() {
   part(capsule(.245,.32),white,torso,[0,1.19,0],[1.15,1,.8]);
   part(new THREE.SphereGeometry(.26,16,10),fabric,torso,[0,.92,0],[1,.55,.78]);
   part(new THREE.BoxGeometry(.38,.43,.17),white,torso,[0,1.19,.26]);
+  const fieldPack=part(new RoundedBoxGeometry(.38,.39,.17,3,.035),fabric,torso,[0,1.18,.38]);fieldPack.name='field-backpack';
+  part(new RoundedBoxGeometry(.27,.18,.035,2,.015),white,torso,[0,1.10,.475]);
+  part(new THREE.BoxGeometry(.25,.018,.012),rubber,torso,[0,1.18,.498]);
+  part(new THREE.BoxGeometry(.045,.025,.015),orange,torso,[0,1.18,.507]);
   part(new THREE.BoxGeometry(.3,.25,.03),rubber,torso,[0,1.2,.36]);
   for(const x of [-.13,.13])part(capsule(.055,.29),fabric,torso,[x,1.2,.39]);
   part(new THREE.BoxGeometry(.23,.2,.05),rubber,torso,[0,1.28,-.22]);
   part(new THREE.BoxGeometry(.13,.065,.015),glass,torso,[-.025,1.31,-.252]);
   for(const x of [-.065,0,.065])part(new THREE.SphereGeometry(.014,8,6),orange,torso,[x,1.23,-.255]);
   const collar=part(new THREE.TorusGeometry(.18,.04,8,24),rubber,torso,[0,1.49,0]);collar.rotation.x=Math.PI/2;
-  const head=new THREE.Group();head.position.y=1.7;torso.add(head);
+  const head=new THREE.Group();head.name='helmet-head';head.position.y=1.7;torso.add(head);
   part(new THREE.SphereGeometry(.275,24,18),white,head,[0,0,0],[1,1.05,.98]);
   part(new THREE.SphereGeometry(.246,24,18),rubber,head,[0,0,-.09],[1,.85,.9]);
   part(new THREE.SphereGeometry(.228,24,18),visor,head,[0,.005,-.13],[1,.82,.83]);
@@ -109,7 +113,7 @@ export function createAstronaut() {
     const a=crawlKeys[i],b=crawlKeys[i+1],u=ease((t-a[0])/(b[0]-a[0]));
     return {shoulder:THREE.MathUtils.lerp(a[1],b[1],u),spread:side*THREE.MathUtils.lerp(a[2],b[2],u),elbow:THREE.MathUtils.lerp(a[3],b[3],u)};
   }
-  function update(dt,{distance=0,speed=0,running:run=false,grounded=true,swimming=false,fastSwimming=false,vy=0,landed=false,landingSpeed=0,time=0,reduced=false,waterDepth=10,groundHeight=()=>0}={}){
+  function update(dt,{distance=0,speed=0,running:run=false,riding=false,grounded=true,swimming=false,fastSwimming=false,vy=0,landed=false,landingSpeed=0,time=0,reduced=false,waterDepth=10,groundHeight=()=>0}={}){
     dt=Math.min(.1,Math.max(0,dt));
     if(dt===0&&initialized)return;
     // Solve grounded foot placement in the unposed frame, then apply the
@@ -133,8 +137,8 @@ export function createAstronaut() {
     fastSwimWeight=THREE.MathUtils.damp(fastSwimWeight,swimming&&fastSwimming?1:0,6,dt);
     const swimDrive=THREE.MathUtils.smoothstep(speed,.15,1.5)*THREE.MathUtils.smoothstep(waterDepth,1,1.8);
     proneWeight=THREE.MathUtils.damp(proneWeight,swimming?swimDrive:0,6,dt);
-    torso.rotation.x=THREE.MathUtils.damp(torso.rotation.x,THREE.MathUtils.lerp(grounded?-.20*running*weight:.02,-.04,swimWeight),10,dt);
-    torso.rotation.y=THREE.MathUtils.damp(torso.rotation.y,reduced?0:Math.sin(phase*Math.PI*2)*(.012+running*.025)*weight*(1-swimWeight),10,dt);
+    torso.rotation.x=THREE.MathUtils.damp(torso.rotation.x,riding?-.08:THREE.MathUtils.lerp(grounded?-.20*running*weight:.02,-.04,swimWeight),10,dt);
+    torso.rotation.y=THREE.MathUtils.damp(torso.rotation.y,riding?-.22:reduced?0:Math.sin(phase*Math.PI*2)*(.012+running*.025)*weight*(1-swimWeight),10,dt);
     torso.scale.y=1+(reduced?0:Math.sin(time*1.7)*.002)*(1-weight);
     for(const limb of limbs){
       rest.set(limb.side*.145,ankleHeight,0);root.localToWorld(rest);
@@ -147,7 +151,15 @@ export function createAstronaut() {
         limb.worldFoot.y=groundHeight(limb.worldFoot.x,limb.worldFoot.z)+ankleHeight;
         limb.plant.copy(limb.worldFoot);limb.landing.copy(limb.worldFoot);limb.lastFraction=null;
       }
-      if(!grounded){
+      if(riding){
+        // Feet follow the deck in local space instead of chasing the terrain.
+        local.set(limb.side*.25,ankleHeight,0);
+        limb.footTarget.lerp(local,1-Math.exp(-12*dt));
+        limb.worldFoot.copy(limb.footTarget);root.localToWorld(limb.worldFoot);
+        limb.plant.copy(limb.worldFoot);limb.lastFraction=null;limb.planted=grounded;limb.forcedSwing=false;limb.correction=null;
+        limb.footYaw+=Math.atan2(Math.sin(yaw-limb.footYaw),Math.cos(yaw-limb.footYaw))*(1-Math.exp(-12*dt));
+        limb.footRoll=THREE.MathUtils.damp(limb.footRoll,0,20,dt);
+      }else if(!grounded){
         // Once airborne the boots turn with the body, rather than keeping a ground anchor.
         const bodyTurn=initialized?Math.atan2(Math.sin(yaw-previousYaw),Math.cos(yaw-previousYaw)):0;
         limb.footYaw+=bodyTurn;
@@ -159,7 +171,7 @@ export function createAstronaut() {
         limb.lastFraction=null;limb.planted=false;limb.forcedSwing=false;limb.correction=null;limb.footRoll=THREE.MathUtils.damp(limb.footRoll,0,12,dt);
         continue;
       }
-      if(!moving){
+      else if(!moving){
         limb.worldFoot.lerp(rest,initialized?1-Math.exp(-12*dt):1);
         limb.worldFoot.y=Math.max(limb.worldFoot.y,groundHeight(limb.worldFoot.x,limb.worldFoot.z)+ankleHeight);
         limb.plant.copy(limb.worldFoot);limb.lastFraction=null;limb.planted=true;limb.forcedSwing=false;limb.correction=null;limb.footRoll=THREE.MathUtils.damp(limb.footRoll,0,20,dt);
@@ -226,9 +238,11 @@ export function createAstronaut() {
       limb.footTarget.copy(local);
     }
     const maxReach=THREE.MathUtils.lerp(legLength*2-.0001,legLength*2-.004,weight);
-    let ceiling=.0024*(1-weight)+.05*running;
+    let ceiling=.0024*(1-weight)-.08*running;
     if(grounded)for(const limb of limbs){
-      if(running<.5&&!limb.planted)continue;
+      // A swinging boot is not supporting the body; using it as a height
+      // constraint makes the hips snap down repeatedly at running speed.
+      if(!limb.planted)continue;
       const foot=limb.footTarget,side=foot.x-limb.hip.position.x;
       const legHeight=Math.sqrt(Math.max(.01,maxReach*maxReach-foot.z*foot.z-side*side));
       ceiling=Math.min(ceiling,foot.y+legHeight-limb.hip.position.y);
@@ -238,7 +252,7 @@ export function createAstronaut() {
     // A small, steady knee bend absorbs ordinary walking steps. Do not
     // make the whole torso rise and drop to chase each swinging boot.
     const walkHeight=.0024*(1-weight)-.025*weight;
-    const target=grounded?THREE.MathUtils.lerp(Math.min(ceiling,walkHeight),ceiling,running)-impact:0;
+    const target=grounded?(riding?Math.min(ceiling,-.045):THREE.MathUtils.lerp(Math.min(ceiling,walkHeight),ceiling,running))-impact:0;
     // Critically damped body weight: stable across frame rates, without artificial bobbing.
     const omega=22,offset=pelvis.position.y-target,impulse=pelvisVelocity+omega*offset,decay=Math.exp(-omega*dt);
     pelvis.position.y=target+(offset+impulse*dt)*decay;
@@ -273,8 +287,8 @@ export function createAstronaut() {
       const armSwing=THREE.MathUtils.clamp(z/halfStep,-1,1)*(.2+running*.45);
       const jumpShoulder=1.05+THREE.MathUtils.clamp(vy,-3,4.4)*.09;
       const landShoulder=THREE.MathUtils.lerp(armSwing,jumpShoulder,airWeight);
-      const landElbow=THREE.MathUtils.lerp(.2+running*1.1*weight,.82,airWeight);
-      armTarget.setFromEuler(strokeEuler.set(landShoulder,0,limb.side*THREE.MathUtils.lerp(.08,.22,airWeight)));
+      const landElbow=riding?.35:THREE.MathUtils.lerp(.2+running*1.1*weight,.82,airWeight);
+      armTarget.setFromEuler(strokeEuler.set(riding?.12:landShoulder,0,limb.side*(riding?.25:THREE.MathUtils.lerp(.08,.22,airWeight))));
       // Tread upright when still; alternate complete front-crawl strokes when moving.
       const breastStroke=reduced?0:Math.sin(swimAngle),breastRecovery=reduced?.5:(1+Math.cos(swimAngle))*.5;
       const swimShoulder=THREE.MathUtils.lerp(.8+tread*.18,THREE.MathUtils.lerp(.95+breastStroke*.45,crawl.shoulder,fastSwimWeight),swimDrive);
@@ -296,7 +310,7 @@ export function createAstronaut() {
     pelvis.position.add(swimOffset);
     // Extend the neck to keep the visor near the surface during the pull.
     head.rotation.x=THREE.MathUtils.damp(head.rotation.x,.9*proneWeight-.45*proneWeight*fastSwimWeight,8,dt);
-    head.rotation.y=THREE.MathUtils.damp(head.rotation.y,reduced?0:Math.max(0,Math.sin(swimPhase*Math.PI*2))*.55*proneWeight*fastSwimWeight,8,dt);
+    head.rotation.y=THREE.MathUtils.damp(head.rotation.y,riding?-1.35:reduced?0:Math.max(0,Math.sin(swimPhase*Math.PI*2))*.55*proneWeight*fastSwimWeight,8,dt);
 
     previousPosition.copy(position);previousYaw=yaw;initialized=true;wasMoving=moving;wasGrounded=grounded;
   }

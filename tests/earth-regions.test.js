@@ -6,14 +6,14 @@ import {earthRegionHeight,earthRegionWater,earthRegionWalkable,earthRegionResume
 import {stepAstronaut} from '../src/earth-physics.js';
 import {buildEarthRegionEnvironment} from '../src/earth-region-environment.js';
 
-test('all eleven substantial regions have reciprocal exits and a route back to Fernlilt',()=>{
- assert.equal(EARTH_REGIONS.length,11);assert.ok(EARTH_REGION_RADIUS>=560);
+test('all thirteen named regions have reciprocal planned routes',()=>{
+ assert.equal(EARTH_REGIONS.length,13);assert.ok(EARTH_REGION_RADIUS>=560);
  for(const region of EARTH_REGIONS){
   for(const exit of earthRegionExits(region.id)){
    assert.ok(earthNeighbours(exit.to).includes(region.id));assert.ok(Math.hypot(exit.x,exit.z)<EARTH_REGION_RADIUS-30);assert.equal(earthExitNear(region.id,exit.x,exit.z)?.to,exit.to);
    const arrival=earthRegionArrival(exit.to,region.id);assert.ok(arrival);assert.equal(earthExitNear(exit.to,arrival.x,arrival.z),null,'arrivals stand clear of the return trigger');
   }
-  let current=region.id;for(let n=0;current!=='fernlilt'&&n<11;n++)current=earthNextRegion(current);assert.equal(current,'fernlilt');
+  let current=region.id;for(let n=0;current!=='fernlilt'&&n<13;n++)current=earthNextRegion(current);assert.equal(current,'fernlilt');
  }
  assert.equal(earthRegionArrival('hyskrum','ashqarin'),null);assert.equal(earthNextRegion('unknown'),null);
 });
@@ -38,7 +38,7 @@ test('region arrival saves restore on dry terrain, preserve view and stamina, an
 });
 
 test('ordinary walking remains frame-independent on the new region routes',()=>{
- for(const region of EARTH_REGIONS.filter(r=>r.id!=='fernlilt')){
+ for(const region of EARTH_REGIONS.filter(r=>r.available&&r.id!=='fernlilt')){
   const exit=earthRegionExits(region.id)[0],dx=exit.x,dz=exit.z,length=Math.hypot(dx,dz),results=[];
   for(const fps of [30,60]){
    const x=dx*.45,z=dz*.45,body={x,z,y:earthRegionHeight(region.id,x,z),vy:0,grounded:true};
@@ -50,7 +50,7 @@ test('ordinary walking remains frame-independent on the new region routes',()=>{
 });
 
 test('new region geometry is finite, leaves travel routes clear, and includes an underground cavern roof',()=>{
- for(const region of EARTH_REGIONS.filter(r=>r.id!=='fernlilt')){
+ for(const region of EARTH_REGIONS.filter(r=>r.available&&r.id!=='fernlilt')){
   const scene=new THREE.Scene(),obstacles=[],terrainHeight=(x,z)=>earthRegionHeight(region.id,x,z);
   const mesh=(geometry,material,position,scale)=>{const object=new THREE.Mesh(geometry,material);if(position)object.position.set(...position);if(scale)object.scale.set(...scale);scene.add(object);return object;};
   buildEarthRegionEnvironment({scene,regionId:region.id,terrainHeight,mesh,material:(color,extra={})=>new THREE.MeshStandardMaterial({color,...extra}),obstacles});

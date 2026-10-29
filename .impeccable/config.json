@@ -1,0 +1,26 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "broken-image",
+        "value": "*",
+        "files": [
+          "index.html"
+        ],
+        "createdAt": "2026-10-29T12:19:34.767Z",
+        "reason": "Existing planet and saved-photo images get sources from game state before display."
+      },
+      {
+        "rule": "dark-glow",
+        "value": "*",
+        "files": [
+          "index.html"
+        ],
+        "createdAt": "2026-10-29T12:19:39.032Z",
+        "reason": "Stale finding: the reported color is absent from current project files."
+      }
+    ]
+  }
+}

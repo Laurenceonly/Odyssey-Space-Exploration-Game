@@ -25,6 +25,7 @@ import { flightScale } from './flight-scale.js';
 import { followChaseCamera } from './camera-follow.js';
 import { previewRegion, previewDistance } from './preview-framing.js';
 import { createShipCabin } from './ship-cabin.js';
+import { createBackpack } from './backpack.js';
 
 if (import.meta.env.PROD) inject({ mode: 'production' });
 
@@ -52,7 +53,7 @@ let savedGraphicsQuality='auto';
 try{savedGraphicsQuality=localStorage.getItem('odyssey-graphics-quality')||'auto';}catch{}
 const renderScale=createRenderScale(savedGraphicsQuality);
 function updateGraphicsQualityHint(){
-  const descriptions={auto:'Adapts resolution and grass detail for smoother play.',low:'Softer scenery and lighter detail for smoother play. Keeps the full grass canopy.',medium:'Balanced resolution and grass detail.',high:'Full resolution and the densest grass detail. More demanding.'};
+  const descriptions={auto:'Adapts resolution and grass detail for smoother play.',low:'Softer scenery and lighter detail for smoother play. Keeps the full grass canopy.',medium:'Balanced resolution and grass detail.',high:'Full resolution with balanced grass detail. More demanding.'};
   document.getElementById('graphicsQualityHint').textContent=descriptions[renderScale.quality]+' Applies immediately; saved in this browser.';
 }
 function scenePixelRatio(){return sceneRenderPixelRatio({width:innerWidth,height:innerHeight,pixelRatio:window.devicePixelRatio||1,coarse:matchMedia('(pointer: coarse)').matches,quality:renderScale.quality,scale:renderScale.value});}
@@ -199,6 +200,7 @@ let cabinActive = false;
 const cabinHoldPosition = new THREE.Vector3();
 const cabinOrientation = new THREE.Quaternion();
 let earthSurface = null;
+const backpack=createBackpack({button:document.getElementById('backpackToggle'),panel:document.getElementById('backpackPanel'),closeButton:document.getElementById('backpackClose'),itemButton:document.getElementById('hoverboardItem'),onToggleBoard:()=>earthSurface?.toggleHoverboard()});
 const earthMap=createEarthMap({getSurface:()=>earthSurface,getMode:()=>gameMode,
   onOpen:()=>{keys.delete('KeyR');if(earthSurface?.factOpen)earthSurface.closeFact();resetMouseLook();},
   onClose:()=>{resetMouseLook();},
@@ -319,9 +321,10 @@ function openLandingSite(resume=null) {
     try{
       if(earthSurface&&(earthSurface.worldId!==site.id||site.id==='earth'&&earthSurface.regionId!==getEarthRegion(resume?.regionId).id)){earthSurface.dispose();earthSurface=null;}
       if(!earthSurface)earthSurface=createEarthSurface({
-        ship:shipMesh,keys,reducedMotion,site,getPilotName:()=>pilotName,regionId:resume?.regionId||'fernlilt',onRegionTravel:travelEarthRegion,
+        ship:shipMesh,keys,reducedMotion,site,getPilotName:()=>pilotName,regionId:resume?.regionId||'fernlilt',onRegionTravel:travelEarthRegion,onMotion:motion=>shipAudio.surfaceMotion(motion),
         hasObservation:()=>readObservations().has(site.id),
         onEvent:(type,details={})=>{
+          if(type==='landing'&&site.id==='earth')shipAudio.enterEarthMusic();
           if(type==='observation'){
             shipAudio.cue('discovery');
             const observations=readObservations();if(observations.has(site.id))return;
@@ -330,6 +333,7 @@ function openLandingSite(resume=null) {
           recordLog(type,site.id,{site:site.title,pilot:pilotName,...details});
         },
         onExit:departed=>{
+          if(site.id==='earth')shipAudio.leaveEarthMusic();
           keys.clear();resetMouseLook();
           document.querySelector('.destination-panel').inert=document.querySelector('#app').classList.contains('destinations-hidden');
           setGuideHidden(guideHidden);
@@ -344,6 +348,7 @@ function openLandingSite(resume=null) {
       });
       earthSurface.setGraphicsQuality(renderScale.quality,renderScale.value);
       earthSurface.open(resume);
+      if(site.id==='earth'&&resume&&['walking','parked'].includes(resume.mode))shipAudio.enterEarthMusic();
       canvas.setAttribute('aria-label',site.name+' exploration. WASD walk, drag to look, Space jump and press again for suit boost, hold R near a survey flag to scan, E board near the ship.');
     }catch(error){console.error('Visit could not start',error);photoFeedback('Could not start this visit. Try again.');}
     finally{surfaceEntryPending=false;requestAnimationFrame(()=>requestAnimationFrame(()=>curtain.classList.remove('covered')));}
@@ -2705,6 +2710,7 @@ function setupControls() {
       if(editing)return;
       if(event.code==='Escape'||event.code==='KeyM'&&!event.ctrlKey&&!event.metaKey&&!event.altKey){event.preventDefault();if(!event.repeat)earthMap.close();return;}
       if(event.ctrlKey||event.metaKey||event.altKey)return;
+      if(event.code==='KeyH'&&!event.repeat&&earthSurface?.mode==='walking'&&!earthSurface.factOpen){event.preventDefault();earthSurface.toggleHoverboard();return;}
       if(event.code==='KeyE'&&!event.repeat){event.preventDefault();earthSurface?.activate();return;}
       if(['KeyW','KeyS','KeyA','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','ShiftLeft','ShiftRight','Space','KeyJ'].includes(event.code)){
         event.preventDefault();keys.add(event.code);
@@ -2712,6 +2718,9 @@ function setupControls() {
       }
       return;
     }
+    if(backpack.active&&event.code==='Escape'){event.preventDefault();backpack.close();return;}
+    if(event.code==='KeyH'&&!event.repeat&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&earthSurface?.active&&earthSurface.mode==='walking'&&!modalOpen()&&!earthSurface.factOpen&&!(event.target instanceof HTMLInputElement||event.target instanceof HTMLSelectElement||event.target instanceof HTMLTextAreaElement||event.target.isContentEditable)){event.preventDefault();earthSurface.toggleHoverboard();return;}
+    if(event.code==='KeyB'&&!event.repeat&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&earthSurface?.active&&earthSurface.mode==='walking'&&!modalOpen()&&!earthSurface.factOpen&&!(event.target instanceof HTMLInputElement||event.target instanceof HTMLSelectElement||event.target instanceof HTMLTextAreaElement||event.target.isContentEditable)){event.preventDefault();backpack.toggle();return;}
     if(earthSurface?.active&&!modalOpen()&&event.code==='Escape'){
       if(earthSurface.factOpen){earthSurface.closeFact();return;}
       openExit();
@@ -3259,8 +3268,11 @@ function animate() {
   const dt=Math.min(frameDelta,.05);
   const elapsed=clock.elapsedTime;
   earthMap.update();
+  backpack.update(Boolean(earthSurface?.active&&earthSurface.mode==='walking'),modalOpen()||Boolean(earthSurface?.factOpen),Boolean(earthSurface?.hoverboardEquipped));
   if(earthSurface?.active){
+    shipAudio.setEarthWind(earthSurface.worldId==='earth'&&!document.hidden&&!blockingModalOpen()&&!earthSurface.factOpen);
     earthSurface.update(dt,blockingModalOpen()||document.hidden||earthSurface.factOpen);
+    shipAudio.setHoverboardSound(earthSurface.hoverboardEquipped&&!document.hidden&&!blockingModalOpen()&&!earthSurface.factOpen,earthSurface.hoverboardSpeed);
     speedContext.clearRect(0,0,speedCanvas.width,speedCanvas.height);
     shipAudio.update(0,0,true,false);
     renderer.render(earthSurface.scene,earthSurface.camera);
@@ -3270,6 +3282,8 @@ function animate() {
     if(elapsed-lastFlightSave>.5){saveFlightState();lastFlightSave=elapsed;}
     return;
   }
+  shipAudio.setEarthWind(false);
+  shipAudio.setHoverboardSound(false);
   updateBodies(elapsed,dt);
   if(cabinActive){
     introEffectsDt+=dt;

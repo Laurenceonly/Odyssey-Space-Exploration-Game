@@ -50,11 +50,10 @@ test('graphics presets reduce geometry while preserving the distant field and ti
     assert.deepEqual(grass.children,allocation,'switching presets reuses existing tiles');
     assert.ok(near.some(o=>o.visible),'nearby grass stays present');
   }
-  assert.ok(budgets[0]<budgets[1]&&budgets[1]<budgets[2],'each preset has a different geometry budget');
-  assert.ok(budgets[0]<budgets[2]*.8,'Low remains lighter than optimized High');
+  assert.ok(budgets[0]<budgets[1]&&budgets[1]<budgets[2],'Medium reduces grass work compared with High');
   const visible=near.filter(o=>o.visible),uniform=visible.reduce((sum,o)=>sum+o.count*28*3,0),tiered=visible.reduce((sum,o)=>sum+o.count*o.geometry.drawRange.count/3,0);
   assert.ok(tiered<uniform*.65,'High avoids over a third of the old near-detail triangle work');
-  assert.ok(visible.some(o=>o.geometry.drawRange.count===28*9),'High retains full detail near the camera');
+  assert.ok(visible.some(o=>o.geometry.drawRange.count===18*9),'High retains balanced detail near the camera');
   assert.ok(visible.some(o=>o.geometry.drawRange.count===6*9),'outer tiles skip already faded extra blades');
   const tierShader={uniforms:{},vertexShader:'#include <begin_vertex>',fragmentShader:'#include <clipping_planes_fragment>\n#include <color_fragment>'};near[0].material.onBeforeCompile(tierShader);assert.match(tierShader.fragmentShader,/smoothstep\(meadowTierFade/,'extra detail fades before tile draw budgets change');
   assert.equal(grass.userData.geometries.length,3,'all reusable detail buffers remain available for surface disposal');
@@ -66,10 +65,18 @@ test('graphics presets reduce geometry while preserving the distant field and ti
 
 test('landing and takeoff retain distant coverage even without crossing a grass tile boundary',()=>{
  const grass=createEarthGrass(new THREE.Scene(),getVisitSite('earth'),terrainHeight,random),far=grass.getObjectByName('distant-meadow').children;
- grass.userData.setQuality('low');grass.userData.update(6,7,1,false,2);const ground=far.filter(m=>m.visible).length;
+ grass.userData.setQuality('low');grass.userData.update(6,7,1,false,2);const ground=far.filter(m=>m.visible).length,fullCount=far.reduce((sum,m)=>sum+m.count,0);
+ const detail=grass.children.filter(m=>m.isInstancedMesh);assert.ok(detail.some(m=>m.visible),'ground views retain detailed grass');
  grass.userData.update(6,7,2,false,75);assert.equal(grass.userData.aerialView.value,1);assert.ok(far.filter(m=>m.visible).length>ground,'elevated views retain the whole distant field');
- assert.ok(far[0].material.map.isDataTexture,'the full canopy is projected from the existing blade mesh');assert.equal(far[0].geometry.drawRange.count,18,'Low retains three full-canopy projections for volume');
- grass.userData.update(6,7,3,false,2);assert.equal(grass.userData.aerialView.value,0);assert.equal(far.filter(m=>m.visible).length,ground);
+ assert.ok(far.reduce((sum,m)=>sum+m.count,0)<fullCount*.26,'aerial views draw about a quarter as many canopy patches');
+ assert.ok(detail.every(m=>!m.visible),'elevated views avoid drawing detailed blades hidden by the aerial fade');
+ assert.ok(far[0].material.map.isDataTexture,'the full canopy is projected from the existing blade mesh');
+ const near=far.find(m=>m.userData.tileX===0&&m.userData.tileZ===0),distant=far.find(m=>m.visible&&Math.hypot(m.userData.tileX,m.userData.tileZ)>400);
+ assert.equal(near.geometry.drawRange.count,18,'the nearby canopy retains three projections');
+ assert.equal(distant.geometry.drawRange.count,12,'distant canopy uses two perpendicular projections');
+ const visible=far.filter(m=>m.visible),actual=visible.reduce((sum,m)=>sum+m.count*m.geometry.drawRange.count,0),previous=visible.reduce((sum,m)=>sum+m.count*18,0);
+ assert.ok(actual<previous*.85,'distant field avoids at least 15 percent of its previous canopy geometry');
+ grass.userData.update(6,7,3,false,2);assert.equal(grass.userData.aerialView.value,0);assert.equal(far.filter(m=>m.visible).length,ground);assert.equal(far.reduce((sum,m)=>sum+m.count,0),fullCount,'ground density returns after landing');assert.ok(detail.some(m=>m.visible),'detail returns on descent');
  const geometries=new Set(),materials=new Set();grass.traverse(o=>{if(o.geometry)geometries.add(o.geometry);if(o.material)materials.add(o.material);if(o.isInstancedMesh)o.dispose();});geometries.forEach(g=>g.dispose());materials.forEach(m=>{m.map?.dispose();m.dispose();});
 });
 

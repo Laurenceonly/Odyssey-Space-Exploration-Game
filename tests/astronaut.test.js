@@ -1,5 +1,28 @@
 import test from 'node:test';import assert from 'node:assert/strict';import*as THREE from'three';import{createAstronaut}from'../src/astronaut.js';import{stepAstronaut}from'../src/earth-physics.js';
 const point=(root,name)=>root.getObjectByName(name).getWorldPosition(new THREE.Vector3());
+test('hoverboard rider keeps a steady staggered stance while moving',()=>{
+  const rig=createAstronaut();rig.root.rotation.y=Math.PI/2;
+  for(let i=0;i<120;i++){
+    rig.root.position.z-=8/60;
+    rig.update(1/60,{riding:true,grounded:true});
+  }
+  rig.root.updateMatrixWorld(true);
+  const left=rig.root.worldToLocal(point(rig.root,'left-foot')),right=rig.root.worldToLocal(point(rig.root,'right-foot'));
+  assert.ok(left.x<-.19&&right.x>.19,'feet stand toward opposite ends of the sideways board');
+  assert.ok(Math.abs(left.z)<.04&&Math.abs(right.z)<.04,'feet stay aligned across the board');
+  assert.ok(Math.abs(left.y-.1025)<.03&&Math.abs(right.y-.1025)<.03,'boots stay on the deck during travel');
+  const helmet=rig.root.getObjectByName('helmet-head'),look=new THREE.Vector3(0,0,-1).applyQuaternion(helmet.getWorldQuaternion(new THREE.Quaternion()));
+  assert.ok(look.dot(new THREE.Vector3(0,0,-1))>.95,'the rider looks toward the direction of travel');
+});
+test('steady running does not snap the hips during each stride',()=>{
+  const rig=createAstronaut();let previous=0,maxStep=0;
+  for(let i=0;i<360;i++){
+    rig.root.position.z-=5.8/60;rig.update(1/60,{distance:5.8/60,speed:5.8,running:true});
+    const height=rig.root.children[0].position.y;
+    if(i>60)maxStep=Math.max(maxStep,Math.abs(height-previous));previous=height;
+  }
+  assert.ok(maxStep<.015,'running hips should not abruptly snap when the feet change support');
+});
 test('idle boots rest on the ground and knees bend toward the front',()=>{const rig=createAstronaut();rig.update(1/60);rig.root.updateMatrixWorld(true);for(const side of ['left','right']){const foot=point(rig.root,side+'-foot'),hip=point(rig.root,side+'-hip'),knee=point(rig.root,side+'-knee');assert.ok(Math.abs(foot.y-.1025)<.003);assert.ok(knee.z<=hip.z);assert.ok(knee.y<hip.y&&knee.y>foot.y);}});
 test('walk and run keep soles grounded during stance without flipped boots',()=>{for(const speed of [2.4,5.8]){const rig=createAstronaut();let contacts=0,locked=0,last=null;for(let i=0;i<240;i++){const dt=1/60;rig.root.position.z-=speed*dt;rig.update(dt,{distance:speed*dt,speed,running:speed>3});rig.root.updateMatrixWorld(true);const foot=point(rig.root,'left-foot');assert.ok(foot.y>=.1-1e-4);const q=rig.root.getObjectByName('left-foot').getWorldQuaternion(new THREE.Quaternion());assert.ok(new THREE.Vector3(0,1,0).applyQuaternion(q).y>.94);if(i>60&&Math.abs(foot.y-.1025)<.005){contacts++;if(last&&foot.distanceTo(last)<.005)locked++;}last=foot;}assert.ok(contacts>30);assert.ok(locked>15,'stance feet should hold world position');}});
 test('terrain, jump, landing, and turn poses stay finite',()=>{for(const hz of [30,60,120]){const rig=createAstronaut();const ground=(x,z)=>x*.1+z*.06;for(let i=0;i<hz*2;i++){const dt=1/hz;rig.root.position.set(i/hz*.5,ground(i/hz*.5,-i/hz*.8),-i/hz*.8);rig.root.rotation.y=i/hz*.4;const air=i>hz*.5&&i<hz;rig.root.position.y+=air?.5:0;rig.update(dt,{distance:dt,speed:1,grounded:!air,vy:air?2:0,landed:i===hz,landingSpeed:4,groundHeight:ground});rig.root.updateMatrixWorld(true);for(const side of ['left','right'])assert.ok(point(rig.root,side+'-foot').toArray().every(Number.isFinite));}}});

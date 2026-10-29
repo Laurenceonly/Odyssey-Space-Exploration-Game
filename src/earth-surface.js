@@ -9,6 +9,8 @@ import { createSurfaceCollider, supportAt } from './surface-collision.js';
 import { createAstronaut } from './astronaut.js';
 import { createBoostSmoke } from './boost-smoke.js';
 import { createSwimWake } from './swim-wake.js';
+import { createHoverboard } from './hoverboard.js';
+import { updateEarthPortalSigns } from './earth-portals.js';
 import { createEarthFlowers } from './earth-flowers.js';
 import { createEarthGrass } from './earth-grass.js';
 import { createLandingGear } from './landing-gear.js';
@@ -17,7 +19,7 @@ import { createSurfaceScanner } from './surface-scanner.js';
 import { getVisitSite, visitFeaturePosition, visitRadius, visitTerrainHeight, surveyRouteDistance } from './visit-sites.js';
 import { buildPlanetEnvironment, buildSurveyBeacon } from './planet-environment.js';
 
-export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, reducedMotion, site=getVisitSite('earth'), hasObservation=()=>false,regionId='fernlilt',onRegionTravel=()=>{} }) {
+export function createEarthSurface({ ship, keys, onExit, onEvent, onMotion=()=>{}, getPilotName, reducedMotion, site=getVisitSite('earth'), hasObservation=()=>false,regionId='fernlilt',onRegionTravel=()=>{} }) {
   const isEarth=site.id==='earth',region=getEarthRegion(regionId),isFernlilt=isEarth&&region.id==='fernlilt';
   const surfaceWater=(x,z)=>isEarth?earthRegionWater(region.id,x,z):null;
   const regionCameraHeight=(x,z,y)=>{const water=surfaceWater(x,z);return water===null?y:Math.max(y,water+.3);};
@@ -290,7 +292,7 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
 
   } else if(isEarth)environment=buildEarthRegionEnvironment({scene,regionId:region.id,terrainHeight,mesh,material,obstacles});
   else environment=buildPlanetEnvironment({scene,site,terrainHeight,mesh,material,obstacles});
-  if(isEarth)buildEarthExitSigns(scene,region.id,terrainHeight);
+  const portalRoutes=isEarth?buildEarthExitSigns(scene,region.id,terrainHeight,obstacles):null;
   if(!isEarth||isFernlilt)buildSurveyBeacon({scene,site,terrainHeight,mesh,material,obstacles});
   const surfaceScanner=createSurfaceScanner();
   const scanUI=document.getElementById('surfaceScanner'),scanTitle=document.getElementById('surfaceScanTitle');
@@ -311,13 +313,16 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
   let touchdownAt=-Infinity;
   if(!isEarth||isFernlilt)obstacles.push({x:0,z:4,radius:3.5},{x:-3.1,z:5,radius:1.2},{x:3.1,z:5,radius:1.2});
   const rig=createAstronaut(),astronaut=rig.root;scene.add(astronaut);
+  const hoverboard=createHoverboard();astronaut.add(hoverboard);
   const scanFeet=['left-foot','right-foot'].map(name=>astronaut.getObjectByName(name));
   const body={x:6,y:0,z:7,vx:0,vz:0,vy:0,grounded:true};
   let mode='closed',viewMode='chase',transitionTime=0,elapsed=0;
   let orbitYaw=.55,targetYaw=.55,orbitPitch=.18,targetPitch=.18;
   let messageUntil=0,message='',welcomeUntil=0,cameraBlend=null,firstCameraFrame=true;
-  let sessionExplored=false,jumpPresses=[],welcomeIsRegion=false;
+  let sessionExplored=false,jumpPresses=[],welcomeIsRegion=false,lastAudioWater=false,boardEquipped=false,boardHeight=0,boardHeading=0;
   const boostSmoke=createBoostSmoke(scene),boostNozzles=[];
+  const boardNozzles=hoverboard.children.filter(child=>child.name==='hoverboard-boost-nozzle');
+  let activeBoostNozzles=boostNozzles;
   for(const x of [-.13,.13]){
     const nozzle=new THREE.Mesh(new THREE.CylinderGeometry(.045,.035,.07,10),new THREE.MeshStandardMaterial({color:0x29343b,roughness:.6}));
     nozzle.position.set(x,.075,.29);astronaut.getObjectByName('torso').add(nozzle);
@@ -372,12 +377,12 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
 
     text(title,isEarth?region.name:site.title);
     objective.hidden=true;
-    text(objective,mode==='walking'?(isEarth&&!isFernlilt?'Explore '+region.name+'. Follow a marked route to another region.':studied?'Discovery saved. Take a photo or head back to your ship.':site.goal+' · '+Math.round(distance)+' m'):mode==='parked'?'Step outside to explore. Board your ship when you’re ready to leave.':mode==='descending'?'Your ship is landing automatically.':'Your ship is returning to orbit.');
+    text(objective,mode==='walking'?(isEarth&&!isFernlilt?'Explore '+region.name+' or return to orbit.':studied?'Discovery saved. Take a photo or head back to your ship.':site.goal+' · '+Math.round(distance)+' m'):mode==='parked'?'Step outside to explore. Board your ship when you’re ready to leave.':mode==='descending'?'Your ship is landing automatically.':'Your ship is returning to orbit.');
     text(scienceNote,site.kind==='imagined'?'Imagined terrain and gravity; real '+site.name+' has no walkable surface.':isEarth?region.description:notes[site.id]);
     if(mode!=='walking')factPanel.hidden=true;
     const shipRange=Math.hypot(body.x,body.z-4),near=(!isEarth||isFernlilt)&&shipRange<8;
     const exit=isEarth&&mode==='walking'?earthExitNear(region.id,body.x,body.z):null;
-    shipLocator.hidden=mode!=='walking';
+    shipLocator.hidden=mode!=='walking'||isEarth&&!isFernlilt;
     if(mode==='walking'){
       const metres=Math.round(shipRange),bearing=Math.atan2(body.x,body.z-4);
       const homeExit=isEarth&&!isFernlilt?earthRegionExits(region.id).find(e=>e.to===earthNextRegion(region.id)):null;
@@ -387,12 +392,12 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
       shipLocator.setAttribute('aria-label',homeExit?'Route toward your ship via '+homeExit.name+'. Turn your view toward the route.':'Ship, '+metres+' metres away. Turn your view toward it.');
     }else shipWaypoint.hidden=true;
     primary.disabled=mode==='descending'||mode==='ascending'||mode==='departing'||mode==='walking'&&!near&&!exit;
-    text(primary,mode==='descending'?'Landing…':mode==='parked'?'Explore':mode==='walking'?(exit?'Travel to '+exit.name:near?'Board ship':isEarth&&!isFernlilt?'Follow a marked route':'Return to ship'):'Taking off…');
-    secondary.hidden=mode!=='parked';text(secondary,'Take off');
-    text(status,elapsed<messageUntil?message:mode==='descending'?site.name+' · Landing':mode==='parked'?site.name+' · Ship parked':mode==='walking'?(body.swimming?(body.fastSwimming?'Fast swimming':body.swimExhausted?(body.swimStamina>=.3?'Head-up swim · release Shift':'Head-up swim · recovering'):'Head-up swim'):body.wading?'Wading · head toward the shore to walk':body.swimExhausted?(body.swimStamina>=.3?'Tired · release Shift':'Tired · recovering'):site.conditions):site.name+' · Departure');
-    const noticeState=elapsed<messageUntil?'message:'+message:mode!=='walking'?mode:body.swimming?(body.fastSwimming?'fast-swim':body.swimExhausted?'tired-swim':'swim'):body.wading?'wade':body.swimExhausted?'tired':studied?'studied':'walking';
-    const noticeText=elapsed<messageUntil?message:mode!=='walking'?objective.textContent:body.swimming||body.wading||body.swimExhausted?status.textContent:studied?'Discovery saved.':isEarth&&!isFernlilt?'Follow marked routes to explore or head toward your ship.':site.goal;
-    text(status,surfaceNotice.update(elapsed,noticeState,noticeText));
+    text(primary,mode==='descending'?'Landing…':mode==='parked'?'Explore':mode==='walking'?(exit?exit.name+' · Coming soon':near?'Board ship':isEarth&&!isFernlilt?'Portals coming soon':'Return to ship'):'Taking off…');
+    secondary.hidden=mode!=='parked'&&!(isEarth&&!isFernlilt&&mode==='walking');text(secondary,mode==='walking'?'Return to orbit':'Take off');
+    text(status,mode==='descending'?site.name+' · Landing':mode==='parked'?site.name+' · Ship parked':mode==='walking'?(body.swimming?(body.fastSwimming?'Fast swimming':body.swimExhausted?(body.swimStamina>=.3?'Head-up swim · release Shift':'Head-up swim · recovering'):'Head-up swim'):body.wading?'Wading · head toward the shore to walk':body.swimExhausted?(body.swimStamina>=.3?'Tired · release Shift':'Tired · recovering'):site.conditions):site.name+' · Departure');
+    const noticeState=mode!=='walking'?mode:body.swimming?(body.fastSwimming?'fast-swim':body.swimExhausted?'tired-swim':'swim'):body.wading?'wade':body.swimExhausted?'tired':studied?'studied':'walking';
+    const noticeText=mode!=='walking'?objective.textContent:body.swimming||body.wading||body.swimExhausted?status.textContent:studied?'Discovery saved.':isEarth&&!isFernlilt?'Explore this area or return to orbit.':site.goal;
+    text(status,surfaceNotice.update(elapsed,noticeState,noticeText,3,elapsed<messageUntil?message:''));
     status.classList.toggle('visible',Boolean(status.textContent));
         text(pilotReadout,getPilotName());
     pilotReadout.hidden=mode!=='walking'||viewMode!=='first-person';
@@ -411,7 +416,8 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
     if(mode===next)return;
     const previous=mode;
     surfaceScanner.reset();scanUI.hidden=true;
-    mode=next;transitionTime=0;keys.clear();jumpPresses.length=0;boostSmoke.reset();wake?.reset();body.vx=body.vz=0;
+    mode=next;transitionTime=0;keys.clear();jumpPresses.length=0;boostSmoke.reset();wake?.reset();body.vx=body.vz=0;lastAudioWater=false;
+    if(next!=='walking'){boardEquipped=false;boardHeight=0;hoverboard.visible=false;}
     if(next!=='walking'){factPanel.hidden=true;observationRead=false;}
     app.classList.toggle('surface-walking',next==='walking');
     app.classList.toggle('surface-first-person',next==='walking'&&viewMode==='first-person');
@@ -457,9 +463,11 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
       viewMode=resume.viewMode==='first-person'?'first-person':'chase';
       sessionExplored=resume.explored===true||resume.mode==='walking';
       setMode(resume.mode);
+      boardEquipped=resume.mode==='walking'&&resume.hoverboard===true&&!body.swimming&&!body.wading;
       transitionTime=Number.isFinite(resume.transitionTime)?Math.max(0,resume.transitionTime):0;
       elapsed=Number.isFinite(resume.elapsed)?Math.max(0,resume.elapsed):0;
       astronaut.position.set(body.x,body.y,body.z);astronaut.rotation.y=Number.isFinite(resume.facing)?resume.facing:orbitYaw;
+      boardHeading=boardEquipped&&Number.isFinite(resume.boardHeading)?resume.boardHeading:astronaut.rotation.y;
       if(mode==='walking'||mode==='parked'){landedShip.position.y=restingHeight;landingGear.update(1);}
       if(welcomeIsRegion)welcomeUntil=elapsed+3.5;
       update(0);refresh();
@@ -480,7 +488,7 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
       setMode('walking');document.getElementById('universe').focus({preventScroll:true});
     }else if(mode==='walking'){
       const exit=isEarth?earthExitNear(region.id,body.x,body.z):null;
-      if(exit){keys.clear();onRegionTravel(exit.to);}
+      if(exit){message=exit.name+' · Coming soon';messageUntil=elapsed+2.5;}
       else if((!isEarth||isFernlilt)&&Math.hypot(body.x,body.z-4)<8)setMode('parked');
     }
   }
@@ -489,7 +497,17 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
     viewMode=next;blendCamera(.42);
     app.classList.toggle('surface-first-person',next==='first-person');refresh();
   }
-  const depart=()=>{if(mode==='parked')setMode('ascending');};
+  function toggleHoverboard(){
+    if(mode!=='walking'||!factPanel.hidden)return false;
+    const level=surfaceWater(body.x,body.z);
+    if(!boardEquipped&&(body.swimming||body.wading||Number.isFinite(level)&&body.y<level-.1)){
+      message='Equip on dry ground';messageUntil=elapsed+2.5;return false;
+    }
+    boardEquipped=!boardEquipped;if(boardEquipped)boardHeading=astronaut.rotation.y;
+    message=boardEquipped?'Hoverboard equipped':'Hoverboard put away';messageUntil=elapsed+2.5;
+    return true;
+  }
+  const depart=()=>{if(mode==='parked')setMode('ascending');else if(isEarth&&!isFernlilt&&mode==='walking')close(true);};
   primary.addEventListener('click',activate);
   secondary.addEventListener('click',depart);
   function update(dt,paused=false){
@@ -498,6 +516,7 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
     const step=paused?0:dt;
     if(paused)jumpPresses.length=0;
     elapsed+=step;transitionTime+=step;
+    if(portalRoutes)portalRoutes.userData.portalTime.value=reducedMotion.matches?0:elapsed;
     if(animatedWater)animatedWater.uniforms.time.value=reducedMotion.matches?0:elapsed;
     if(earthGrass)earthGrass.userData.update(body.x,body.z,elapsed,reducedMotion.matches,Math.max(0,camera.position.y-terrainHeight(camera.position.x,camera.position.z)),camera.position.x,camera.position.z);
     meadowGroundTime.value=reducedMotion.matches?0:elapsed;
@@ -535,25 +554,34 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
       const forward=Number(keys.has('KeyW')||keys.has('ArrowUp'))-Number(keys.has('KeyS')||keys.has('ArrowDown'));
       const side=Number(keys.has('KeyD')||keys.has('ArrowRight'))-Number(keys.has('KeyA')||keys.has('ArrowLeft'));
       const x=side*Math.cos(orbitYaw)-forward*Math.sin(orbitYaw),z=-side*Math.sin(orbitYaw)-forward*Math.cos(orbitYaw);
-      motion=stepAstronaut(body,{x,z,jumpPresses,run:keys.has('ShiftLeft')||keys.has('ShiftRight')},step,obstacles);
+      const wasGrounded=body.grounded;
+      motion=stepAstronaut(body,{x,z,jumpPresses,run:keys.has('ShiftLeft')||keys.has('ShiftRight'),hoverboard:boardEquipped},step,obstacles);
+      const waterLevel=surfaceWater(body.x,body.z),inWater=Number.isFinite(waterLevel)&&body.y<waterLevel-.1;
+      const audioWater=body.swimming||body.wading||inWater;
+      if(audioWater&&boardEquipped){boardEquipped=false;message='Hoverboard put away';messageUntil=elapsed+2.5;}
+      onMotion({...motion,distance:boardEquipped?0:motion.distance,inWater,grounded:boardEquipped?false:body.grounded,jumped:wasGrounded&&!body.grounded&&!audioWater&&body.vy>0,enteredWater:!lastAudioWater&&audioWater});lastAudioWater=audioWater;
       jumpPresses.length=0;
-      if(motion.boosted)boostSmoke.trigger();
+      if(motion.boosted){activeBoostNozzles=boardEquipped?boardNozzles:boostNozzles;boostSmoke.trigger();}
       if(motion.blocked==='boundary'){message='Edge of this area · follow a marked route to continue';messageUntil=elapsed+1.5;}
-      astronaut.position.set(body.x,body.y,body.z);
-      const facing=viewMode==='first-person'?orbitYaw:motion.speed>.1?Math.atan2(-body.vx,-body.vz):astronaut.rotation.y;
+      boardHeight=boardEquipped?.22+(reducedMotion.matches?0:Math.sin(elapsed*2)*.012):0;
+      astronaut.position.set(body.x,body.y+boardHeight,body.z);
+      if(boardEquipped&&motion.speed>.1)boardHeading=Math.atan2(-body.vx,-body.vz);
+      const facing=boardEquipped?boardHeading+Math.PI/2:viewMode==='first-person'?orbitYaw:motion.speed>.1?Math.atan2(-body.vx,-body.vz):astronaut.rotation.y;
       const turn=Math.atan2(Math.sin(facing-astronaut.rotation.y),Math.cos(facing-astronaut.rotation.y));
       astronaut.rotation.y+=THREE.MathUtils.clamp(turn,-(motion.running?6:4.5)*step,(motion.running?6:4.5)*step);
     }
     swimStamina.hidden=mode!=='walking'||!(body.swimming||body.running||body.swimStamina<.999||body.swimExhausted);
     swimMeter.value=body.swimStamina??1;text(swimPercent,Math.round((body.swimStamina??1)*100)+'%');
     wake?.update(step,{active:mode==='walking'&&(body.swimming||body.wading),x:body.x,z:body.z,speed:motion.speed,swimming:body.swimming,reduced:reducedMotion.matches});
-    rig.update(step,{...motion,grounded:body.grounded,swimming:body.swimming===true,vy:body.vy,time:elapsed,waterDepth:isEarth?(surfaceWater(body.x,body.z)??terrainHeight(body.x,body.z))-terrainHeight(body.x,body.z):0,reduced:reducedMotion.matches,groundHeight:(x,z)=>supportAt(x,z,body.y+.18,obstacles,terrainHeight,body.support).height});
+    hoverboard.visible=mode==='walking'&&boardEquipped;hoverboard.rotation.y=boardEquipped?-Math.PI/2:0;
+    if(portalRoutes)updateEarthPortalSigns(portalRoutes,body.x,body.z);
+    rig.update(step,{...motion,...(boardEquipped?{distance:0,speed:0,running:false,riding:true}:{}),grounded:body.grounded,swimming:body.swimming===true,vy:body.vy,time:elapsed,waterDepth:isEarth?(surfaceWater(body.x,body.z)??terrainHeight(body.x,body.z))-terrainHeight(body.x,body.z):0,reduced:reducedMotion.matches,groundHeight:(x,z)=>supportAt(x,z,body.y+.18,obstacles,terrainHeight,body.support).height+boardHeight});
     astronaut.updateWorldMatrix(true,true);
-    boostSmoke.update(step,boostNozzles,body,reducedMotion.matches);
+    boostSmoke.update(step,activeBoostNozzles,body,reducedMotion.matches);
     const walking=mode==='walking';
     if(walking&&viewMode==='first-person'){
       // Eye-height camera: no artificial head bob, and no visible inside of the helmet.
-      desiredCamera.set(body.x,body.y+rig.eyeHeight,body.z);
+      desiredCamera.set(body.x,body.y+boardHeight+rig.eyeHeight,body.z);
       if(isEarth)desiredCamera.y=regionCameraHeight(desiredCamera.x,desiredCamera.z,desiredCamera.y);
       camera.rotation.set(-orbitPitch,orbitYaw,0,'YXZ');
       desiredQuaternion.copy(camera.quaternion);
@@ -615,10 +643,12 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
     refresh();
   }
   return {
-    scene,camera,open,close,update,activate,setView,observe,closeFact,terrainHeight,waterLevelAt:surfaceWater,
+    scene,camera,open,close,update,activate,setView,observe,closeFact,terrainHeight,waterLevelAt:surfaceWater,toggleHoverboard,
+    get hoverboardEquipped(){return boardEquipped;},
+    get hoverboardSpeed(){return Math.hypot(body.vx||0,body.vz||0);},
     get regionId(){return isEarth?region.id:null;},get regionName(){return isEarth?region.name:site.title;},
     setGraphicsQuality(quality,scale){earthGrass?.userData.setQuality(quality,scale);},
-    snapshot(){if(mode==='closed'||mode==='departing')return null;return {worldId:site.id,regionId:isEarth?region.id:null,mode,position:{x:body.x,y:body.y,z:body.z,vy:body.vy,grounded:body.grounded,swimming:body.swimming,wading:body.wading,boostReady:body.boostReady===true,swimStamina:body.swimStamina,swimExhausted:body.swimExhausted===true},yaw:targetYaw,pitch:targetPitch,viewMode,facing:astronaut.rotation.y,explored:sessionExplored,transitionTime,elapsed};},
+    snapshot(){if(mode==='closed'||mode==='departing')return null;return {worldId:site.id,regionId:isEarth?region.id:null,mode,hoverboard:boardEquipped,boardHeading:boardEquipped?boardHeading:null,position:{x:body.x,y:body.y,z:body.z,vy:body.vy,grounded:body.grounded,swimming:body.swimming,wading:body.wading,boostReady:body.boostReady===true,swimStamina:body.swimStamina,swimExhausted:body.swimExhausted===true},yaw:targetYaw,pitch:targetPitch,viewMode,facing:astronaut.rotation.y,explored:sessionExplored,transitionTime,elapsed};},
     requestJump(code='KeyJ'){if(mode==='walking'&&!this.factOpen&&jumpPresses.length<2)jumpPresses.push(code);},
     get factOpen(){return !factPanel.hidden;},
     get worldId(){return site.id;},
@@ -633,7 +663,7 @@ export function createEarthSurface({ ship, keys, onExit, onEvent, getPilotName, 
     },
     get active(){return mode!=='closed';},get mode(){return mode;},get viewMode(){return viewMode;},
     drag(dx,dy){targetYaw-=dx*.006;targetPitch=THREE.MathUtils.clamp(targetPitch+dy*.004,-.75,1.05);},
-    get heading(){return astronaut.rotation.y;},
+    get heading(){return boardEquipped?boardHeading:astronaut.rotation.y;},
     get position(){const {support,...position}=body;return position;},
   };
 }

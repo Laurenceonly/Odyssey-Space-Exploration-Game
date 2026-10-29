@@ -12,12 +12,16 @@ export const EARTH_REGIONS=[
  {id:'teshora',name:'Teshora Coast',kind:'Coast',at:[0,1],ground:0xc5b5a0,sky:0xc4dce5,hue:37,description:'Sheltered beaches, rose-colored headlands, and open sea.'},
  {id:'hyskrum',name:'Hyskrum Tundra',kind:'Tundra',at:[0,-3],ground:0xd8e2e4,sky:0xc2d3e2,hue:202,description:'Snowdrifts, frost-covered ground, and a frozen mountain basin.'},
  {id:'uloqai',name:'Uloqai Ocean',kind:'Ocean',at:[1,2],ground:0xc8c6a2,sky:0xbfdde3,hue:172,description:'Turquoise shallows, reef pools, and sandy islets. Follow the dry causeway home.'},
-].map(region=>({...region,available:true}));
+ {id:'cirelune',name:'Cirelune Marsh',kind:'Marsh',at:[2,-.35],ground:0x82784f,sky:0xb4c2b3,hue:80,description:'A planned peat bog with dark pools, copper moss, and low mist.',available:false},
+ {id:'dorynth',name:'Dorynth Volcanic Fields',kind:'Volcanic',at:[2,.35],ground:0x514945,sky:0xc2b4a7,hue:24,description:'A planned landscape of cooled lava, steam vents, and warm springs.',available:false},
+].map(region=>({...region,available:region.available??true}));
 const byId=new Map(EARTH_REGIONS.map(r=>[r.id,r]));
 export const EARTH_CONNECTIONS=[
  ['fernlilt','rainselve'],['fernlilt','evrathen'],['fernlilt','vaelcren'],['fernlilt','ossamber'],['fernlilt','teshora'],['fernlilt','ashqarin'],
+ ['fernlilt','keltrond'],['fernlilt','hyskrum'],['fernlilt','uloqai'],
  ['rainselve','evrathen'],['rainselve','vaelcren'],['evrathen','keltrond'],['vaelcren','keltrond'],['vaelcren','nacreloom'],['nacreloom','fernlilt'],
  ['keltrond','hyskrum'],['ossamber','teshora'],['ashqarin','teshora'],['teshora','uloqai'],
+ ['fernlilt','cirelune'],['fernlilt','dorynth'],
 ];
 export const getEarthRegion=id=>byId.get(id)||byId.get('fernlilt');
 export const validEarthRegion=id=>byId.has(id);
@@ -35,6 +39,9 @@ export function earthRegionExits(id){
   const x=Math.sin(angle)*420,z=Math.cos(angle)*420;
   let path=[[6,7],[x*.45,z*.45],[x,z]];
   if(id==='fernlilt'){const approach=z< -100&&x>100?[[6,7],[7,-5],[-9,-15],[-16,-37],[-6,-48],[45,-90]]:z< -250&&Math.abs(x)<100?[[6,7],[7,-5],[-9,-15],[-16,-37],[-6,-48],[0,-90]]:x< -100&&z<100?[[6,7],[7,-5],[-9,-15],[-31,-13],[-70,-9]]:[[6,7],[18,32],[5,59]];path=[...approach,[x,z]];}
+  // The eastern entrances go around the ends of the creek rather than over its steepest banks.
+  if(id==='fernlilt'&&to==='cirelune')path=[[6,7],[7,-5],[-9,-15],[-16,-37],[-6,-48],[45,-90],[90,-225],[150,-300],[240,-300],[300,-200],[x,z]];
+  if(id==='fernlilt'&&to==='dorynth')path=[[6,7],[18,32],[5,59],[50,180],[120,300],[220,300],[300,200],[x,z]];
   return {to,name:target.name,x,z,path};
  });
  exitCache.set(id,exits);return exits;

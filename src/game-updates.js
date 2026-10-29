@@ -1,5 +1,33 @@
 export const gameUpdates = [
   {
+    "date": "2026-10-29",
+    "title": "Portals of Earth",
+    "summary": "Discover twelve destination-inspired portals across Fernlilt. The regions beyond them are coming soon.",
+    "notes": [
+      "Added: Discover massive, animated portals around Fernlilt, each shaped and colored for a planned Earth region, with a themed sign. The portals are closed for now.",
+      "Added: Cirelune Marsh and Dorynth Volcanic Fields appear on Earth’s map with their own closed entrances.",
+      "Improved: Nearby portal signs no longer show through the landscape or crowd each other.",
+      "Improved: Earth’s maps use destination-themed icons and matching colored route branches, with clearer labels.",
+      "Improved: Press H to equip or put away your hoverboard; double-jump exhaust now comes from the board while riding.",
+      "Added: A gentle hoverboard sound responds to riding speed.",
+      "Added: Equip a hoverboard from your backpack for faster surface exploration; hold Shift to ride faster and step into water to put it away.",
+      "Improved: The hoverboard matches the explorer's suit, with a sideways stance and the rider looking ahead.",
+      "Added: Open your new field backpack with B or its button while exploring; you can keep moving with it open.",
+      "Improved: Earth’s map and minimap show all four compass directions.",
+      "Added: Solar Sails plays when you land on Earth, with footsteps, running, swimming, wading, jump, and landing sounds during surface exploration.",
+      "Improved: Footsteps and water movement use natural recordings, with a softer suit boost sound.",
+      "Fixed: Water movement plays splashes instead of dry footsteps. Added gentle wind ambience on Earth.",
+      "Improved: Movement sounds, suit boost, and Earth wind are quieter and more naturally balanced with the music.",
+      "Fixed: The Earth map closes smoothly when using its close button.",
+      "Improved: Running keeps the astronaut's body steadier between strides.",
+      "Improved: Distant grass and map drawing use less work to help Earth exploration run more smoothly.",
+      "Improved: Landing above Earth uses lighter grass detail, which returns gradually as the ship descends.",
+      "Improved: High-altitude views draw fewer grass patches to help landing run more smoothly.",
+      "Improved: Detailed grass fades into the distant meadow closer to the player, reducing drawing work while preserving the landscape.",
+      "Improved: High graphics retains sharp resolution with lighter Earth grass, while Medium uses fewer detailed blades for smoother play."
+    ]
+  },
+  {
     "date": "2026-10-17",
     "title": "Wild grasslands",
     "summary": "Explore Fernlilt’s tall golden grass, winding trails, and shallow stream, with a live walking map and adjustable graphics.",
