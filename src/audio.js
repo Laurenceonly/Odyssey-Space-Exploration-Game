@@ -20,6 +20,19 @@ export function createShipAudio() {
   let boostNoiseGain;
   let boostNoiseFilter;
   let impactNoise;
+  let windGain,windFilter,boardAirGain,boardAirFilter,boardTone,boardToneGain;
+  const surfaceSamples=new Map();
+  const surfaceSampleUrls={
+    stepL1:'Fantozzi-footsteps/ogg/Fantozzi-SandL1.ogg',stepL2:'Fantozzi-footsteps/ogg/Fantozzi-SandL2.ogg',stepL3:'Fantozzi-footsteps/ogg/Fantozzi-SandL3.ogg',
+    stepR1:'Fantozzi-footsteps/ogg/Fantozzi-SandR1.ogg',stepR2:'Fantozzi-footsteps/ogg/Fantozzi-SandR2.ogg',stepR3:'Fantozzi-footsteps/ogg/Fantozzi-SandR3.ogg',
+    splash1:'splash1.wav',splash2:'splash2.wav',
+  };
+  function loadSurfaceSamples(){
+    if(!context?.decodeAudioData||typeof fetch!=='function')return;
+    for(const [name,path] of Object.entries(surfaceSampleUrls))fetch(`${import.meta.env?.BASE_URL||'/'}sounds/surface/${path}`)
+      .then(response=>{if(!response.ok)throw new Error('Sound unavailable');return response.arrayBuffer();})
+      .then(data=>context.decodeAudioData(data)).then(buffer=>surfaceSamples.set(name,buffer)).catch(()=>{});
+  }
   let lastAsteroidImpactAt=-Infinity;
   let lastSignalAt=-Infinity;
   let musicBus;
@@ -60,6 +73,7 @@ export function createShipAudio() {
   let nextChordTime=0;
   let chordIndex=0;
   let musicSelection='playlist';
+  let earthMusic=false;
   let activeTrackId='odyssey';
   let enabled=true;
   let musicVolume=1;
@@ -136,7 +150,7 @@ export function createShipAudio() {
     if (ready && !musicSource) { activateTrack(activeTrackId, now + .04, ready); return; }
     if (musicSource) {
       if(pendingTrackId)return;
-      if (musicSelection === 'playlist' && now >= nextTrackTime - 2) {
+      if (!earthMusic && musicSelection === 'playlist' && now >= nextTrackTime - 2) {
         const nextId = playlistTrackIds[(playlistTrackIds.indexOf(activeTrackId) + 1) % playlistTrackIds.length];
         const nextBuffer = renderedLoops.get(nextId)?.buffer;
         if (nextBuffer) activateTrack(nextId, Math.max(nextTrackTime, now + .04), nextBuffer);
@@ -148,7 +162,7 @@ export function createShipAudio() {
     // above never relies on a timer to keep the current track audible.
     if (nextChordTime < now - 1) nextChordTime = now + .08;
     while (nextChordTime < now + 4) {
-      if (musicSelection === 'playlist' && chordIndex >= 8) activateTrack(playlistTrackIds[(playlistTrackIds.indexOf(activeTrackId) + 1) % playlistTrackIds.length], nextChordTime);
+      if (!earthMusic && musicSelection === 'playlist' && chordIndex >= 8) activateTrack(playlistTrackIds[(playlistTrackIds.indexOf(activeTrackId) + 1) % playlistTrackIds.length], nextChordTime);
       if(musicSource)return;
       scheduleChord(nextChordTime); nextChordTime += scores[activeTrackId].interval;
     }
@@ -179,6 +193,19 @@ export function createShipAudio() {
       const samples=noiseBuffer.getChannelData(0);
       for(let i=0;i<samples.length;i++)samples[i]=Math.random()*2-1;
       impactNoise=noiseBuffer;
+      loadSurfaceSamples();
+      const wind=context.createBufferSource();wind.buffer=noiseBuffer;wind.loop=true;
+      windFilter=context.createBiquadFilter();windFilter.type='lowpass';windFilter.frequency.value=420;
+      windGain=context.createGain();windGain.gain.value=0;
+      wind.connect(windFilter);windFilter.connect(windGain);windGain.connect(master);wind.start();
+      // A subdued air layer and low motor tone respond to actual riding speed.
+      const boardAir=context.createBufferSource();boardAir.buffer=noiseBuffer;boardAir.loop=true;
+      boardAirFilter=context.createBiquadFilter();boardAirFilter.type='bandpass';boardAirFilter.frequency.value=280;boardAirFilter.Q.value=.55;
+      boardAirGain=context.createGain();boardAirGain.gain.value=0;
+      boardAir.connect(boardAirFilter);boardAirFilter.connect(boardAirGain);boardAirGain.connect(master);boardAir.start();
+      boardTone=context.createOscillator();boardTone.type='sine';boardTone.frequency.value=62;
+      boardToneGain=context.createGain();boardToneGain.gain.value=0;
+      boardTone.connect(boardToneGain);boardToneGain.connect(master);boardTone.start();
       const air=context.createBufferSource();air.buffer=noiseBuffer;air.loop=true;
       airFilter=context.createBiquadFilter();airFilter.type='bandpass';airFilter.frequency.value=600;airFilter.Q.value=.7;
       airGain=context.createGain();airGain.gain.value=0;
@@ -258,7 +285,9 @@ export function createShipAudio() {
 
   function setMusicSelection(id) {
     if(!musicTracks.some(track=>track.id===id))return musicSelection;
-    if(id===musicSelection)return musicSelection;
+    const wasEarthMusic=earthMusic;
+    earthMusic=false;
+    if(id===musicSelection){if(wasEarthMusic)changeTrack(id==='playlist'?'odyssey':id);return musicSelection;}
     musicSelection=id;
     try{localStorage.setItem('odyssey-music-track',id);}catch{}
     const nextId=id==='playlist'?'odyssey':id;
@@ -347,6 +376,57 @@ export function createShipAudio() {
     noise.onended=()=>{noise.disconnect();filter.disconnect();level.disconnect();};
   }
 
+  let surfaceDistance=0,surfaceKind='',surfaceStep=0,surfaceSplash=0;
+  function playSurfaceSample(name,volume,rate=1,maxDuration=Infinity,offset=0){
+    const buffer=surfaceSamples.get(name);if(!buffer)return false;
+    const source=context.createBufferSource(),level=context.createGain();source.buffer=buffer;source.playbackRate.value=rate;
+    const now=context.currentTime,available=Math.max(0,buffer.duration-offset)/rate,duration=Math.min(available,maxDuration);
+    if(duration<=0)return false;
+    level.gain.setValueAtTime(volume,now);
+    if(Number.isFinite(maxDuration)&&duration<available){level.gain.setValueAtTime(volume,now+Math.max(0,duration-.08));level.gain.linearRampToValueAtTime(0,now+duration);}
+    source.connect(level);level.connect(master);source.start(now,offset);source.stop(now+duration+.01);
+    source.onended=()=>{source.disconnect();level.disconnect();};return true;
+  }
+  function surfaceMotion({distance=0,grounded=false,swimming=false,wading=false,inWater=false,running=false,fastSwimming=false,jumped=false,boosted=false,landed=false,enteredWater=false}={}) {
+    if(!context||!enabled||context.state!=='running')return;
+    const now=context.currentTime;
+    if(enteredWater&&!playSurfaceSample('splash1',.28,1,.6,.48))playImpactNoise(now,.25,'bandpass',1100,.045,.02);
+    if(jumped&&!inWater&&!swimming&&!wading&&!playSurfaceSample('stepL1',.14,1.15,.2))playImpactNoise(now,.1,'bandpass',800,.035,.01);
+    if(boosted)playImpactNoise(now,.32,'lowpass',420,.045,.06);
+    if(landed&&!inWater&&!swimming&&!wading&&!playSurfaceSample('stepR1',.24,.9,.3))playImpactNoise(now,.13,'bandpass',700,.045,.01);
+    const kind=swimming?'swim':wading||inWater?'wade':grounded?(running?'run':'walk'):'';
+    if(kind!==surfaceKind){surfaceDistance=0;surfaceKind=kind;}
+    if(!kind||distance<=0)return;
+    surfaceDistance+=distance;
+    const spacing=kind==='swim'?(fastSwimming?.9:1.15):kind==='run'?1.65:kind==='wade'?.95:1.1;
+    if(surfaceDistance<spacing)return;
+    surfaceDistance%=spacing;
+    if(kind==='swim'||kind==='wade'){
+      const sample=++surfaceSplash%2?'splash1':'splash2';
+      if(!playSurfaceSample(sample,kind==='swim'?.25:.2,kind==='swim'?1.05:1.15,.4,sample==='splash1'?.48:.58))playImpactNoise(now,.2,'bandpass',1100,.045,.02);
+    }else{
+      const step=surfaceStep++,sample=`step${step%2?'R':'L'}${Math.floor(step/2)%3+1}`;
+      if(!playSurfaceSample(sample,kind==='run'?.25:.18,kind==='run'?1.08:1))playImpactNoise(now,.1,'bandpass',800,.035,.01);
+    }
+  }
+  function setEarthWind(active){
+    if(!context||!windGain||!enabled)return;
+    const now=context.currentTime;
+    windGain.gain.setTargetAtTime(active?.018*(.8+.2*Math.sin(now*.19)):0,now,active?1:0.35);
+    windFilter.frequency.setTargetAtTime(380+90*Math.sin(now*.13),now,1);
+  }
+  function setHoverboardSound(active,speed=0){
+    if(!context||!boardAirGain||!enabled)return;
+    const now=context.currentTime,amount=Math.max(0,Math.min(1,(Number.isFinite(speed)?speed:0)/12));
+    const moving=active&&amount>.03;
+    boardAirGain.gain.setTargetAtTime(moving?.012+amount*.025:0,now,.22);
+    boardAirFilter.frequency.setTargetAtTime(240+amount*440,now,.25);
+    boardTone.frequency.setTargetAtTime(58+amount*45,now,.25);
+    boardToneGain.gain.setTargetAtTime(moving?.002+amount*.004:0,now,.22);
+  }
+  function enterEarthMusic(){if(earthMusic)return;earthMusic=true;changeTrack('sails');}
+  function leaveEarthMusic(){surfaceDistance=0;surfaceKind='';if(!earthMusic)return;earthMusic=false;changeTrack(musicSelection==='playlist'?'odyssey':musicSelection);}
+
   function asteroidImpact(broken,speed,size=1,pan=0,severity=Math.min(1,speed/32)) {
     if(!context||!enabled)return;
     const now=context.currentTime;
@@ -378,5 +458,5 @@ export function createShipAudio() {
     setTimeout(()=>panner.disconnect(),1000);
   }
 
-  return {start,isRunning,isPlaying,onStateChange(listener){stateListeners.add(listener);listener();return()=>stateListeners.delete(listener);},setEnabled,setMusicVolume,getMusicVolume:()=>Math.round(musicVolume*100),setMusicSelection,nextTrack(){const id=playlistTrackIds[(playlistTrackIds.indexOf(pendingTrackId||activeTrackId)+1)%playlistTrackIds.length];if(musicSelection==='playlist'){changeTrack(id);return id;}return setMusicSelection(id);},getPendingTrackName:()=>musicTracks.find(track=>track.id===pendingTrackId)?.name.split(' · ')[0]||null,getMusicSelection:()=>musicSelection,getActiveTrackName:()=>musicTracks.find(track=>track.id===audibleTrackId())?.name.split(' · ')[0]||'Odyssey',update,signalPulse,cue,asteroidImpact,isEnabled:()=>enabled,isSupported:()=>Boolean(AudioContextClass)};
+  return {start,isRunning,isPlaying,onStateChange(listener){stateListeners.add(listener);listener();return()=>stateListeners.delete(listener);},setEnabled,setMusicVolume,getMusicVolume:()=>Math.round(musicVolume*100),setMusicSelection,nextTrack(){earthMusic=false;const id=playlistTrackIds[(playlistTrackIds.indexOf(pendingTrackId||activeTrackId)+1)%playlistTrackIds.length];if(musicSelection==='playlist'){changeTrack(id);return id;}return setMusicSelection(id);},getPendingTrackName:()=>musicTracks.find(track=>track.id===pendingTrackId)?.name.split(' · ')[0]||null,getMusicSelection:()=>musicSelection,getActiveTrackName:()=>musicTracks.find(track=>track.id===audibleTrackId())?.name.split(' · ')[0]||'Odyssey',update,signalPulse,cue,asteroidImpact,surfaceMotion,setEarthWind,setHoverboardSound,enterEarthMusic,leaveEarthMusic,isEnabled:()=>enabled,isSupported:()=>Boolean(AudioContextClass)};
 }
