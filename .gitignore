@@ -1,12 +1,38 @@
+# Dependencies and generated output
 node_modules/
 dist/
-.playwright-cli/
-output/playwright/
-.vercel/
-.openai/
-output/deploy-playtest.mjs
-output/odyssey-playtest.tar.gz
-output/playtest-site/
+output/
+playwright-report/
+test-results/
 
-.vercel
+# Local environment and credentials
 .env*
+.npmrc
+.netrc
+.aws/
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Local tools and deployment state
+.agents/
+.codex/
+.impeccable/
+.openai/
+.playwright/
+.playwright-cli/
+.vercel/
+skills/
+AGENTS.md
+SKILL.md
+
+# Working notes and unreleased design material
+/COMMIT_NOTES_TEMP.md
+/docs/DESIGN_DIRECTION.md
+/docs/EARTH_EXPLORATION_PLAN.md
+/docs/EARTH_REGION_LAYOUT.md
+/docs/UPDATE_ROADMAP.md
+/docs/VALIDATION.md
+/docs/WORK_LOG.md
+/docs/images/earth-region-layout.svg

@@ -2,7 +2,7 @@
 
 All dates and times use **Asia/Manila (UTC+08:00)**. Entries appear newest first in Git history order and use the commit timestamp; rebased commits also show their original author time when it differs.
 
-This file is generated from local Git history. Commit messages describe the work as recorded at the time; they do not prove a deployment or test result. Uncommitted edits are recorded separately in [the work log](docs/WORK_LOG.md).
+This file records changes from Git history. The game's Update history shows player-facing changes.
 
 Refresh after committing changes:
 
