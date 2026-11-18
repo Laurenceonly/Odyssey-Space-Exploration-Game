@@ -1,19 +1,23 @@
 # Odyssey — Solar System Explorer
 
-Odyssey is a 3D browser game about traveling through a stylized solar system. Pilot a ship past Saturn's rings, scan landmarks from orbit, or land on Earth and follow Fernlilt's trails by hoverboard.
+*For my brother, who inspired me to make this game.*
 
-[Play Odyssey](https://odyssey-explorer-psi.vercel.app/) on a desktop or laptop with a keyboard and mouse.
+I built Odyssey so my brother could learn about the solar system by exploring it himself. He can pilot a ship to Saturn, see its rings up close, and open the Field Guide to learn what they're made of. I wanted the facts to be there when he had a question, right beside the world that made him curious.
 
-![Saturn and its rings in Odyssey, with the Destinations panel and Field Guide open](docs/images/odyssey-saturn.webp)
+**[Play Odyssey](https://odyssey-explorer-psi.vercel.app/)** on a desktop or laptop with a keyboard and mouse.
 
-## Explore the solar system
+![Odyssey's title screen with Earth at night, the Moon, and the Sun visible](docs/images/odyssey-title-screen.png)
 
-- **Discovery** starts with unidentified destinations. Aim at a world and hold **R** to scan it and unlock its Field Guide entry.
-- **Exploration** opens the destination list immediately. Fly manually, select a destination and engage autopilot, or follow an optional Voyage.
-- **Planetary visits** let you land on all eight planets and the Moon after approaching in your ship. Find the survey marker to record a local observation. Earth also has swimming, a terrain map, and a hoverboard.
-- **Walk inside** opens the cabin and cockpit, where the windows show the live view outside your ship. The Captain's Log records encounters and discoveries, and the photo gallery keeps your snapshots.
+## What you can explore
 
-Fernlilt's twelve themed portals mark planned Earth destinations. Their gates are currently closed. Flight progress, discoveries, and photos are stored in your browser.
+- **Discovery** gives you a sky full of unidentified destinations. Aim at a world and hold **R** to identify it and add it to your Field Guide.
+- **Exploration** gives you the full destination list from launch. Fly past the Moon, set a course for Jupiter with autopilot, or follow a guided Voyage.
+- **Surface visits** let you land on all eight planets and the Moon. Follow survey flags to local landmarks, or take the hoverboard through the Fernlilt Grasslands on Earth.
+- **Your ship** has a walkable cabin and cockpit with live views through the windows. Discoveries, encounters, and photos are saved in your browser.
+
+## Where Odyssey is headed
+
+I'm planning to grow Odyssey into a bigger exploration game, with more places to land and more ways to learn once you're there. On Earth, Fernlilt's twelve closed portals mark regions I'd like to make explorable, including Cirelune Marsh and the Dorynth Volcanic Fields.
 
 ## Flight controls
 
